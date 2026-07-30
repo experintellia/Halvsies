@@ -92,31 +92,31 @@ Identity: on first open, auto-register self as member via `webxdc.selfAddr`/`sel
 
 ### M1 — Core ledger (parity with Divvy Bill)
 
-- [ ] Scaffold: Vite + Preact + TS + pnpm; `webxdc-dev` script; zip build producing `dist-xdc/app.xdc`; CI-able `pnpm build && pnpm test`.
-- [ ] `CLAUDE.md` with commands, webxdc constraints, money/determinism rules.
-- [ ] Yjs doc + y-webxdc provider wired; self-registration of members; late-joiner replay works.
-- [ ] Expense CRUD. Form: amount-first; payer defaults to self; participants default to all; split defaults to even; weights and exact-amounts one tap away. Even-split remainder cents distributed deterministically (by member id order).
-- [ ] `balances.ts`: net balance per member from expenses + settlements. Pure, unit-tested (sum of balances === 0 always).
-- [ ] `simplify.ts`: greedy min-cash-flow transfer suggestions. Pure, deterministic, unit-tested (suggested transfers exactly zero all balances).
-- [ ] Balances screen: net per member + suggested transfers list.
-- [ ] Record settlement ("mark as paid" without pay-up yet) → posts `sendUpdate` info line ("Simon paid Anna €23.50").
-- [ ] Chat integration: info lines on add/edit ("Simon added *Pizza* — €30.00"), summary ("3 open debts · €57.20") via provider `getEditInfo`.
-- [ ] JSON export/import (full doc snapshot) via `webxdc.sendToChat` file / `importFiles`.
-- [ ] Dark/light theme following `prefers-color-scheme`; responsive mobile+desktop.
+- [x] Scaffold: Vite + Preact + TS + pnpm; `webxdc-dev` script; zip build producing `dist-xdc/halvsies.xdc`; CI-able `pnpm build && pnpm test`.
+- [x] `CLAUDE.md` with commands, webxdc constraints, money/determinism rules.
+- [x] Yjs doc + y-webxdc provider wired; self-registration of members; late-joiner replay works.
+- [x] Expense CRUD. Form: amount-first; payer defaults to self; participants default to all; split defaults to even; weights and exact-amounts one tap away. Even-split remainder cents distributed deterministically (by member id order).
+- [x] `balances.ts`: net balance per member from expenses + settlements. Pure, unit-tested (sum of balances === 0 always).
+- [x] `simplify.ts`: greedy min-cash-flow transfer suggestions. Pure, deterministic, unit-tested (suggested transfers exactly zero all balances).
+- [x] Balances screen: net per member + suggested transfers list.
+- [x] Record settlement ("mark as paid" without pay-up yet) → posts `sendUpdate` info line ("Simon paid Anna €23.50").
+- [x] Chat integration: info lines on add/edit ("Simon added *Pizza* — €30.00"), summary ("3 open debts · €57.20") via provider `getEditInfo`.
+- [x] JSON export/import (full doc snapshot) via `webxdc.sendToChat` file / `importFiles`.
+- [x] Dark/light theme following `prefers-color-scheme`; responsive mobile+desktop.
 - **Done when:** 3 simulated peers in `webxdc-dev` can add/edit expenses (incl. concurrently/offline), all converge to identical balances and suggestions; tests green; `.xdc` < 1 MB.
 
 ### M2 — Pay-up helpers ⭐ (the differentiator)
 
-- [ ] `ProfileForm`: edit own payment profile; IBAN mod-97 validation, PayPal.Me handle format check; live preview "what others see"; hint that the profile is visible to this chat's members.
-- [ ] `links.ts` generators (pure, tested):
+- [x] `ProfileForm`: edit own payment profile; IBAN mod-97 validation, PayPal.Me handle format check; live preview "what others see"; hint that the profile is visible to this chat's members.
+- [x] `links.ts` generators (pure, tested):
   - PayPal: `https://paypal.me/<user>/<amount><CUR>` e.g. `/23.50EUR`
   - Revolut: `https://revolut.me/<tag>` · Wise: `https://wise.com/pay/me/<tag>` · Venmo: `https://venmo.com/u/<user>`
   - Monzo (UK, GBP only): `https://monzo.me/<user>/<amount>?d=<reference>` e.g. `https://monzo.me/anna/23.50?d=Halvsies%3A%20Rome%20trip`. Payer needs no Monzo account (UK debit card / Apple Pay / Google Pay). Enforce limits in UI hint: £1–£100 per payment, recipient max £1,000 per 30 days. Only offer when debt currency is GBP.
   - Custom template: substitute `{amount}` `{currency}` `{ref}`; treat as power-user escape hatch (Twint, MobilePay, PayNow…).
-- [ ] `epcqr.ts`: EPC069-12 payload (`BCD/002/1/SCT/BIC?/Name/IBAN/EUR23.50/…/reference`) + render QR in-app. Reference auto-set to group/expense context ("Halvsies: Rome trip").
-- [ ] `PayUpSheet`: from a debt row ("You owe Anna €23.50") show Anna's available methods, amount pre-filled. Per method offer **all** of: tappable link, copy-to-clipboard, QR (bank + PayPal), and **Send to chat** (`webxdc.sendToChat({text})` — link lands as tappable chat message and doubles as "I'm paying now" announcement).
-- [ ] "Mark as paid" from the sheet → settlement recorded, info line posted, balances update.
-- [ ] Reverse direction: from "Anna owes you" row, **Request** generates your own link/QR and sends a friendly nudge to chat.
+- [x] `epcqr.ts`: EPC069-12 payload (`BCD/002/1/SCT/BIC?/Name/IBAN/EUR23.50/…/reference`) + render QR in-app. Reference auto-set to group/expense context ("Halvsies: Rome trip").
+- [x] `PayUpSheet`: from a debt row ("You owe Anna €23.50") show Anna's available methods, amount pre-filled. Per method offer **all** of: tappable link, copy-to-clipboard, QR (bank + PayPal), and **Send to chat** (`webxdc.sendToChat({text})` — link lands as tappable chat message and doubles as "I'm paying now" announcement).
+- [x] "Mark as paid" from the sheet → settlement recorded, info line posted, balances update.
+- [x] Reverse direction: from "Anna owes you" row, **Request** generates your own link/QR and sends a friendly nudge to chat.
 - **Done when:** end-to-end on a real device: open debt → PayUpSheet → banking app scans EPC QR with correct IBAN/amount/reference; PayPal.Me link opens pre-filled; settlement zeroes the debt on all peers.
 
 ### M3 — Comfort features
@@ -148,12 +148,41 @@ Identity: on first open, auto-register self as member via `webxdc.selfAddr`/`sel
 - All derived data computed from the Y.Doc in pure functions — components never mutate state except through typed accessors in `state/doc.ts`.
 - Ids: ULID-like sortable strings (timestamp passed in, not `Date.now()` inside pure functions — keep functions testable).
 - Commits per task checkbox; conventional-commit style messages.
-- After each milestone: update this file (check boxes, note deviations), bump `manifest.toml` version.
+- After each milestone: update this file (check boxes, note deviations). ~~bump
+  `manifest.toml` version~~ — **correction:** the webxdc manifest has no
+  `version` field (it takes `name` and `source_code_url` only). The version
+  lives in `package.json` and the `vX.Y.Z` git tag that triggers the release.
+
+## 7a. Deviations from this plan (M1 + M2, 2026-07-30)
+
+- **Artifact name** is `dist-xdc/halvsies.xdc`, not `app.xdc`. `webxdcViteConfig()`
+  hardcodes `app.xdc` with no override, so `vite.config.ts` composes the same
+  plugin set by hand (`buildXDC({outFileName}) + eruda + mockWebxdc +
+  secureContext`) instead of calling it.
+- **`y-webxdc` 1.3.0**, not 1.2.0. 1.3.0 ships its own types and exports
+  `WebxdcProvider` as a **named** export; up to 1.2.0 it was an untyped
+  *default* export. There is deliberately no local `declare module "y-webxdc"` —
+  it would shadow the real types and let `tsc` pass while the bundler fails
+  (which is exactly what happened before it was removed).
+- **No `vite-plugin-singlefile`** (§2 offered it as an option): unnecessary,
+  `buildXDC` already zips.
+- **Manual checklist lives at `test/MANUAL.md`**, not `tests/MANUAL.md` — one
+  test directory, not two near-identical ones.
+- **Browser floor is `safari14.1`**, not `safari14`: the layout uses flexbox
+  `gap`, which WebKit shipped in 14.1. Declared honestly in `vite.config.ts`
+  rather than hand-rolling margin fallbacks for a population that no longer
+  exists.
+- **`build.modulePreload.polyfill` is off** so the bundle contains no `fetch(`
+  at all — it was dead code in a single-chunk build, but "no network calls" is
+  worth keeping greppable.
+- **M3 is not started.** M4 is partially done: license (MIT), README, CI +
+  release workflow, icon, size audit. Cross-messenger testing, i18n, the
+  accessibility pass and the app-store submission are outstanding.
 
 ## 8. Open questions / risks
 
 - External-link opening varies by messenger version → UX treats copy/QR/sendToChat as primary (already designed in).
 - PayPal.Me availability varies by country/account; validate format only, let users test via profile preview.
-- Name decided: **Halvsies** ("going halvsies"). No competing app found in the payments/splitting space as of 2026-07-30; halvsies.com is taken (unrelated), halvsies.app looked unregistered. License still to be decided before first release (M4 blocker, not M1).
+- Name decided: **Halvsies** ("going halvsies"). No competing app found in the payments/splitting space as of 2026-07-30; halvsies.com is taken (unrelated), halvsies.app looked unregistered. ~~License still to be decided before first release~~ — **decided: MIT** (no Divvy Bill code was borrowed, so the AGPL trigger in §2 never applied).
 - Monzo.me amount-links are GBP/UK only and capped (£100/payment) — the generator must currency-gate this method and surface the cap, so users aren't handed a link that fails for a €230 debt.
 - Regional QR standards (Swiss QR-bill, BezahlCode) — covered by custom template for now; revisit after user feedback.
