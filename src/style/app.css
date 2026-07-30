@@ -1,0 +1,401 @@
+/*
+ * Halvsies stylesheet — the shared design contract for all screens.
+ *
+ * Custom properties (defined in :root, overridden for dark mode below):
+ *   --color-bg           page background
+ *   --color-surface      card/row/sheet background
+ *   --color-surface-2    a step darker/lighter than --color-surface
+ *                        (pressed states, input backgrounds)
+ *   --color-text         primary text
+ *   --color-text-dim     secondary/meta text
+ *   --color-border       hairline borders
+ *   --color-accent       warm teal brand accent (active tab, primary button,
+ *                        focus ring)
+ *   --color-accent-contrast  text/icon colour on top of --color-accent
+ *   --color-positive     "you are owed" / credit amounts
+ *   --color-negative     "you owe" / debt amounts
+ *   --color-danger       destructive actions
+ *   --color-danger-contrast text/icon colour on top of --color-danger
+ *   --radius             standard corner radius
+ *   --shadow             standard elevation shadow
+ *   --safe-bottom        env() safe-area inset, for bottom-pinned UI
+ *   --z-sheet            z-index for Sheet/overlay (50); list rows use 1
+ *
+ * Money figures: use the `.money` utility (tabular-nums) plus `.money-positive`
+ * / `.money-negative` — the two are distinguished by colour AND weight/prefix
+ * (bold + the sign character from formatMoney's own output), not colour alone,
+ * so they stay legible for colour-blind users.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --color-bg: #f4f5f6;
+  --color-surface: #ffffff;
+  --color-surface-2: #eceeef;
+  --color-text: #1a1d1e;
+  --color-text-dim: #6b7377;
+  --color-border: #dde1e2;
+
+  --color-accent: #0f766e;
+  --color-accent-contrast: #ffffff;
+
+  --color-positive: #0f7a4a;
+  --color-negative: #b3261e;
+  --color-danger: #b3261e;
+  --color-danger-contrast: #ffffff;
+
+  --radius: 14px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --z-sheet: 50;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #101213;
+    --color-surface: #1b1e1f;
+    --color-surface-2: #26292b;
+    --color-text: #f0f2f2;
+    --color-text-dim: #9aa2a5;
+    --color-border: #34383a;
+
+    --color-accent: #2dd4bf;
+    --color-accent-contrast: #06231f;
+
+    --color-positive: #4ade80;
+    --color-negative: #ff6b63;
+    --color-danger: #ff6b63;
+    --color-danger-contrast: #2a0705;
+
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* ---- app shell ---- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 640px; /* cap width on desktop; still full-bleed on phones */
+  margin: 0 auto;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.app-currency {
+  color: var(--color-text-dim);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-content {
+  flex: 1;
+  padding: 12px 16px calc(16px + var(--safe-bottom));
+  overflow-y: auto;
+}
+
+.placeholder {
+  color: var(--color-text-dim);
+  text-align: center;
+  padding: 40px 16px;
+}
+
+/* ---- tab bar ---- */
+
+.tab-bar {
+  display: flex;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding-bottom: var(--safe-bottom);
+  position: sticky;
+  bottom: 0;
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px 6px;
+  border: none;
+  background: none;
+  color: var(--color-text-dim);
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  color: var(--color-accent);
+}
+
+.tab-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.tab-label {
+  font-size: 0.72rem;
+}
+
+/* ---- list rows ---- */
+
+.row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  margin: 0 0 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:active {
+  background: var(--color-surface-2);
+}
+
+/* ---- sheet / modal ---- */
+
+.sheet-backdrop {
+  position: fixed;
+  /* Longhands first: the `inset` shorthand is Safari 14.1+, and without them
+     a 14.0 webview leaves the backdrop unpositioned — it shrinks to content
+     size and the sheet lands somewhere off-screen. */
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  inset: 0;
+  z-index: var(--z-sheet);
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 640px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow);
+  padding: 0 16px calc(16px + var(--safe-bottom));
+  transform: translateY(0);
+  transition: transform 0.2s ease-out;
+}
+
+.sheet-grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  margin: 10px auto;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sheet-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.sheet-close {
+  border: none;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ---- buttons ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.btn-secondary {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: var(--color-danger-contrast);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- form fields ---- */
+
+.field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--color-text-dim);
+  margin-bottom: 4px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.field-suffix {
+  color: var(--color-text-dim);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* text-mode amount input: no number spinners, since it's type="text" already;
+   this belt-and-suspenders rule only matters if a caller ever swaps types. */
+.amount-input {
+  -moz-appearance: textfield;
+  font-variant-numeric: tabular-nums;
+}
+.amount-input::-webkit-outer-spin-button,
+.amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ---- money figures ---- */
+
+.money {
+  font-variant-numeric: tabular-nums;
+}
+
+.money-positive {
+  color: var(--color-positive);
+  font-weight: 700;
+}
+
+.money-negative {
+  color: var(--color-negative);
+  font-weight: 700;
+}
+
+/* ---- avatar ---- */
+
+.avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ---- QR ---- */
+
+.qr-code {
+  display: block;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.qr-fallback {
+  color: var(--color-text-dim);
+  font-size: 0.9rem;
+}
+
+/* ---- misc ---- */
+
+@media (min-width: 700px) {
+  .app-shell {
+    border-left: 1px solid var(--color-border);
+    border-right: 1px solid var(--color-border);
+    min-height: 100vh;
+  }
+}
