@@ -1,0 +1,48 @@
+# Format-check, test and build on every push and pull request.
+# (Typecheck runs inside `pnpm build`, which is `tsc --noEmit && vite build`.)
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # No version pin: action-setup reads `packageManager` from package.json,
+      # so CI uses exactly the pnpm that produced pnpm-lock.yaml.
+      - uses: pnpm/action-setup@v4
+      # setup-node must come AFTER pnpm/action-setup, or the pnpm cache lookup fails.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm check
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Upload preview .xdc artifact
+        if: github.event_name == 'pull_request'
+        id: upload_xdc
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-xdc
+          path: dist-xdc/halvsies.xdc
+          retention-days: 30
+      - name: Post sticky PR comment with preview link
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: xdc-preview
+          message: |
+            ## 📦 Preview build ready
+
+            [Download halvsies.xdc](${{ steps.upload_xdc.outputs.artifact-url }}) and drop it into a Delta Chat chat to test this PR.

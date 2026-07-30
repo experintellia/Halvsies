@@ -1,0 +1,35 @@
+# Build the .xdc and attach it to a GitHub Release when a vX.Y.Z tag is pushed.
+# Release ritual: git tag v0.1.0 && git push origin v0.1.0
+name: Release .xdc
+on:
+  push:
+    tags:
+      - "v*.*.*"
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # No version pin: action-setup reads `packageManager` from package.json,
+      # so CI uses exactly the pnpm that produced pnpm-lock.yaml.
+      - uses: pnpm/action-setup@v4
+      # setup-node must come AFTER pnpm/action-setup, or the pnpm cache lookup fails.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-xdc/*.xdc
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
