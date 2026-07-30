@@ -1,0 +1,34 @@
+{
+  "name": "halvsies",
+  "private": true,
+  "packageManager": "pnpm@11.10.0",
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite --host --port 3000",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:peers": "concurrently \"pnpm dev\" \"webxdc-dev run http://localhost:3000\"",
+    "check": "prettier --check .",
+    "fix": "prettier --write .",
+    "make-icon": "node scripts/make-icon.mjs"
+  },
+  "dependencies": {
+    "preact": "^10.29.7",
+    "qrcode-generator": "^2.0.4",
+    "y-webxdc": "^1.2.0",
+    "yjs": "^13.6.31"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@webxdc/types": "^2.2.0",
+    "@webxdc/vite-plugins": "^2.0.0",
+    "@webxdc/webxdc-dev": "^0.21.0",
+    "concurrently": "^10.0.3",
+    "happy-dom": "^20.10.6",
+    "prettier": "^3.9.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.0",
+    "vitest": "^4.1.9"
+  }
+}
