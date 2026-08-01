@@ -105,8 +105,11 @@ describe("monzo", () => {
 describe("custom template", () => {
   it("substitutes amount, currency and ref, with ref URL-encoded", () => {
     const m = customLink(
-      "Twint",
-      "https://pay.example/{amount}/{currency}/{ref}",
+      {
+        id: "c1",
+        label: "Twint",
+        urlTemplate: "https://pay.example/{amount}/{currency}/{ref}",
+      },
       2350,
       "CHF",
       "rent & bills",
@@ -129,7 +132,12 @@ describe("custom template", () => {
 
   it("rejects an unsafe custom template entirely (no method emitted)", () => {
     expect(
-      customLink("Evil", "javascript:alert(1)", 100, "EUR", "x"),
+      customLink(
+        { id: "c1", label: "Evil", urlTemplate: "javascript:alert(1)" },
+        100,
+        "EUR",
+        "x",
+      ),
     ).toBeNull();
   });
 });
@@ -150,7 +158,14 @@ describe("security: malicious profile fields never escape the intended host", ()
   });
 
   it("a javascript: custom template never produces a method", () => {
-    expect(customLink("x", "javascript:alert(1)", 100, "EUR", "x")).toBeNull();
+    expect(
+      customLink(
+        { id: "c1", label: "x", urlTemplate: "javascript:alert(1)" },
+        100,
+        "EUR",
+        "x",
+      ),
+    ).toBeNull();
   });
 
   it("every emitted URL's origin matches the intended host", () => {
@@ -160,10 +175,13 @@ describe("security: malicious profile fields never escape the intended host", ()
       wiseTag: "alice-w",
       venmo: "alice_v",
       monzoMe: "alice",
-      custom: {
-        label: "Twint",
-        urlTemplate: "https://pay.example/{amount}/{currency}/{ref}",
-      },
+      customs: [
+        {
+          id: "c1",
+          label: "Twint",
+          urlTemplate: "https://pay.example/{amount}/{currency}/{ref}",
+        },
+      ],
     };
     const expectedOrigins: Record<string, string> = {
       paypal: "https://paypal.me",
@@ -188,7 +206,9 @@ describe("paymentMethodsFor", () => {
 
   it("returns methods in the fixed order regardless of profile key order", () => {
     const profileA: PaymentProfile = {
-      custom: { label: "C", urlTemplate: "https://x.example/{amount}" },
+      customs: [
+        { id: "c1", label: "C", urlTemplate: "https://x.example/{amount}" },
+      ],
       monzoMe: "alice",
       venmo: "alice_v",
       wiseTag: "alice-w",

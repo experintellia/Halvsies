@@ -16,6 +16,7 @@ import {
   formatMoney,
   isCurrencyCode,
   newId,
+  type CustomPaymentMethod,
   type Expense,
   type ExpenseId,
   type Member,
@@ -162,8 +163,17 @@ export function parseSnapshot(json: string): Snapshot {
       monzoMe: str(v.monzoMe),
       note: str(v.note),
     };
-    const c = v.custom;
-    if (c !== undefined && c !== null) {
+    // A profile may carry any number of custom link templates. `custom` (a
+    // single object) is the pre-0.2 shape — still accepted on import so an
+    // older backup restores, folded into the array.
+    const rawCustoms: unknown[] = Array.isArray(v.customs)
+      ? v.customs
+      : v.custom !== undefined && v.custom !== null
+        ? [v.custom]
+        : [];
+    const customs: CustomPaymentMethod[] = [];
+    const seen = new Set<string>();
+    for (const c of rawCustoms) {
       if (!isObj(c)) fail(`profile "${key}" has an invalid custom method`);
       const label = str(c.label);
       const urlTemplate = c.urlTemplate;
@@ -174,8 +184,14 @@ export function parseSnapshot(json: string): Snapshot {
       if (!/^https?:\/\//i.test(urlTemplate)) {
         fail(`profile "${key}": custom payment URL must start with http(s)://`);
       }
-      p.custom = { label, urlTemplate };
+      // Ids must exist and be unique, or list edits would hit the wrong row
+      // and React keys would collide. Synthesize one for the legacy shape.
+      let id = str(c.id) ?? `legacy-${customs.length}`;
+      while (seen.has(id)) id = `${id}-`;
+      seen.add(id);
+      customs.push({ id, label, urlTemplate });
     }
+    if (customs.length > 0) p.customs = customs;
     profiles[key] = p;
   }
 

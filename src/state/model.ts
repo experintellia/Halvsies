@@ -23,6 +23,8 @@ export interface Member {
 }
 
 export interface CustomPaymentMethod {
+  /** Stable id so a list of these can be edited/removed without reordering bugs. */
+  id: string;
   label: string;
   /** e.g. "https://pay.example/{amount}/{currency}/{ref}" */
   urlTemplate: string;
@@ -38,7 +40,9 @@ export interface PaymentProfile {
   wiseTag?: string;
   venmo?: string;
   monzoMe?: string;
-  custom?: CustomPaymentMethod;
+  /** Any number of user-defined link templates (Twint, MobilePay, PayNow…). */
+  customs?: CustomPaymentMethod[];
+  /** Free text: "IBAN transfers only please", "no PayPal after the 3rd", … */
   note?: string;
 }
 

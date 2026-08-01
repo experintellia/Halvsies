@@ -399,3 +399,91 @@ select {
     min-height: 100vh;
   }
 }
+
+/* ---- payment methods list + add wizard ---- */
+
+.method-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.method-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+/* min-width:0 lets a long IBAN/template ellipsize instead of forcing the row
+   wider than the viewport (flex items default to min-width:auto). */
+.method-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 60%;
+}
+
+.method-main .field-suffix {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Provider picker entries: full-width tap targets, stacked title + blurb. */
+.wizard-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 12px;
+  margin-bottom: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+  cursor: pointer;
+}
+
+.wizard-option:active {
+  background: var(--color-surface-2);
+}
+
+.wizard-test {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius);
+}
+
+/* .field-suffix is nowrap by default (it is normally a short inline hint).
+   Inside the wizard it carries prose and long URLs, so re-enable wrapping —
+   overflow-wrap alone would do nothing while white-space stays nowrap. */
+.wizard-option .field-suffix,
+.wizard-test .field-suffix,
+.field .field-suffix {
+  white-space: normal;
+}
+
+/* The test URL has no spaces to break at. */
+.wizard-test .field-suffix {
+  overflow-wrap: anywhere;
+}
+
+/* The payee's own instructions, shown above the payment buttons. */
+.payee-note {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--color-surface-2);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius);
+}

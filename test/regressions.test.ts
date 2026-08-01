@@ -10,6 +10,7 @@ import {
 } from "../src/state/balances";
 import { simplifyDebts } from "../src/state/simplify";
 import { parseSnapshot } from "../src/state/doc";
+import { paymentMethodsFor } from "../src/pay/links";
 import { formatMoney, isCurrencyCode, type Expense } from "../src/state/model";
 import { buildEpcPayload } from "../src/pay/epcqr";
 import { parseAmountInput } from "../src/ui/components/Amount";
@@ -211,5 +212,102 @@ describe("EPC payload stays scannable", () => {
     expect(
       buildEpcPayload({ ...base, bic: "coba deff xxx" }).split("\n")[4],
     ).toBe("COBADEFFXXX");
+  });
+});
+
+describe("multiple custom payment links", () => {
+  const twoCustoms = {
+    customs: [
+      {
+        id: "a",
+        label: "Twint",
+        urlTemplate: "https://twint.example/{amount}",
+      },
+      { id: "b", label: "PayNow", urlTemplate: "https://paynow.example/{ref}" },
+    ],
+  };
+
+  it("emits one method per template, in stored order", () => {
+    const methods = paymentMethodsFor(twoCustoms, 2350, "EUR", "rent");
+    expect(methods.map((m) => m.label)).toEqual(["Twint", "PayNow"]);
+    expect(methods[0].url).toBe("https://twint.example/23.50");
+    expect(methods[1].url).toBe("https://paynow.example/rent");
+  });
+
+  it("gives every method a unique id (kind alone would collide)", () => {
+    const methods = paymentMethodsFor(
+      { ...twoCustoms, paypalMe: "alice" },
+      2350,
+      "EUR",
+      "rent",
+    );
+    const ids = methods.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(methods.filter((m) => m.kind === "custom")).toHaveLength(2);
+  });
+
+  it("drops only the invalid template, keeping the rest", () => {
+    const methods = paymentMethodsFor(
+      {
+        customs: [
+          {
+            id: "a",
+            label: "Good",
+            urlTemplate: "https://ok.example/{amount}",
+          },
+          { id: "b", label: "Evil", urlTemplate: "javascript:alert(1)" },
+        ],
+      },
+      100,
+      "EUR",
+      "x",
+    );
+    expect(methods.map((m) => m.label)).toEqual(["Good"]);
+  });
+});
+
+describe("snapshot import of custom links", () => {
+  const wrapProfile = (profile: unknown) =>
+    JSON.stringify({
+      settings: { groupCurrency: "EUR" },
+      members: {},
+      profiles: { "a@x.de": profile },
+      expenses: {},
+      settlements: {},
+    });
+
+  it("accepts the pre-0.2 single `custom` object and folds it into the array", () => {
+    const snap = parseSnapshot(
+      wrapProfile({
+        custom: { label: "Twint", urlTemplate: "https://pay.example/{amount}" },
+      }),
+    );
+    const customs = snap.profiles["a@x.de"].customs;
+    expect(customs).toHaveLength(1);
+    expect(customs![0].label).toBe("Twint");
+    expect(customs![0].id).toBeTruthy(); // synthesized, so list edits work
+  });
+
+  it("de-duplicates ids so list edits can't hit the wrong row", () => {
+    const snap = parseSnapshot(
+      wrapProfile({
+        customs: [
+          { id: "same", label: "A", urlTemplate: "https://a.example/" },
+          { id: "same", label: "B", urlTemplate: "https://b.example/" },
+        ],
+      }),
+    );
+    const ids = snap.profiles["a@x.de"].customs!.map((c) => c.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it("still rejects a javascript: template inside the array", () => {
+    expect(() =>
+      parseSnapshot(
+        wrapProfile({
+          customs: [{ id: "a", label: "x", urlTemplate: "javascript:evil()" }],
+        }),
+      ),
+    ).toThrow(/http\(s\)/i);
   });
 });

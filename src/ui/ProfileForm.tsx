@@ -1,5 +1,6 @@
-// The "Me" tab: edit your own payment profile (self-edited only, per
-// Plan.md §4), plus group settings, a virtual-member add, and JSON backup.
+// The "Me" tab: your payment methods (added one at a time via a wizard, so the
+// screen stays short), a free-text note that is always visible, group settings,
+// a virtual-member add, and JSON backup.
 import { useId, useState } from "preact/hooks";
 import {
   addVirtualMember,
@@ -13,25 +14,14 @@ import {
   setSettings,
 } from "../state/doc";
 import { useDocValue } from "./useDoc";
-import type { CustomPaymentMethod, PaymentProfile } from "../state/model";
-import {
-  formatIban,
-  isValidBic,
-  isValidIban,
-  normalizeIban,
-} from "../pay/iban";
-import {
-  monzoLink,
-  paymentMethodsFor,
-  paypalLink,
-  revolutLink,
-  validateCustomTemplate,
-  venmoLink,
-  wiseLink,
-} from "../pay/links";
+import type { PaymentProfile } from "../state/model";
+import { formatIban } from "../pay/iban";
+import { paymentMethodsFor } from "../pay/links";
+import { configuredProviders } from "../pay/providers";
 import { buildEpcPayload, epcReference, validateEpcParams } from "../pay/epcqr";
 import { QR } from "./components/QR";
 import { CopyButton } from "./components/CopyButton";
+import { PaymentMethodWizard, type WizardTarget } from "./PaymentMethodWizard";
 
 function selfAddr(): string | undefined {
   return typeof window === "undefined" ? undefined : window.webxdc?.selfAddr;
@@ -48,57 +38,32 @@ const canImportFiles =
   typeof window !== "undefined" &&
   typeof window.webxdc?.importFiles === "function";
 
-interface FormState {
-  paypalMe: string;
-  iban: string; // kept spaced (formatIban) for display; normalized on save
-  accountHolder: string;
-  bic: string;
-  revolutTag: string;
-  wiseTag: string;
-  venmo: string;
-  monzoMe: string;
-  customLabel: string;
-  customUrl: string;
-  note: string;
-}
-
-function toForm(p: PaymentProfile | undefined): FormState {
-  return {
-    paypalMe: p?.paypalMe ?? "",
-    iban: p?.iban ? formatIban(p.iban) : "",
-    accountHolder: p?.accountHolder ?? "",
-    bic: p?.bic ?? "",
-    revolutTag: p?.revolutTag ?? "",
-    wiseTag: p?.wiseTag ?? "",
-    venmo: p?.venmo ?? "",
-    monzoMe: p?.monzoMe ?? "",
-    customLabel: p?.custom?.label ?? "",
-    customUrl: p?.custom?.urlTemplate ?? "",
-    note: p?.note ?? "",
-  };
-}
-
-function toProfile(f: FormState): PaymentProfile {
-  const custom: CustomPaymentMethod | undefined =
-    f.customLabel.trim() && f.customUrl.trim()
-      ? { label: f.customLabel.trim(), urlTemplate: f.customUrl.trim() }
-      : undefined;
-  return {
-    paypalMe: f.paypalMe.trim() || undefined,
-    iban: f.iban.trim() ? normalizeIban(f.iban) : undefined,
-    accountHolder: f.accountHolder.trim() || undefined,
-    bic: f.bic.trim() ? normalizeIban(f.bic) : undefined,
-    revolutTag: f.revolutTag.trim() || undefined,
-    wiseTag: f.wiseTag.trim() || undefined,
-    venmo: f.venmo.trim() || undefined,
-    monzoMe: f.monzoMe.trim() || undefined,
-    custom,
-    note: f.note.trim() || undefined,
-  };
-}
-
 function textValue(e: Event): string {
   return (e.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
+}
+
+/** Tap-safe button — taps ride pointerup in this WebView (see Row.tsx). */
+function TapButton({
+  onActivate,
+  className,
+  children,
+}: {
+  onActivate: () => void;
+  className: string;
+  children: preact.ComponentChildren;
+}) {
+  return (
+    <button
+      type="button"
+      className={className}
+      onPointerUp={onActivate}
+      onClick={(e) => {
+        if (e.detail === 0) onActivate();
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 export function ProfileForm() {
@@ -108,10 +73,18 @@ export function ProfileForm() {
   // Lazily seeded once: this component unmounts/remounts with the tab, so a
   // fresh visit always starts from the current doc state without needing a
   // continuous sync effect that could clobber an in-progress edit.
-  const [form, setForm] = useState<FormState>(() => toForm(profile));
+  const [note, setNote] = useState(profile?.note ?? "");
   const [virtualName, setVirtualName] = useState("");
   const [importError, setImportError] = useState<string | undefined>(undefined);
+  const [wizard, setWizard] = useState<WizardTarget | "new" | null>(null);
   const virtualNameId = useId();
+
+  const current: PaymentProfile = profile ?? {};
+
+  function save(next: PaymentProfile): void {
+    if (!self) return;
+    setProfile(self, next);
+  }
 
   function handleImport(): void {
     setImportError(undefined);
@@ -129,65 +102,26 @@ export function ProfileForm() {
       });
   }
 
-  function field<K extends keyof FormState>(key: K, value: string): void {
-    setForm((f) => ({ ...f, [key]: value }));
-  }
+  // What is actually configured, in the order the pay-up sheet shows it.
+  const providers = configuredProviders(current);
+  const customs = current.customs ?? [];
+  const hasBank = !!current.iban;
+  const methodCount = providers.length + customs.length + (hasBank ? 1 : 0);
 
-  function persist(next: FormState = form): void {
-    if (!self) return;
-    setProfile(self, toProfile(next));
-  }
-
-  const paypalError =
-    form.paypalMe.trim() &&
-    !paypalLink(form.paypalMe, PREVIEW_CENTS, settings.groupCurrency)
-      ? "Doesn't look like a valid PayPal.Me handle."
-      : null;
-  const revolutError =
-    form.revolutTag.trim() && !revolutLink(form.revolutTag)
-      ? "Doesn't look like a valid Revolut tag."
-      : null;
-  const wiseError =
-    form.wiseTag.trim() && !wiseLink(form.wiseTag)
-      ? "Doesn't look like a valid Wise tag."
-      : null;
-  const venmoError =
-    form.venmo.trim() && !venmoLink(form.venmo)
-      ? "Doesn't look like a valid Venmo username."
-      : null;
-  // Force GBP + an in-range amount to isolate the username-format check from
-  // the currency/amount gate (links.ts exports no format-only validator).
-  const monzoError =
-    form.monzoMe.trim() && !monzoLink(form.monzoMe, PREVIEW_CENTS, "GBP", "x")
-      ? "Doesn't look like a valid Monzo username."
-      : null;
-  const ibanError =
-    form.iban.trim() && !isValidIban(form.iban)
-      ? "This doesn't look like a valid IBAN."
-      : null;
-  const bicError =
-    form.bic.trim() && !isValidBic(form.bic)
-      ? "This doesn't look like a valid BIC."
-      : null;
-  const customError = form.customUrl.trim()
-    ? validateCustomTemplate(form.customUrl)
-    : null;
-
-  const previewProfile = toProfile(form);
   const previewReference = epcReference(settings.title);
   const previewMethods = paymentMethodsFor(
-    previewProfile,
+    current,
     PREVIEW_CENTS,
     settings.groupCurrency,
     previewReference,
   );
   const previewEpc = validateEpcParams({
-    name: previewProfile.accountHolder || "You",
-    iban: previewProfile.iban || "",
+    name: current.accountHolder || "You",
+    iban: current.iban || "",
     amountCents: PREVIEW_CENTS,
     currency: settings.groupCurrency,
     reference: previewReference,
-    bic: previewProfile.bic,
+    bic: current.bic,
   });
 
   return (
@@ -247,133 +181,134 @@ export function ProfileForm() {
       </div>
 
       <h2>Your payment details</h2>
+      {methodCount === 0 ? (
+        <p className="placeholder">
+          No payment methods yet. Add one so people can pay you back in a couple
+          of taps instead of asking for your details.
+        </p>
+      ) : (
+        <ul className="method-list">
+          {providers.map((spec) => (
+            <li key={spec.field} className="method-row">
+              <span className="method-main">
+                <strong>{spec.label}</strong>
+                <span className="field-suffix">{current[spec.field]}</span>
+              </span>
+              <span className="field-row">
+                <TapButton
+                  className="btn btn-secondary"
+                  onActivate={() =>
+                    setWizard({ kind: "provider", field: spec.field })
+                  }
+                >
+                  Edit
+                </TapButton>
+                <TapButton
+                  className="btn btn-danger"
+                  onActivate={() =>
+                    save({ ...current, [spec.field]: undefined })
+                  }
+                >
+                  Remove
+                </TapButton>
+              </span>
+            </li>
+          ))}
 
-      <label className="field">
-        <span className="field-label">PayPal.Me handle</span>
-        <input
-          type="text"
-          value={form.paypalMe}
-          onInput={(e) => field("paypalMe", textValue(e))}
-          onBlur={() => persist()}
-        />
-        {paypalError && <p className="field-suffix">{paypalError}</p>}
-      </label>
+          {hasBank && (
+            <li className="method-row">
+              <span className="method-main">
+                <strong>Bank transfer</strong>
+                <span className="field-suffix">
+                  {formatIban(current.iban!)}
+                  {current.accountHolder ? ` · ${current.accountHolder}` : ""}
+                </span>
+              </span>
+              <span className="field-row">
+                <TapButton
+                  className="btn btn-secondary"
+                  onActivate={() => setWizard({ kind: "bank" })}
+                >
+                  Edit
+                </TapButton>
+                <TapButton
+                  className="btn btn-danger"
+                  onActivate={() =>
+                    save({
+                      ...current,
+                      iban: undefined,
+                      accountHolder: undefined,
+                      bic: undefined,
+                    })
+                  }
+                >
+                  Remove
+                </TapButton>
+              </span>
+            </li>
+          )}
 
-      <label className="field">
-        <span className="field-label">IBAN</span>
-        <input
-          type="text"
-          value={form.iban}
-          onInput={(e) => field("iban", textValue(e))}
-          onBlur={() => {
-            const displayed = form.iban.trim() ? formatIban(form.iban) : "";
-            const next = { ...form, iban: displayed };
-            setForm(next);
-            persist(next);
-          }}
-        />
-        {ibanError && <p className="field-suffix">{ibanError}</p>}
-      </label>
-      <label className="field">
-        <span className="field-label">Account holder name</span>
-        <input
-          type="text"
-          value={form.accountHolder}
-          onInput={(e) => field("accountHolder", textValue(e))}
-          onBlur={() => persist()}
-        />
-      </label>
-      <label className="field">
-        <span className="field-label">BIC (optional)</span>
-        <input
-          type="text"
-          value={form.bic}
-          onInput={(e) => field("bic", textValue(e))}
-          onBlur={() => {
-            const displayed = form.bic.trim() ? normalizeIban(form.bic) : "";
-            const next = { ...form, bic: displayed };
-            setForm(next);
-            persist(next);
-          }}
-        />
-        {bicError && <p className="field-suffix">{bicError}</p>}
-      </label>
+          {customs.map((c) => (
+            <li key={c.id} className="method-row">
+              <span className="method-main">
+                <strong>{c.label}</strong>
+                <span className="field-suffix">{c.urlTemplate}</span>
+              </span>
+              <span className="field-row">
+                <TapButton
+                  className="btn btn-secondary"
+                  onActivate={() => setWizard({ kind: "custom", id: c.id })}
+                >
+                  Edit
+                </TapButton>
+                <TapButton
+                  className="btn btn-danger"
+                  onActivate={() =>
+                    save({
+                      ...current,
+                      customs: customs.filter((x) => x.id !== c.id),
+                    })
+                  }
+                >
+                  Remove
+                </TapButton>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
-      <label className="field">
-        <span className="field-label">Revolut tag</span>
-        <input
-          type="text"
-          value={form.revolutTag}
-          onInput={(e) => field("revolutTag", textValue(e))}
-          onBlur={() => persist()}
-        />
-        {revolutError && <p className="field-suffix">{revolutError}</p>}
-      </label>
+      <TapButton
+        className="btn btn-primary"
+        onActivate={() => setWizard("new")}
+      >
+        + Add payment method
+      </TapButton>
 
-      <label className="field">
-        <span className="field-label">Wise tag</span>
-        <input
-          type="text"
-          value={form.wiseTag}
-          onInput={(e) => field("wiseTag", textValue(e))}
-          onBlur={() => persist()}
-        />
-        {wiseError && <p className="field-suffix">{wiseError}</p>}
-      </label>
-
-      <label className="field">
-        <span className="field-label">Venmo username</span>
-        <input
-          type="text"
-          value={form.venmo}
-          onInput={(e) => field("venmo", textValue(e))}
-          onBlur={() => persist()}
-        />
-        {venmoError && <p className="field-suffix">{venmoError}</p>}
-      </label>
-
-      <label className="field">
-        <span className="field-label">Monzo.me username (GBP only)</span>
-        <input
-          type="text"
-          value={form.monzoMe}
-          onInput={(e) => field("monzoMe", textValue(e))}
-          onBlur={() => persist()}
-        />
-        {monzoError && <p className="field-suffix">{monzoError}</p>}
-      </label>
-
-      <label className="field">
-        <span className="field-label">Custom link label</span>
-        <input
-          type="text"
-          value={form.customLabel}
-          onInput={(e) => field("customLabel", textValue(e))}
-          onBlur={() => persist()}
-        />
-      </label>
+      {/* Always visible, whether or not any method is configured: this is
+          where "bank transfer only after the 1st" or "round it up" lives. */}
       <label className="field">
         <span className="field-label">
-          Custom link template (use {"{amount}"}, {"{currency}"}, {"{ref}"})
+          Note — anything people should know about paying you
         </span>
-        <input
-          type="text"
-          placeholder="https://pay.example/{amount}/{currency}/{ref}"
-          value={form.customUrl}
-          onInput={(e) => field("customUrl", textValue(e))}
-          onBlur={() => persist()}
+        <textarea
+          value={note}
+          placeholder="e.g. IBAN please, PayPal charges me a fee"
+          onInput={(e) => setNote(textValue(e))}
+          onBlur={() => save({ ...current, note: note.trim() || undefined })}
         />
-        {customError && <p className="field-suffix">{customError}</p>}
       </label>
 
-      <label className="field">
-        <span className="field-label">Note (shown alongside your details)</span>
-        <textarea
-          value={form.note}
-          onInput={(e) => field("note", textValue(e))}
-          onBlur={() => persist()}
-        />
-      </label>
+      <PaymentMethodWizard
+        open={wizard !== null}
+        onClose={() => setWizard(null)}
+        profile={current}
+        onSave={save}
+        editing={wizard && wizard !== "new" ? wizard : undefined}
+        previewCents={PREVIEW_CENTS}
+        currency={settings.groupCurrency}
+        reference={previewReference}
+      />
 
       <h2>What others see</h2>
       <p className="field-suffix">
@@ -386,26 +321,26 @@ export function ProfileForm() {
         </p>
       )}
       {previewMethods.map((m) => (
-        <div className="field-row" key={m.kind}>
+        <div className="field-row" key={m.id}>
           <p>
             <strong>{m.label}:</strong> {m.url}
           </p>
           <CopyButton value={m.url} label="Copy" />
         </div>
       ))}
-      {!previewEpc && form.iban.trim() && (
+      {!previewEpc && hasBank && (
         <div className="row" style={{ display: "block" }}>
           <p>
             <strong>Bank transfer QR</strong>
           </p>
           <QR
             payload={buildEpcPayload({
-              name: previewProfile.accountHolder || "You",
-              iban: previewProfile.iban || "",
+              name: current.accountHolder || "You",
+              iban: current.iban || "",
               amountCents: PREVIEW_CENTS,
               currency: settings.groupCurrency,
               reference: previewReference,
-              bic: previewProfile.bic,
+              bic: current.bic,
             })}
           />
         </div>

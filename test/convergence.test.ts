@@ -125,7 +125,13 @@ describe("snapshots", () => {
     a.setProfile("a@x.de", {
       iban: "DE02120300000000202051",
       accountHolder: "Anna",
-      custom: { label: "Twint", urlTemplate: "https://pay.example/{amount}" },
+      customs: [
+        {
+          id: "c1",
+          label: "Twint",
+          urlTemplate: "https://pay.example/{amount}",
+        },
+      ],
     });
     a.addExpense(expense("001", { title: "Pizza" }));
     a.addSettlement({
@@ -203,7 +209,9 @@ describe("snapshots", () => {
         JSON.stringify({
           profiles: {
             "a@x.de": {
-              custom: { label: "x", urlTemplate: "javascript:evil()" },
+              customs: [
+                { id: "c1", label: "x", urlTemplate: "javascript:evil()" },
+              ],
             },
           },
         }),

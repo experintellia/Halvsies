@@ -168,7 +168,19 @@ export function PayUpSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title={headerText}>
-      {methods.length === 0 && epcError && (
+      {/* The creditor's own instructions come first — they may override which
+          method to use ("IBAN please, PayPal charges me a fee"), so showing
+          them after the buttons would be showing them too late. */}
+      {profile.note && (
+        <p className="payee-note">
+          <strong>
+            {direction === "pay" ? `${creditorName} says:` : "Your note:"}
+          </strong>{" "}
+          {profile.note}
+        </p>
+      )}
+
+      {methods.length === 0 && epcError && !profile.note && (
         <p className="placeholder">
           {direction === "pay"
             ? `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to fill in their profile in the Me tab.`
@@ -180,7 +192,7 @@ export function PayUpSheet({
         <>
           <p>{introText}</p>
           {methods.map((m) => (
-            <div className="row" key={m.kind} style={{ display: "block" }}>
+            <div className="row" key={m.id} style={{ display: "block" }}>
               <p>
                 <strong>{m.label}</strong>
                 {!m.amountPrefilled && (
@@ -202,11 +214,9 @@ export function PayUpSheet({
               <div className="field-row">
                 <TapButton
                   className="btn btn-secondary"
-                  onActivate={() =>
-                    setShownQr(shownQr === m.kind ? null : m.kind)
-                  }
+                  onActivate={() => setShownQr(shownQr === m.id ? null : m.id)}
                 >
-                  {shownQr === m.kind ? "Hide QR" : "Show QR"}
+                  {shownQr === m.id ? "Hide QR" : "Show QR"}
                 </TapButton>
                 {canSendToChat && (
                   <TapButton
@@ -226,7 +236,7 @@ export function PayUpSheet({
                   </TapButton>
                 )}
               </div>
-              {shownQr === m.kind && <QR payload={m.url} />}
+              {shownQr === m.id && <QR payload={m.url} />}
               {m.caveat && <p className="field-suffix">{m.caveat}</p>}
             </div>
           ))}

@@ -2,10 +2,20 @@
 // no DOM. Every generator skips silently (returns null) on invalid/missing
 // input rather than emitting a broken or unsafe link.
 
-import type { PaymentProfile } from "../state/model";
+import type { CustomPaymentMethod, PaymentProfile } from "../state/model";
+
+export type PayMethodKind =
+  "paypal" | "revolut" | "wise" | "venmo" | "monzo" | "custom";
 
 export interface PayMethod {
-  kind: "paypal" | "revolut" | "wise" | "venmo" | "monzo" | "custom";
+  /**
+   * Unique within one paymentMethodsFor() result — the kind for built-ins,
+   * `custom:<id>` for user templates. `kind` is NOT unique any more (a profile
+   * may carry several custom links), so this is what UI keys and per-method
+   * toggles must use.
+   */
+  id: string;
+  kind: PayMethodKind;
   label: string; // "PayPal", "Revolut", "Monzo", or the custom label
   url: string; // the deep link, amount pre-filled where supported
   amountPrefilled: boolean; // false where the service can't take an amount
@@ -45,6 +55,7 @@ export function paypalLink(
   const handle = normalizePaypalHandle(handleInput);
   if (!handle) return null;
   return {
+    id: "paypal",
     kind: "paypal",
     label: "PayPal",
     url: `https://paypal.me/${encodeURIComponent(handle)}/${amountForUrl(amountCents)}${encodeURIComponent(currency)}`,
@@ -60,6 +71,7 @@ export function revolutLink(tagInput: string): PayMethod | null {
   const tag = tagInput.trim();
   if (!REVOLUT_TAG_RE.test(tag)) return null;
   return {
+    id: "revolut",
     kind: "revolut",
     label: "Revolut",
     url: `https://revolut.me/${encodeURIComponent(tag)}`,
@@ -75,6 +87,7 @@ export function wiseLink(tagInput: string): PayMethod | null {
   const tag = tagInput.trim();
   if (!WISE_TAG_RE.test(tag)) return null;
   return {
+    id: "wise",
     kind: "wise",
     label: "Wise",
     url: `https://wise.com/pay/me/${encodeURIComponent(tag)}`,
@@ -90,6 +103,7 @@ export function venmoLink(userInput: string): PayMethod | null {
   const user = userInput.trim();
   if (!VENMO_USER_RE.test(user)) return null;
   return {
+    id: "venmo",
     kind: "venmo",
     label: "Venmo",
     url: `https://venmo.com/u/${encodeURIComponent(user)}`,
@@ -127,6 +141,7 @@ export function monzoLink(
   if (!MONZO_USER_RE.test(user)) return null;
   if (monzoUnavailableReason(amountCents, currency) !== null) return null;
   return {
+    id: "monzo",
     kind: "monzo",
     label: "Monzo",
     url: `https://monzo.me/${encodeURIComponent(user)}/${amountForUrl(amountCents)}?d=${encodeURIComponent(reference)}`,
@@ -149,12 +164,12 @@ export function validateCustomTemplate(template: string): string | null {
 }
 
 export function customLink(
-  label: string,
-  template: string,
+  method: CustomPaymentMethod,
   amountCents: number,
   currency: string,
   reference: string,
 ): PayMethod | null {
+  const { id, label, urlTemplate: template } = method;
   if (validateCustomTemplate(template) !== null) return null;
   const url = template
     .split("{amount}")
@@ -168,6 +183,7 @@ export function customLink(
   // but this keeps the guarantee airtight against future placeholder changes.
   if (!/^https:\/\//i.test(url)) return null;
   return {
+    id: `custom:${id}`,
     kind: "custom",
     label: label || "Custom",
     url,
@@ -205,14 +221,10 @@ export function paymentMethodsFor(
     const m = monzoLink(profile.monzoMe, amountCents, currency, reference);
     if (m) methods.push(m);
   }
-  if (profile.custom) {
-    const m = customLink(
-      profile.custom.label,
-      profile.custom.urlTemplate,
-      amountCents,
-      currency,
-      reference,
-    );
+  // Custom templates last, in stored order, so the list stays stable across
+  // peers. Each keeps its own id, so several can coexist without colliding.
+  for (const c of profile.customs ?? []) {
+    const m = customLink(c, amountCents, currency, reference);
     if (m) methods.push(m);
   }
   return methods;
