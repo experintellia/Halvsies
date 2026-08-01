@@ -10,7 +10,16 @@ import { ExpenseList } from "../src/ui/ExpenseList";
 import { ProfileForm } from "../src/ui/ProfileForm";
 import { addExpense, deleteExpense } from "../src/state/doc";
 import { PayUpSheet } from "../src/ui/PayUpSheet";
-import { getSettings, setProfile, setSettings } from "../src/state/doc";
+import { MembersSheet } from "../src/ui/MembersSheet";
+import {
+  addVirtualMember,
+  getSettings,
+  removeMember,
+  setProfile,
+  setSettings,
+} from "../src/state/doc";
+import type { Transfer } from "../src/state/model";
+import { installWebxdc, uninstallWebxdc } from "./webxdc-mock";
 
 let host: HTMLDivElement;
 
@@ -37,6 +46,9 @@ beforeEach(() => {
 afterEach(() => {
   render(null, host); // unmount so effects/subscriptions don't leak between tests
   host.remove();
+  // Components read window.webxdc?.selfAddr on every render — never leave one
+  // installed, or the next test silently becomes a different person.
+  uninstallWebxdc();
 });
 
 describe("App shell", () => {
@@ -189,6 +201,7 @@ describe("ProfileForm", () => {
     expect(options[options.length - 1].textContent).toContain("Custom link");
   });
 
+  // MANUAL CA4 (EUR)
   it("pills the methods the group currency (EUR) can't use", async () => {
     await openPicker();
 
@@ -225,6 +238,42 @@ describe("ProfileForm", () => {
       (b) => (b.textContent ?? "").trim() === "Save",
     ) as HTMLButtonElement | undefined;
     expect(save?.disabled).toBe(false);
+  });
+
+  // MANUAL CA4 — CHF is nobody's native currency, so every gated method warns
+  // at once, and none of them is blocked (the group currency may still change).
+  it("CA4 — pills bunq, Cash App, UPI and Monzo in CHF, and still allows saving", async () => {
+    const previous = getSettings().groupCurrency;
+    setSettings({ groupCurrency: "CHF" });
+    try {
+      await openPicker();
+      const pills: [string, string][] = [
+        ["bunq", "EUR only"],
+        ["Cash App", "USD or GBP only"],
+        ["UPI", "INR only"],
+        ["Monzo", "GBP only"],
+      ];
+      for (const [label, pill] of pills) {
+        expect(option(label)?.querySelector(".pill-warn")?.textContent).toBe(
+          pill,
+        );
+      }
+
+      tap(option("bunq"));
+      await flush();
+      expect(host.textContent).toContain("won't be offered for CHF debts");
+
+      const input = sheet().querySelector("input") as HTMLInputElement;
+      input.value = "anna";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+      const save = Array.from(host.querySelectorAll("button")).find(
+        (b) => (b.textContent ?? "").trim() === "Save",
+      ) as HTMLButtonElement | undefined;
+      expect(save?.disabled).toBe(false);
+    } finally {
+      setSettings({ groupCurrency: previous });
+    }
   });
 
   it("renders the crypto step's name, address and network inputs", async () => {
@@ -306,11 +355,30 @@ describe("PayUpSheet", () => {
       host,
     );
 
+  /** The same sheet for another debt, or seen from the other side. */
+  const sheetFor = (
+    transfer: Transfer,
+    direction: "pay" | "request" = "pay",
+  ): void =>
+    render(
+      <PayUpSheet
+        transfer={transfer}
+        direction={direction}
+        open
+        onClose={() => {}}
+      />,
+      host,
+    );
+
+  const linkTo = (prefix: string): HTMLAnchorElement | null =>
+    host.querySelector<HTMLAnchorElement>(`a[href^="${prefix}"]`);
+
   const buttons = (text: string): HTMLButtonElement[] =>
     Array.from(host.querySelectorAll("button")).filter((b) =>
       (b.textContent ?? "").includes(text),
     ) as HTMLButtonElement[];
 
+  // MANUAL CA2 (the sheet half: the fiat figure is text beside the address)
   it("always shows a crypto address in full, with copy buttons for both the address and the URI", () => {
     setProfile(CREDITOR, {
       accountHolder: "Anna",
@@ -367,6 +435,96 @@ describe("PayUpSheet", () => {
     expect(text).not.toContain("hasn't added any payment details");
   });
 
+  // MANUAL C5
+  it("C5 — the PayPal link carries the amount, ready to pay", () => {
+    setProfile(CREDITOR, { paypalMe: "anna" });
+    sheet();
+
+    expect(linkTo("https://paypal.me")?.getAttribute("href")).toBe(
+      "https://paypal.me/anna/23.50EUR",
+    );
+    expect(host.textContent).not.toContain("amount not pre-filled");
+  });
+
+  // MANUAL C4 — the EPC standard is EUR-only, so the block has to disappear
+  // with a reason rather than emit a QR no bank will accept.
+  it("C4 — the bank transfer block is EUR-only and explains its absence", () => {
+    setProfile(CREDITOR, {
+      paypalMe: "anna",
+      iban: "DE89370400440532013000",
+      accountHolder: "Anna",
+    });
+
+    setSettings({ groupCurrency: "USD" });
+    sheetFor(TRANSFER);
+    expect(host.textContent).toContain(
+      "Bank transfer QR unavailable: EPC QR only supports EUR",
+    );
+    expect(host.textContent).not.toContain("Scan with your banking app");
+
+    setSettings({ groupCurrency: "EUR" });
+    sheetFor(TRANSFER);
+    expect(host.textContent).toContain("Scan with your banking app");
+    expect(host.textContent).toContain("DE89 3704 0044 0532 0130 00");
+  });
+
+  // MANUAL C6
+  it("C6 — Monzo is offered for £23.50 only, with its limits stated", () => {
+    setProfile(CREDITOR, { monzoMe: "anna" });
+    setSettings({ groupCurrency: "GBP" });
+
+    sheetFor({ ...TRANSFER, amountCents: 2350 });
+    expect(linkTo("https://monzo.me")).not.toBeNull();
+    expect(host.textContent).toContain("£1–£100 per payment");
+
+    for (const amountCents of [50, 15000]) {
+      sheetFor({ ...TRANSFER, amountCents });
+      expect(linkTo("https://monzo.me")).toBeNull();
+    }
+
+    setSettings({ groupCurrency: "EUR" });
+    sheetFor({ ...TRANSFER, amountCents: 2350 });
+    expect(linkTo("https://monzo.me")).toBeNull();
+  });
+
+  // MANUAL C9
+  it("C9 — a debt owed to you shows your own details and a nudge, not a bill", () => {
+    installWebxdc({ selfAddr: CREDITOR, selfName: "Anna" });
+    setProfile(CREDITOR, { paypalMe: "anna", note: "IBAN please" });
+
+    sheetFor(TRANSFER, "request");
+
+    const text = host.textContent ?? "";
+    expect(text).toContain("owes you €23.50");
+    expect(text).toContain("Share your payment details with");
+    expect(text).toContain("Your note:"); // yours, not "<someone> says:"
+    expect(linkTo("https://paypal.me")).not.toBeNull();
+    expect(buttons("Mark as received")).toHaveLength(1);
+  });
+
+  // MANUAL C10 — money safety: recording a settlement is a claim every peer
+  // sees, so a member who is neither party gets no way to make it.
+  it("C10 — a debt between two other members is read-only", () => {
+    const bob = addVirtualMember("Bob", 1);
+    const carol = addVirtualMember("Carol", 2);
+    installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
+    try {
+      setProfile(carol.id, { paypalMe: "carol" });
+      sheetFor({ fromId: bob.id, toId: carol.id, amountCents: 2000 });
+
+      const text = host.textContent ?? "";
+      expect(text).toContain("Bob owes Carol €20.00");
+      expect(text).toContain("Only Bob or Carol can record this payment.");
+      expect(buttons("Mark as")).toHaveLength(0);
+      // The methods themselves are still shown — it is read-only, not blank.
+      expect(linkTo("https://paypal.me")).not.toBeNull();
+    } finally {
+      render(null, host);
+      removeMember(bob.id);
+      removeMember(carol.id);
+    }
+  });
+
   it("shows the UPI QR without an extra tap, with the payee name in the link", () => {
     setSettings({ groupCurrency: "INR" });
     setProfile(CREDITOR, { accountHolder: "Anna", upiVpa: "anna@upi" });
@@ -379,5 +537,100 @@ describe("PayUpSheet", () => {
     // Scanning is the normal UPI flow: the code is there before any tap.
     expect(host.querySelector("svg.qr-code")).not.toBeNull();
     expect(buttons("Show QR")).toHaveLength(0);
+  });
+});
+
+describe("the Me tab preview and the payer's sheet", () => {
+  const ME = "me@example.org";
+  // Nothing here depends on the payee's name, which is the one input the two
+  // call sites pass differently (the sheet knows the member, the preview does
+  // not) — see PayUpSheet.tsx on why the QR must never say "You".
+  const PROFILE = {
+    paypalMe: "anna",
+    bunqMe: "anna",
+    customs: [
+      {
+        id: "c1",
+        label: "Twint",
+        urlTemplate: "https://twint.example/{amount}",
+      },
+    ],
+  };
+
+  afterEach(() => setProfile(ME, {}));
+
+  // MANUAL C2 — the preview is a second call site of paymentMethodsFor(); if
+  // it ever drifts from the sheet's, the Me tab is lying about what people get.
+  it("C2 — the 'what others see' preview lists exactly what PayUpSheet offers", () => {
+    installWebxdc({ selfAddr: ME, selfName: "Anna" });
+    setProfile(ME, PROFILE);
+
+    render(<ProfileForm />, host);
+    const previewed = Array.from(host.querySelectorAll(".field-row p"))
+      .map((p) => (p.textContent ?? "").match(/https:\/\/\S+/)?.[0])
+      .filter((url): url is string => !!url);
+    render(null, host);
+
+    // The preview's sample debt is 10.00 of the group currency.
+    render(
+      <PayUpSheet
+        transfer={{ fromId: "payer@example.org", toId: ME, amountCents: 1000 }}
+        direction="pay"
+        open
+        onClose={() => {}}
+      />,
+      host,
+    );
+    const offered = Array.from(
+      host.querySelectorAll<HTMLAnchorElement>("a.btn-primary"),
+    ).map((a) => a.getAttribute("href"));
+
+    expect(previewed).toHaveLength(3);
+    expect(previewed).toEqual(offered);
+  });
+});
+
+describe("MembersSheet", () => {
+  const EXPENSE_ID = "cm2-expense";
+
+  // MANUAL CM2 — removing a referenced member would leave the balances not
+  // summing to zero on peers that still have them (see removalBlockedBy).
+  it("CM2 — Remove is disabled with a reason while an expense names the member, then works", async () => {
+    const gran = addVirtualMember("Grandma", 3);
+    addExpense({
+      id: EXPENSE_ID,
+      title: "Cake",
+      amountCents: 900,
+      payerId: gran.id,
+      split: { mode: "even", entries: { [gran.id]: 1, "b@example.org": 1 } },
+      date: "2026-08-01",
+      createdBy: gran.id,
+      editedAt: 0,
+    });
+
+    try {
+      render(<MembersSheet open onClose={() => {}} />, host);
+      // Preact defers useEffect to after paint, so useDocValue's subscription
+      // is only live a frame later — a setTimeout(0) is too early.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const removeButton = (): HTMLButtonElement =>
+        host
+          .querySelector('input[aria-label="Name of Grandma"]')!
+          .closest(".method-row")!
+          .querySelector("button") as HTMLButtonElement;
+
+      expect(removeButton().disabled).toBe(true);
+      expect(removeButton().title).toContain("paid for 1 expense");
+      expect(host.textContent).toContain("paid for 1 expense");
+
+      deleteExpense(EXPENSE_ID);
+      await flush();
+
+      expect(removeButton().disabled).toBe(false);
+    } finally {
+      render(null, host);
+      deleteExpense(EXPENSE_ID);
+      removeMember(gran.id);
+    }
   });
 });

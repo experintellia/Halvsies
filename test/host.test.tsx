@@ -1,0 +1,263 @@
+// The paths that only exist when a webxdc host is present: self-registration
+// across app reopens, the summary y-webxdc sends into the chat, and the two
+// feature-detected host APIs (sendToChat / importFiles).
+//
+// `src/state/doc.ts` captures window.webxdc at module load and builds its
+// singleton + provider from it, so each test boots a fresh module graph with a
+// fresh mock host — that is also what makes "reopening the app" expressible.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render } from "preact";
+import * as Y from "yjs";
+import { formatMoney, type Expense } from "../src/state/model";
+import {
+  installWebxdc,
+  jsonFile,
+  uninstallWebxdc,
+  type MockOptions,
+} from "./webxdc-mock";
+
+const eur = (cents: number): string => formatMoney(cents, "EUR");
+
+let dom: HTMLDivElement;
+const booted: { provider?: { destroy(): void } }[] = [];
+
+/** Preact batches, and importFiles() resolves through a promise chain. */
+const tick = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, 0));
+
+/** Taps ride pointerup in this WebView (see Row.tsx), so tests must too. */
+function tap(el: Element | undefined | null): void {
+  if (!el) throw new Error("tap() got no element");
+  el.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+  el.dispatchEvent(new Event("pointerup", { bubbles: true }));
+}
+
+const buttons = (text: string): HTMLButtonElement[] =>
+  Array.from(dom.querySelectorAll("button")).filter((b) =>
+    (b.textContent ?? "").includes(text),
+  );
+
+/**
+ * Start the app against a fresh mock host: a new doc singleton, a real
+ * WebxdcProvider wired to it, and the screens that read the host directly.
+ */
+async function boot(o: MockOptions = {}) {
+  vi.resetModules();
+  const webxdc = installWebxdc(o);
+  const doc = await import("../src/state/doc");
+  const { ProfileForm } = await import("../src/ui/ProfileForm");
+  const { PayUpSheet } = await import("../src/ui/PayUpSheet");
+  booted.push(doc);
+  return { webxdc, doc, ProfileForm, PayUpSheet };
+}
+
+function expense(over: Partial<Expense> = {}): Expense {
+  return {
+    id: "001",
+    title: "Pizza",
+    amountCents: 3000,
+    payerId: "a@x.de",
+    split: { mode: "even", entries: { "a@x.de": 1, "b@x.de": 1 } },
+    date: "2026-07-30",
+    createdBy: "a@x.de",
+    editedAt: 1,
+    ...over,
+  };
+}
+
+beforeEach(() => {
+  dom = document.createElement("div");
+  document.body.appendChild(dom);
+});
+
+afterEach(() => {
+  render(null, dom);
+  dom.remove();
+  // Each provider holds an autosave interval and window listeners.
+  for (const m of booted.splice(0)) m.provider?.destroy();
+  uninstallWebxdc();
+});
+
+describe("self-registration against a real host", () => {
+  // MANUAL A2
+  it("A2 — registers the local user exactly once, however often the app is reopened", async () => {
+    const first = await boot({ selfAddr: "a@x.de", selfName: "Anna" });
+    first.doc.ensureSelfRegistered();
+    first.doc.ensureSelfRegistered();
+    expect(first.doc.listMembers().map((m) => m.name)).toEqual(["Anna"]);
+
+    // Reopen: a new module graph, restored from the document the peers hold.
+    const state = Y.encodeStateAsUpdateV2(first.doc.doc);
+    const second = await boot({ selfAddr: "a@x.de", selfName: "Anna" });
+    Y.applyUpdateV2(second.doc.doc, state);
+    second.doc.ensureSelfRegistered();
+    second.doc.ensureSelfRegistered();
+
+    expect(second.doc.listMembers().map((m) => m.id)).toEqual(["a@x.de"]);
+  });
+
+  // MANUAL CM4
+  it("CM4 — a removed real member re-registers on their next open", async () => {
+    const { doc } = await boot({ selfAddr: "a@x.de", selfName: "Anna" });
+    doc.ensureSelfRegistered();
+    expect(doc.removeMember("a@x.de")).toBeNull();
+    expect(doc.listMembers()).toEqual([]);
+
+    expect(doc.ensureSelfRegistered().id).toBe("a@x.de");
+    expect(doc.listMembers().map((m) => m.id)).toEqual(["a@x.de"]);
+  });
+});
+
+describe("what the chat sees", () => {
+  // MANUAL B2 — the regression this pins: the summary used to come from a
+  // counter only the Balances screen set, so it stayed "All settled up" until
+  // someone opened that tab. Nothing here ever renders Balances.
+  it("B2 — the summary the host receives is current, without opening Balances", async () => {
+    const { webxdc, doc } = await boot({
+      selfAddr: "simon@x.de",
+      selfName: "Simon",
+    });
+    doc.ensureSelfRegistered();
+    const anna = doc.addVirtualMember("Anna", 1);
+
+    expect(webxdc.sent[webxdc.sent.length - 1].summary).toBe("All settled up");
+
+    doc.addExpense(
+      expense({
+        title: "Pizza",
+        payerId: "simon@x.de",
+        createdBy: "simon@x.de",
+        split: { mode: "even", entries: { "simon@x.de": 1, [anna.id]: 1 } },
+      }),
+    );
+
+    const last = webxdc.sent[webxdc.sent.length - 1];
+    expect(last.summary).toBe(`1 open debt · ${eur(1500)}`);
+    // B1's info line rides the same send (y-webxdc only attaches info once
+    // per session, so the first one is the join).
+    expect(webxdc.sent[0].info).toBe("Simon joined the split");
+    expect(last.document).toBe("Halvsies");
+  });
+});
+
+describe("send to chat", () => {
+  const transfer = { fromId: "self@x.de", toId: "b@x.de", amountCents: 2350 };
+
+  // MANUAL C8
+  it("C8 — posts the payment link to the chat when the host supports it", async () => {
+    const { webxdc, doc, PayUpSheet } = await boot();
+    doc.setProfile("b@x.de", { paypalMe: "anna" });
+    render(
+      <PayUpSheet
+        transfer={transfer}
+        direction="pay"
+        open
+        onClose={() => {}}
+      />,
+      dom,
+    );
+
+    tap(buttons("Send to chat")[0]);
+    expect(webxdc.chat).toHaveLength(1);
+    expect(webxdc.chat[0].text).toContain("https://paypal.me/anna/23.50EUR");
+  });
+
+  // MANUAL C8 — the button must be absent, not inert.
+  it("C8 — offers no Send-to-chat button on a host without sendToChat", async () => {
+    const { doc, PayUpSheet } = await boot({ sendToChat: false });
+    doc.setProfile("b@x.de", { paypalMe: "anna" });
+    render(
+      <PayUpSheet
+        transfer={transfer}
+        direction="pay"
+        open
+        onClose={() => {}}
+      />,
+      dom,
+    );
+
+    expect(buttons("Send to chat")).toHaveLength(0);
+    expect(buttons("Copy link")).toHaveLength(1); // the alternative is there
+  });
+});
+
+describe("restore from file", () => {
+  const profileFile = { profile: { paypalMe: "anna" } };
+  const snapshotFile = {
+    settings: { groupCurrency: "EUR", title: "Rome trip" },
+    expenses: {
+      "002": {
+        id: "002",
+        title: "Beer",
+        amountCents: 1250,
+        payerId: "a@x.de",
+        split: { mode: "even", entries: { "a@x.de": 1, "b@x.de": 1 } },
+        date: "2026-07-30",
+        createdBy: "a@x.de",
+        editedAt: 1,
+      },
+    },
+  };
+
+  /** Boots, seeds one expense, and opens the Me tab with `files` staged. */
+  async function withFiles(files: File[]) {
+    const booted = await boot({
+      selfAddr: "a@x.de",
+      selfName: "Anna",
+      files,
+    });
+    booted.doc.ensureSelfRegistered();
+    booted.doc.addExpense(expense({ title: "Pizza" }));
+    render(<booted.ProfileForm />, dom);
+    tap(buttons("Restore from file")[0]);
+    await tick();
+    return booted;
+  }
+
+  // MANUAL E5
+  it("E5 — routes a payment-details file by its shape, whatever it is named", async () => {
+    const { doc } = await withFiles([
+      jsonFile("holiday-notes.txt", profileFile),
+    ]);
+
+    expect(doc.getProfile("a@x.de")?.paypalMe).toBe("anna");
+    // Not a full restore: the ledger is untouched.
+    expect(doc.listExpenses().map((e) => e.title)).toEqual(["Pizza"]);
+  });
+
+  // MANUAL E5
+  it("E5 — routes a full snapshot by its shape, even named like a profile file", async () => {
+    const { doc } = await withFiles([
+      jsonFile("halvsies-payment-details.json", snapshotFile),
+    ]);
+
+    expect(doc.listExpenses().map((e) => e.title)).toEqual(["Beer"]);
+    expect(doc.getSettings().title).toBe("Rome trip");
+  });
+
+  // MANUAL E2 — through the real picker, not just the parser.
+  it("E2 — refuses a negative amount and leaves the ledger untouched", async () => {
+    const { doc } = await withFiles([
+      jsonFile("backup.json", {
+        expenses: {
+          "002": { ...snapshotFile.expenses["002"], amountCents: -5000 },
+        },
+      }),
+    ]);
+
+    expect(dom.querySelector('[role="alert"]')?.textContent).toMatch(
+      /more than zero/i,
+    );
+    expect(doc.listExpenses().map((e) => e.title)).toEqual(["Pizza"]);
+  });
+
+  // MANUAL E3
+  it("E3 — hides Restore and says so on a host without importFiles", async () => {
+    const { doc, ProfileForm } = await boot({ importFiles: false });
+    doc.ensureSelfRegistered();
+    render(<ProfileForm />, dom);
+
+    expect(buttons("Restore from file")).toHaveLength(0);
+    expect(dom.textContent).toContain("cannot open files from inside the app");
+  });
+});

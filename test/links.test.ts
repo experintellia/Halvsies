@@ -225,6 +225,8 @@ describe("cryptoLink", () => {
     );
   });
 
+  // MANUAL CA2 — no amount/tx_amount anywhere; PayUpSheet shows the fiat
+  // figure beside the address as text (see render.test.tsx's crypto case).
   it("never embeds an amount, in any network", () => {
     for (const network of ["bitcoin", "ethereum", "monero"] as const) {
       const m = cryptoLink(
@@ -260,6 +262,9 @@ describe("cryptoLink", () => {
   });
 });
 
+// MANUAL CA1 — which methods each group currency offers, end to end through
+// paymentMethodsFor (the only thing PayUpSheet asks). Whether the emitted UPI
+// QR actually scans is CA1's device half.
 describe("currency gates", () => {
   it("currenciesFor is the single source of truth (null = any currency)", () => {
     expect(currenciesFor("bunq")).toEqual(["EUR"]);
