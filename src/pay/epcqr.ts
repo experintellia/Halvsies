@@ -57,6 +57,10 @@ function hasNewline(s: string | undefined): boolean {
 
 /** Returns null if params are valid, else a short human-readable reason. */
 export function validateEpcParams(p: EpcParams): string | null {
+  // The SCT scheme is EUR-denominated, so the *QR* is EUR-only. This says
+  // nothing about bank transfers at large: an IBAN (ISO 13616, ~85 countries)
+  // is paid in GBP/CHF/SEK/… every day. Callers must gate only the QR on this,
+  // never the IBAN/holder/BIC/reference details.
   if (p.currency !== "EUR") return "EPC QR only supports EUR";
   if (
     !Number.isInteger(p.amountCents) ||

@@ -1,29 +1,19 @@
 // The "Me" tab: your payment methods (added one at a time via a wizard, so the
-// screen stays short), a free-text note that is always visible, group settings,
-// a way into the members sub-screen, and JSON backup.
+// screen stays short) and a free-text note that is always visible. Nothing here
+// is shared: everything the whole group owns — currency, name, members, backup
+// — lives behind the Group settings button at the top (see GroupSettings.tsx).
 import { useState } from "preact/hooks";
-import {
-  canSendToChat,
-  getProfile,
-  getSettings,
-  importOwnProfile,
-  importSnapshot,
-  listMembers,
-  sendOwnProfileToChat,
-  sendSnapshotToChat,
-  setProfile,
-  setSettings,
-} from "../state/doc";
+import { getProfile, getSettings, setProfile } from "../state/doc";
 import { useDocValue } from "./useDoc";
 import type { PaymentProfile } from "../state/model";
-import { formatIban } from "../pay/iban";
+import { formatIban, isValidIban } from "../pay/iban";
 import { paymentMethodsFor } from "../pay/links";
 import { configuredProviders } from "../pay/providers";
 import { buildEpcPayload, epcReference, validateEpcParams } from "../pay/epcqr";
 import { QR } from "./components/QR";
 import { CopyButton } from "./components/CopyButton";
+import { TapButton } from "./components/TapButton";
 import { PaymentMethodWizard, type WizardTarget } from "./PaymentMethodWizard";
-import { MembersSheet } from "./MembersSheet";
 
 function selfAddr(): string | undefined {
   return typeof window === "undefined" ? undefined : window.webxdc?.selfAddr;
@@ -32,43 +22,16 @@ function selfAddr(): string | undefined {
 /** Fixed sample amount for the "what others see" preview — not a real debt. */
 const PREVIEW_CENTS = 1000;
 
-/**
- * `importFiles` is a newer webxdc API level, like sendToChat: feature-detect
- * rather than promise the user a restore path the host cannot provide.
- */
-const canImportFiles =
-  typeof window !== "undefined" &&
-  typeof window.webxdc?.importFiles === "function";
-
 function textValue(e: Event): string {
   return (e.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
 }
 
-/** Tap-safe button — taps ride pointerup in this WebView (see Row.tsx). */
-function TapButton({
-  onActivate,
-  className,
-  children,
-}: {
-  onActivate: () => void;
-  className: string;
-  children: preact.ComponentChildren;
-}) {
-  return (
-    <button
-      type="button"
-      className={className}
-      onPointerUp={onActivate}
-      onClick={(e) => {
-        if (e.detail === 0) onActivate();
-      }}
-    >
-      {children}
-    </button>
-  );
+export interface ProfileFormProps {
+  /** Opens the group-settings sub-page; the route itself lives in App. */
+  onOpenGroupSettings: () => void;
 }
 
-export function ProfileForm() {
+export function ProfileForm({ onOpenGroupSettings }: ProfileFormProps) {
   const self = selfAddr();
   const settings = useDocValue(getSettings);
   const profile = useDocValue(() => (self ? getProfile(self) : undefined));
@@ -76,10 +39,7 @@ export function ProfileForm() {
   // fresh visit always starts from the current doc state without needing a
   // continuous sync effect that could clobber an in-progress edit.
   const [note, setNote] = useState(profile?.note ?? "");
-  const [showMembers, setShowMembers] = useState(false);
-  const [importError, setImportError] = useState<string | undefined>(undefined);
   const [wizard, setWizard] = useState<WizardTarget | "new" | null>(null);
-  const memberCount = useDocValue(listMembers).length;
 
   const current: PaymentProfile = profile ?? {};
 
@@ -88,40 +48,14 @@ export function ProfileForm() {
     setProfile(self, next);
   }
 
-  function handleImport(): void {
-    setImportError(undefined);
-    window.webxdc
-      ?.importFiles({ extensions: [".json"], mimeTypes: ["application/json"] })
-      .then(async (files) => {
-        const file = files[0];
-        if (!file) return; // user cancelled
-        const text = await file.text();
-        // One picker, two exports: a payment-details file has a top-level
-        // "profile" key, a full backup never does — so the shape decides,
-        // not the file name (which the user may have renamed).
-        let raw: unknown = undefined;
-        try {
-          raw = JSON.parse(text);
-        } catch {
-          throw new Error("Import failed: the file is not valid JSON");
-        }
-        // Both parsers throw a human-readable Error on anything malformed;
-        // surface it rather than leaving the user staring at an inert button.
-        if (typeof raw === "object" && raw !== null && "profile" in raw) {
-          importOwnProfile(text);
-        } else {
-          importSnapshot(text);
-        }
-      })
-      .catch((e: unknown) => {
-        setImportError(e instanceof Error ? e.message : "Import failed");
-      });
-  }
-
   // What is actually configured, in the order the pay-up sheet shows it.
   const providers = configuredProviders(current);
   const customs = current.customs ?? [];
-  const hasBank = !!current.iban;
+  // The same check PayUpSheet gates the payer's bank block on. A truthiness
+  // test would count a typo'd IBAN as configured here while the pay-up sheet
+  // silently dropped it — the two screens have to agree on what "configured"
+  // means, or the preview is lying about what others see.
+  const hasBank = isValidIban(current.iban ?? "");
   const crypto = current.crypto;
   const methodCount =
     providers.length + customs.length + (hasBank ? 1 : 0) + (crypto ? 1 : 0);
@@ -148,44 +82,13 @@ export function ProfileForm() {
         <strong>Everyone in this chat can see your payment profile.</strong>
       </p>
 
-      <h2>Group</h2>
-      <label className="field">
-        <span className="field-label">Group currency (3-letter code)</span>
-        <input
-          type="text"
-          maxLength={3}
-          defaultValue={settings.groupCurrency}
-          onBlur={(e) => setSettings({ groupCurrency: textValue(e).trim() })}
-        />
-      </label>
-      <label className="field">
-        <span className="field-label">Name (optional)</span>
-        <input
-          type="text"
-          placeholder="Halvsies"
-          defaultValue={settings.title ?? ""}
-          onBlur={(e) => setSettings({ title: textValue(e).trim() })}
-        />
-        <span className="field-suffix">
-          Shown in the chat as this app's name, and used as the reference on
-          bank transfers ("{previewReference}"). Worth setting if the chat runs
-          more than one split, or so the payment shows up recognisably on
-          people's statements.
-        </span>
-      </label>
-
-      <TapButton
-        className="btn btn-secondary"
-        onActivate={() => setShowMembers(true)}
-      >
-        Members ({memberCount})
+      <TapButton className="btn btn-secondary" onActivate={onOpenGroupSettings}>
+        Group settings
       </TapButton>
       <p className="field-suffix">
-        Add someone who doesn't use this app, rename anyone, or remove a member
-        no expense mentions.
+        The group's currency and name, who is in the split, and backup — the
+        things everyone here shares.
       </p>
-
-      <MembersSheet open={showMembers} onClose={() => setShowMembers(false)} />
 
       <h2>Your payment details</h2>
       {methodCount === 0 ? (
@@ -345,7 +248,11 @@ export function ProfileForm() {
         Preview for a sample {PREVIEW_CENTS / 100}.00 {settings.groupCurrency}{" "}
         debt.
       </p>
-      {previewMethods.length === 0 && !!previewEpc && (
+      {/* `hasBank`, not `previewEpc`: an IBAN is an international account
+          number and a transfer to it works in any currency — only the EPC QR
+          is EUR-only. Gating this on the QR told a GBP user whose one method
+          was a perfectly good IBAN that they had nothing at all. */}
+      {previewMethods.length === 0 && !hasBank && (
         <p className="placeholder">
           Nothing yet — fill in at least one method above.
         </p>
@@ -358,72 +265,34 @@ export function ProfileForm() {
           <CopyButton value={m.url} label="Copy" />
         </div>
       ))}
-      {!previewEpc && hasBank && (
+      {hasBank && (
         <div className="row row-block">
           <p>
-            <strong>Bank transfer QR</strong>
+            <strong>Bank transfer</strong>
           </p>
-          <QR
-            payload={buildEpcPayload({
-              name: current.accountHolder || "You",
-              iban: current.iban || "",
-              amountCents: PREVIEW_CENTS,
-              currency: settings.groupCurrency,
-              reference: previewReference,
-              bic: current.bic,
-            })}
-          />
+          <div className="field-row">
+            <span className="money">{formatIban(current.iban || "")}</span>
+            <CopyButton value={formatIban(current.iban || "")} label="Copy" />
+          </div>
+          {previewEpc ? (
+            <p className="field-suffix">
+              No scannable QR in {settings.groupCurrency}: {previewEpc} Payers
+              still get the IBAN, your name and the reference.
+            </p>
+          ) : (
+            <QR
+              payload={buildEpcPayload({
+                name: current.accountHolder || "You",
+                iban: current.iban || "",
+                amountCents: PREVIEW_CENTS,
+                currency: settings.groupCurrency,
+                reference: previewReference,
+                bic: current.bic,
+              })}
+            />
+          )}
         </div>
       )}
-
-      <h2>Backup</h2>
-      {canSendToChat && (
-        <>
-          <TapButton
-            className="btn btn-secondary"
-            onActivate={sendSnapshotToChat}
-          >
-            Export everything
-          </TapButton>
-          <p className="field-suffix">
-            The whole ledger and everyone's payment details — sent to this chat
-            as one file, to restore this group later.
-          </p>
-
-          {/* Nothing configured means an empty file — offer the button only
-              once it would carry something. */}
-          {(methodCount > 0 || !!current.note) && (
-            <>
-              <TapButton
-                className="btn btn-secondary"
-                onActivate={sendOwnProfileToChat}
-              >
-                Export just your payment details
-              </TapButton>
-              <p className="field-suffix">
-                Only your own payment links, nobody else's data. Send it to
-                yourself so that when you join another Halvsies group you can
-                import it there instead of typing your details in again.
-              </p>
-            </>
-          )}
-        </>
-      )}
-      {canImportFiles && (
-        <TapButton className="btn btn-secondary" onActivate={handleImport}>
-          Restore from file
-        </TapButton>
-      )}
-      {importError && (
-        <p role="alert" className="money-negative">
-          {importError}
-        </p>
-      )}
-      <p className="field-suffix">
-        {canImportFiles
-          ? "Either file works here. Restoring everything is destructive: it replaces this group's ledger with the contents of the backup. Restoring only your payment details just fills in your own links and changes nothing else."
-          : "This messenger cannot open files from inside the app, so a backup can only be restored on a device that can."}
-      </p>
     </div>
   );
 }

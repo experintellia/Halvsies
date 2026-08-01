@@ -14,7 +14,8 @@
 // weights next to a text label.
 import type { JSX } from "preact";
 
-export type IconName = "receipt" | "scale" | "user" | "check" | "close";
+export type IconName =
+  "receipt" | "scale" | "user" | "check" | "close" | "chevron-left";
 
 /** Icon geometry only: everything else (stroke, size) comes from <Icon>. */
 const ICONS: Record<IconName, JSX.Element> = {
@@ -53,6 +54,8 @@ const ICONS: Record<IconName, JSX.Element> = {
       <path d="m6 6 12 12" />
     </>
   ),
+  // lucide/chevron-left
+  "chevron-left": <path d="m15 18-6-6 6-6" />,
 };
 
 export interface IconProps {

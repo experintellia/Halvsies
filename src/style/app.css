@@ -472,7 +472,8 @@ select {
   font-size: 1.05rem;
 }
 
-.sheet-close {
+.sheet-close,
+.subpage-back {
   position: relative;
   flex-shrink: 0;
   border: none;
@@ -485,13 +486,48 @@ select {
 }
 
 /* Pads the hit area out to 44px without growing the visible circle. */
-.sheet-close::after {
+.sheet-close::after,
+.subpage-back::after {
   content: "";
   position: absolute;
   top: -6px;
   right: -6px;
   bottom: -6px;
   left: -6px;
+}
+
+/* ---- full-screen sub-page (group settings, first-run setup) ----
+
+   A route, not a modal: it covers the whole app including the tab bar, so it
+   is opaque (--color-bg, the page background) rather than sitting on a
+   translucent backdrop, and it owns the header while it is up. Same z-index as
+   a Sheet — a Sheet opened from inside a sub-page is a descendant of it, so it
+   still paints on top. Longhands before `inset` for the reason spelled out in
+   .sheet-backdrop. */
+
+.subpage {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  inset: 0;
+  z-index: var(--z-sheet);
+  display: flex;
+  flex-direction: column;
+  max-width: 640px; /* matches .app-shell, so it lands over it on desktop */
+  margin: 0 auto;
+  background: var(--color-bg);
+  /* Same reason as .app-shell: every string in here is user-supplied. */
+  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* The shell's header pairs a title with a currency code on the baseline; this
+   one pairs a back button with a title, so it centres and packs left. */
+.subpage > .app-header {
+  justify-content: flex-start;
+  align-items: center;
 }
 
 /* ---- buttons ---- */

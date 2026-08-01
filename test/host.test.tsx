@@ -47,8 +47,10 @@ async function boot(o: MockOptions = {}) {
   const doc = await import("../src/state/doc");
   const { ProfileForm } = await import("../src/ui/ProfileForm");
   const { PayUpSheet } = await import("../src/ui/PayUpSheet");
+  // Backup/restore moved off the Me tab into the group-settings sub-page.
+  const { GroupSettings } = await import("../src/ui/GroupSettings");
   booted.push(doc);
-  return { webxdc, doc, ProfileForm, PayUpSheet };
+  return { webxdc, doc, ProfileForm, PayUpSheet, GroupSettings };
 }
 
 function expense(over: Partial<Expense> = {}): Expense {
@@ -96,15 +98,29 @@ describe("self-registration against a real host", () => {
     expect(second.doc.listMembers().map((m) => m.id)).toEqual(["a@x.de"]);
   });
 
-  // MANUAL CM4
-  it("CM4 — a removed real member re-registers on their next open", async () => {
+  // MANUAL CM4 — this test used to assert that a removed real member
+  // re-registered on their next open. That premise is void: a real member
+  // cannot be removed at all any more (their name and membership belong to
+  // the Delta Chat group, not to this app), so there is nothing to come back
+  // from. What is worth pinning is the refusal itself, through the real host.
+  it("CM4 — a member who is in the chat cannot be removed from the split", async () => {
     const { doc } = await boot({ selfAddr: "a@x.de", selfName: "Anna" });
     doc.ensureSelfRegistered();
-    expect(doc.removeMember("a@x.de")).toBeNull();
-    expect(doc.listMembers()).toEqual([]);
 
-    expect(doc.ensureSelfRegistered().id).toBe("a@x.de");
+    expect(doc.removeMember("a@x.de")).toMatch(/in this chat/);
     expect(doc.listMembers().map((m) => m.id)).toEqual(["a@x.de"]);
+  });
+
+  // The other half of the same rule: the name follows the messenger.
+  it("CM4 — a nickname changed in Delta Chat is picked up on the next open", async () => {
+    const { doc } = await boot({ selfAddr: "a@x.de", selfName: "Anna" });
+    doc.ensureSelfRegistered();
+    expect(doc.getMember("a@x.de")?.name).toBe("Anna");
+
+    // Same peer, same address, new display name in the messenger.
+    const renamed = await boot({ selfAddr: "a@x.de", selfName: "Anna B." });
+    renamed.doc.ensureSelfRegistered();
+    expect(renamed.doc.getMember("a@x.de")?.name).toBe("Anna B.");
   });
 });
 
@@ -208,7 +224,7 @@ describe("restore from file", () => {
     });
     booted.doc.ensureSelfRegistered();
     booted.doc.addExpense(expense({ title: "Pizza" }));
-    render(<booted.ProfileForm />, dom);
+    render(<booted.GroupSettings open onClose={() => {}} />, dom);
     tap(buttons("Restore from file")[0]);
     await tick();
     return booted;
@@ -253,9 +269,9 @@ describe("restore from file", () => {
 
   // MANUAL E3
   it("E3 — hides Restore and says so on a host without importFiles", async () => {
-    const { doc, ProfileForm } = await boot({ importFiles: false });
+    const { doc, GroupSettings } = await boot({ importFiles: false });
     doc.ensureSelfRegistered();
-    render(<ProfileForm />, dom);
+    render(<GroupSettings open onClose={() => {}} />, dom);
 
     expect(buttons("Restore from file")).toHaveLength(0);
     expect(dom.textContent).toContain("cannot open files from inside the app");

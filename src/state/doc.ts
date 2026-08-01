@@ -126,6 +126,16 @@ const str = (v: unknown): string | undefined =>
  * their share stops being attributed to anyone and the remaining balances no
  * longer sum to zero on peers that still have the member.
  */
+/**
+ * Why a real (non-virtual) member is off limits. They are the people actually
+ * in the chat: their name is the messenger's to report and theirs to change,
+ * and they belong to the split for as long as they are in the group.
+ */
+const NOT_VIRTUAL_RENAME =
+  "their name comes from Delta Chat; only someone you added by hand can be renamed here";
+const NOT_VIRTUAL_REMOVE =
+  "they are in this chat; only someone you added by hand can be removed here";
+
 export function removalBlockedBy(
   id: MemberId,
   expenses: Expense[],
@@ -494,22 +504,43 @@ export function createDoc() {
     flush();
   }
 
-  function renameMember(id: MemberId, name: string): void {
+  /**
+   * Rename a member, or return why not. Only manually-added members can be
+   * renamed: a real member's name is the one Delta Chat reports for them
+   * (registerSelf keeps it in sync), so letting a third party rewrite it here
+   * would put a name on the roster that its owner never chose and cannot
+   * correct from the messenger. The guard lives here, not only in the members
+   * screen, because this is a synced document — an older build or a stale open
+   * screen must not be able to write it either.
+   */
+  function renameMember(id: MemberId, name: string): string | null {
     const prev = yMembers.get(id);
+    if (!prev) return null;
+    if (!prev.isVirtual) return NOT_VIRTUAL_RENAME;
     const trimmed = name.trim();
-    if (!prev || !trimmed) return;
+    if (!trimmed) return "a name cannot be empty";
+    if (trimmed === prev.name) return null;
     doc.transact(() => yMembers.set(id, { ...prev, name: trimmed }));
     flush();
+    return null;
   }
 
   /**
-   * Remove a member. Refuses while the ledger still references them — the UI
-   * disables the button with the same reason, this is the backstop that keeps
-   * a stale screen (or a concurrent peer's new expense) from tearing a hole in
-   * the balances. Their payment profile goes with them.
+   * Remove a member, or return why not. Two gates, and the one that no edit
+   * can clear is reported first:
+   *  - real members are never removable — they are in the chat, so removing
+   *    them just makes this peer disagree with every other one (and they
+   *    re-register on their next open anyway);
+   *  - a virtual member is refused while the ledger still references them (the
+   *    UI disables the button with the same reason; this is the backstop that
+   *    keeps a stale screen, or a concurrent peer's new expense, from tearing
+   *    a hole in the balances).
+   * Their payment profile goes with them.
    */
   function removeMember(id: MemberId): string | null {
-    if (!yMembers.has(id)) return null;
+    const prev = yMembers.get(id);
+    if (!prev) return null;
+    if (!prev.isVirtual) return NOT_VIRTUAL_REMOVE;
     const blocked = removalBlockedBy(id, listExpenses(), listSettlements());
     if (blocked) return blocked;
     doc.transact(() => {
@@ -548,12 +579,27 @@ export function createDoc() {
    * and unique per peer, so two peers registering concurrently produce two
    * distinct keys, and the same peer registering again writes the same key.
    * Conflict-free by construction — no dedupe pass needed.
-   * An existing entry is left alone (a peer may have renamed it).
+   *
+   * The host owns a real member's name (renameMember refuses for them), so an
+   * existing entry is re-synced from it rather than left alone. Three guards:
+   *  - only ever `addr`'s own entry, and registerSelf is only ever called with
+   *    host.selfAddr — nobody else's name is touched;
+   *  - only when it actually differs, so merely opening the app does not emit
+   *    a CRDT update and a chat flush every single time;
+   *  - never when the host has nothing to offer. Callers pass
+   *    `host.selfName || host.selfAddr`, so a host with no display name hands
+   *    us the address — which must not overwrite a good stored name.
    */
   function registerSelf(addr: string, name: string): Member {
     selfId = addr;
     const existing = yMembers.get(addr);
-    if (existing) return existing;
+    if (existing) {
+      if (!name || name === addr || name === existing.name) return existing;
+      const renamed: Member = { ...existing, name };
+      doc.transact(() => yMembers.set(addr, renamed));
+      flush();
+      return renamed;
+    }
     const member: Member = {
       id: addr,
       name: name || addr,

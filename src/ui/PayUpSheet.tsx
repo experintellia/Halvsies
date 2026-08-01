@@ -16,7 +16,7 @@ import {
 import { newId, formatMoney, type Transfer } from "../state/model";
 import { paymentMethodsFor, type PayMethodKind } from "../pay/links";
 import { buildEpcPayload, epcReference, validateEpcParams } from "../pay/epcqr";
-import { formatIban } from "../pay/iban";
+import { formatIban, isValidIban } from "../pay/iban";
 import { Sheet } from "./components/Sheet";
 import { CopyButton } from "./components/CopyButton";
 import { QR } from "./components/QR";
@@ -184,7 +184,16 @@ export function PayUpSheet({
     reference,
     bic: profile.bic,
   };
+  // An IBAN is an international account number (ISO 13616, ~85 countries), so
+  // a valid one is a usable payment method in *any* currency. What is EUR-only
+  // is the EPC069-12 QR, which encodes a SEPA Credit Transfer — hence two
+  // separate gates: hasIban shows the details, epcError hides only the code.
+  const formattedIban = formatIban(profile.iban || "");
+  const hasIban = isValidIban(profile.iban || "");
   const epcError = validateEpcParams(epcParams);
+  const bankLine = `IBAN ${formattedIban}${payeeName ? ` (${payeeName})` : ""}${
+    profile.bic ? `, BIC ${profile.bic}` : ""
+  }, ref: ${reference}`;
 
   const introText =
     direction === "pay"
@@ -228,7 +237,7 @@ export function PayUpSheet({
       )}
 
       {methods.length === 0 &&
-        epcError &&
+        !hasIban &&
         !profile.note &&
         !cryptoAddressOnly && (
           <p className="placeholder">
@@ -319,32 +328,53 @@ export function PayUpSheet({
         </div>
       )}
 
-      {!epcError ? (
+      {hasIban && (
         <div className="row row-block">
           <p>
             <strong>Bank transfer</strong>
           </p>
-          <QR payload={buildEpcPayload(epcParams)} />
-          <p>Scan with your banking app.</p>
+          {epcError ? (
+            <p className="field-suffix">
+              Bank transfer QR unavailable: {epcError}. Only the scannable code
+              is missing — the details below work for a transfer in{" "}
+              {currency.trim().toUpperCase()}.
+            </p>
+          ) : (
+            <>
+              <QR payload={buildEpcPayload(epcParams)} />
+              <p>Scan with your banking app.</p>
+            </>
+          )}
           <div className="field-row">
-            <span className="money">{formatIban(profile.iban || "")}</span>
-            <CopyButton
-              value={formatIban(profile.iban || "")}
-              label="Copy IBAN"
-            />
+            <span className="money">{formattedIban}</span>
+            <CopyButton value={formattedIban} label="Copy IBAN" />
           </div>
           <p>{payeeName}</p>
+          {profile.bic && <p className="field-suffix">BIC {profile.bic}</p>}
           <div className="field-row">
             <span>{reference}</span>
             <CopyButton value={reference} label="Copy reference" />
           </div>
+          {canSendToChat && (
+            <div className="field-row">
+              <TapButton
+                className="btn btn-secondary"
+                onActivate={() => {
+                  setUsedMethod("Bank transfer");
+                  const otherName =
+                    direction === "pay" ? creditorName : debtorName;
+                  const text =
+                    direction === "pay"
+                      ? `Paying ${otherName} ${amount} by bank transfer — ${bankLine}`
+                      : `Hey ${otherName} — ${amount} whenever you get a chance: ${bankLine}`;
+                  sendToChat(text);
+                }}
+              >
+                Send to chat
+              </TapButton>
+            </div>
+          )}
         </div>
-      ) : (
-        methods.length > 0 && (
-          <p className="field-suffix">
-            Bank transfer QR unavailable: {epcError}.
-          </p>
-        )
       )}
 
       {/* In-app two-tap confirmation rather than window.confirm(): several

@@ -120,7 +120,7 @@ manual check has to come back.
 | CA1 currency gating             | `describe("currency gates")` (links)                             |
 | CA2 crypto carries no amount    | `never embeds an amount, in any network` (links)                 |
 | CA4 currency warning pill       | `CA4 — pills bunq, Cash App, UPI and Monzo in CHF…` (render)     |
-| CM1–CM4 members                 | `CM1`…`CM4` (convergence + render + host)                        |
+| CM1–CM4 members                 | `CM1`…`CM4` (convergence + render + host + members)              |
 | E1–E5 import/export             | round trip, E2 negative amount, E4 profile-only, E5 by shape     |
 | F1 size budget                  | `scripts/audit-bundle.mjs` — fails the build                     |
 | F2 no network in the bundle     | `scripts/audit-bundle.mjs` — fails the build                     |

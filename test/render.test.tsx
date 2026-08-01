@@ -129,7 +129,7 @@ describe("ExpenseList", () => {
 
 describe("ProfileForm", () => {
   it("starts collapsed: no method rows, an add button, and the note field", () => {
-    render(<ProfileForm />, host);
+    render(<ProfileForm onOpenGroupSettings={() => {}} />, host);
     const text = host.textContent ?? "";
 
     // The whole point of the redesign: methods are not all splayed out.
@@ -146,7 +146,7 @@ describe("ProfileForm", () => {
 
   /** Opens the wizard picker. */
   const openPicker = async (): Promise<void> => {
-    render(<ProfileForm />, host);
+    render(<ProfileForm onOpenGroupSettings={() => {}} />, host);
     tap(
       Array.from(host.querySelectorAll("button")).find((b) =>
         (b.textContent ?? "").includes("Add payment method"),
@@ -300,7 +300,7 @@ describe("ProfileForm", () => {
   });
 
   it("walks to a provider step and shows where to find the handle", async () => {
-    render(<ProfileForm />, host);
+    render(<ProfileForm onOpenGroupSettings={() => {}} />, host);
     tap(
       Array.from(host.querySelectorAll("button")).find((b) =>
         (b.textContent ?? "").includes("Add payment method"),
@@ -548,6 +548,11 @@ describe("the Me tab preview and the payer's sheet", () => {
   const PROFILE = {
     paypalMe: "anna",
     bunqMe: "anna",
+    // A bank method on purpose: it is the one with no <a> element, so an
+    // href-only comparison is blind to it — which is exactly how the two
+    // screens drifted apart over whether a non-EUR IBAN counts at all.
+    iban: "DE89370400440532013000",
+    accountHolder: "Anna Beispiel",
     customs: [
       {
         id: "c1",
@@ -565,10 +570,13 @@ describe("the Me tab preview and the payer's sheet", () => {
     installWebxdc({ selfAddr: ME, selfName: "Anna" });
     setProfile(ME, PROFILE);
 
-    render(<ProfileForm />, host);
+    render(<ProfileForm onOpenGroupSettings={() => {}} />, host);
     const previewed = Array.from(host.querySelectorAll(".field-row p"))
       .map((p) => (p.textContent ?? "").match(/https:\/\/\S+/)?.[0])
       .filter((url): url is string => !!url);
+    const previewedIban = Array.from(host.querySelectorAll(".money"))
+      .map((el) => (el.textContent ?? "").trim())
+      .find((t) => t.startsWith("DE89"));
     render(null, host);
 
     // The preview's sample debt is 10.00 of the group currency.
@@ -587,6 +595,9 @@ describe("the Me tab preview and the payer's sheet", () => {
 
     expect(previewed).toHaveLength(3);
     expect(previewed).toEqual(offered);
+    // …and the bank method, which carries no link, is on both screens too.
+    expect(previewedIban).toBe("DE89 3704 0044 0532 0130 00");
+    expect(host.textContent).toContain("DE89 3704 0044 0532 0130 00");
   });
 });
 

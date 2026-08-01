@@ -279,11 +279,14 @@ export const PICKER_SECTIONS: readonly {
       {
         target: { kind: "bank" },
         label: "Bank transfer",
-        blurb: "IBAN + a scannable QR code for EUR debts.",
-        // EPC QR is EUR-only — see validateEpcParams() in epcqr.ts. Bank
-        // transfer has no PayMethodKind, so this one list can't come from
-        // links.ts; every other entry's does.
-        currencies: ["EUR"],
+        // An IBAN is ISO 13616, not a euro thing — a GBP/CHF/SEK transfer to
+        // one is ordinary, so the method takes any currency (null). Only the
+        // EPC069-12 QR is EUR-only (see validateEpcParams() in epcqr.ts), and
+        // currencyPill can only say "method unavailable", which would be a
+        // lie here — so that caveat lives in the blurb, which renders in every
+        // currency, instead of in the pill.
+        blurb: "Works in any currency. The scannable QR code is EUR-only.",
+        currencies: null,
       },
       providerEntry("upiVpa"),
     ],

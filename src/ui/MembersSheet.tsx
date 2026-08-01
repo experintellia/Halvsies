@@ -1,9 +1,13 @@
 // The members sub-screen: who is in this split, add someone who doesn't use
-// the app, rename anyone, and remove a member the ledger doesn't reference.
+// the app, and rename/remove those manually-added members.
 //
-// Removal is deliberately conservative — see removalBlockedBy() in state/doc:
-// dropping a member who still appears in an expense would leave the balances
-// not summing to zero against any peer that still has them.
+// Only virtual members are editable here. Someone who is really in the chat
+// gets their name from Delta Chat and stays in the split — the writers in
+// state/doc refuse either edit for them, this screen just doesn't offer it.
+//
+// Removal is deliberately conservative on top of that — see removalBlockedBy()
+// in state/doc: dropping a member who still appears in an expense would leave
+// the balances not summing to zero against any peer that still has them.
 import { useState } from "preact/hooks";
 import {
   addVirtualMember,
@@ -81,31 +85,46 @@ export function MembersSheet({ open, onClose }: MembersSheetProps) {
     }
     // removeMember re-checks and returns a reason: a peer may have added an
     // expense naming this member since the button rendered.
-    setError(removeMember(id) ?? undefined);
+    const reason = removeMember(id);
+    setError(reason ? `Not removed — ${reason}.` : undefined);
     setConfirming(null);
+  }
+
+  /** Same deal: the writer has the last word, so report what it says. */
+  function rename(id: MemberId, input: HTMLInputElement, was: string): void {
+    const reason = renameMember(id, input.value);
+    if (reason) input.value = was; // don't leave a rejected value on screen
+    setError(reason ? `Not renamed — ${reason}.` : undefined);
   }
 
   return (
     <Sheet open={open} onClose={onClose} title="Members">
       <ul className="method-list">
         {members.map((m) => {
-          const blocked = removalBlockedBy(m.id, expenses, settlements);
+          const blocked = m.isVirtual
+            ? removalBlockedBy(m.id, expenses, settlements)
+            : null;
           return (
             <li key={m.id} className="method-row">
               <span className="method-main">
                 <span className="field-row">
                   <Avatar member={m} size={24} />
-                  <input
-                    type="text"
-                    aria-label={`Name of ${m.name}`}
-                    defaultValue={m.name}
-                    onBlur={(e) =>
-                      renameMember(
-                        m.id,
-                        (e.currentTarget as HTMLInputElement).value,
-                      )
-                    }
-                  />
+                  {m.isVirtual ? (
+                    <input
+                      type="text"
+                      aria-label={`Name of ${m.name}`}
+                      defaultValue={m.name}
+                      onBlur={(e) =>
+                        rename(
+                          m.id,
+                          e.currentTarget as HTMLInputElement,
+                          m.name,
+                        )
+                      }
+                    />
+                  ) : (
+                    <span>{m.name}</span>
+                  )}
                 </span>
                 <span className="field-suffix">
                   {m.id === selfId
@@ -115,17 +134,24 @@ export function MembersSheet({ open, onClose }: MembersSheetProps) {
                       : "In this chat"}
                   {blocked ? ` · ${blocked}` : ""}
                 </span>
+                {!m.isVirtual && (
+                  <span className="field-suffix">
+                    Name comes from Delta Chat
+                  </span>
+                )}
               </span>
-              <TapButton
-                className={
-                  confirming === m.id ? "btn btn-danger" : "btn btn-secondary"
-                }
-                disabled={blocked !== null}
-                title={blocked ?? undefined}
-                onActivate={() => remove(m.id)}
-              >
-                {confirming === m.id ? "Really remove?" : "Remove"}
-              </TapButton>
+              {m.isVirtual && (
+                <TapButton
+                  className={
+                    confirming === m.id ? "btn btn-danger" : "btn btn-secondary"
+                  }
+                  disabled={blocked !== null}
+                  title={blocked ?? undefined}
+                  onActivate={() => remove(m.id)}
+                >
+                  {confirming === m.id ? "Really remove?" : "Remove"}
+                </TapButton>
+              )}
             </li>
           );
         })}
@@ -133,14 +159,15 @@ export function MembersSheet({ open, onClose }: MembersSheetProps) {
 
       {error && (
         <p role="alert" className="money-negative">
-          Not removed — {error}.
+          {error}
         </p>
       )}
 
       <p className="field-suffix">
-        A member can only be removed while no expense or payment mentions them.
-        Someone who is in this chat comes back on their own the next time they
-        open Halvsies.
+        Everyone who is in this chat is in the split, under the name Delta Chat
+        knows them by — they change that in Delta Chat, not here. Someone you
+        added by hand can be renamed, and removed while no expense or payment
+        mentions them.
       </p>
 
       <label className="field">
