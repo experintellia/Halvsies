@@ -117,6 +117,74 @@ function records(v: unknown, what: string): Record<string, unknown> {
 const str = (v: unknown): string | undefined =>
   typeof v === "string" && v ? v : undefined;
 
+/**
+ * Validate one profile entry. Shared by the full snapshot and the
+ * payment-details-only file — both are file content arriving from a chat, so
+ * neither path gets a weaker check. `label` names the offender in errors
+ * (`profile "a@x.de"` / `the payment details file`).
+ */
+function parseProfileValue(v: unknown, label: string): PaymentProfile {
+  if (!isObj(v)) fail(`${label} is not an object`);
+  const p: PaymentProfile = {
+    paypalMe: str(v.paypalMe),
+    iban: str(v.iban),
+    accountHolder: str(v.accountHolder),
+    bic: str(v.bic),
+    revolutTag: str(v.revolutTag),
+    wiseTag: str(v.wiseTag),
+    venmo: str(v.venmo),
+    monzoMe: str(v.monzoMe),
+    note: str(v.note),
+  };
+  // A profile may carry any number of custom link templates. `custom` (a
+  // single object) is the pre-0.2 shape — still accepted on import so an
+  // older backup restores, folded into the array.
+  const rawCustoms: unknown[] = Array.isArray(v.customs)
+    ? v.customs
+    : v.custom !== undefined && v.custom !== null
+      ? [v.custom]
+      : [];
+  const customs: CustomPaymentMethod[] = [];
+  const seen = new Set<string>();
+  for (const c of rawCustoms) {
+    if (!isObj(c)) fail(`${label} has an invalid custom method`);
+    const cLabel = str(c.label);
+    const urlTemplate = c.urlTemplate;
+    if (!cLabel || typeof urlTemplate !== "string") {
+      fail(`${label} has an invalid custom payment method`);
+    }
+    // Rendered as a link later: only ever accept http(s) (no javascript:).
+    if (!/^https?:\/\//i.test(urlTemplate)) {
+      fail(`${label}: custom payment URL must start with http(s)://`);
+    }
+    // Ids must exist and be unique, or list edits would hit the wrong row
+    // and React keys would collide. Synthesize one for the legacy shape.
+    let id = str(c.id) ?? `legacy-${customs.length}`;
+    while (seen.has(id)) id = `${id}-`;
+    seen.add(id);
+    customs.push({ id, label: cLabel, urlTemplate });
+  }
+  if (customs.length > 0) p.customs = customs;
+  return p;
+}
+
+/**
+ * Parse + validate a payment-details-only export (`exportOwnProfile`). The
+ * top-level `profile` key is what tells this file apart from a full snapshot.
+ */
+export function parseProfileFile(json: string): PaymentProfile {
+  let raw: unknown = undefined;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    fail("the file is not valid JSON");
+  }
+  if (!isObj(raw) || raw.profile === undefined) {
+    fail("this file does not contain payment details");
+  }
+  return parseProfileValue(raw.profile, "the payment details file");
+}
+
 /** Parse + validate an exported snapshot. Throws a human-readable Error. */
 export function parseSnapshot(json: string): Snapshot {
   let raw: unknown = undefined;
@@ -151,48 +219,7 @@ export function parseSnapshot(json: string): Snapshot {
 
   const profiles: Record<MemberId, PaymentProfile> = {};
   for (const [key, v] of Object.entries(records(raw.profiles, "profiles"))) {
-    if (!isObj(v)) fail(`profile "${key}" is not an object`);
-    const p: PaymentProfile = {
-      paypalMe: str(v.paypalMe),
-      iban: str(v.iban),
-      accountHolder: str(v.accountHolder),
-      bic: str(v.bic),
-      revolutTag: str(v.revolutTag),
-      wiseTag: str(v.wiseTag),
-      venmo: str(v.venmo),
-      monzoMe: str(v.monzoMe),
-      note: str(v.note),
-    };
-    // A profile may carry any number of custom link templates. `custom` (a
-    // single object) is the pre-0.2 shape — still accepted on import so an
-    // older backup restores, folded into the array.
-    const rawCustoms: unknown[] = Array.isArray(v.customs)
-      ? v.customs
-      : v.custom !== undefined && v.custom !== null
-        ? [v.custom]
-        : [];
-    const customs: CustomPaymentMethod[] = [];
-    const seen = new Set<string>();
-    for (const c of rawCustoms) {
-      if (!isObj(c)) fail(`profile "${key}" has an invalid custom method`);
-      const label = str(c.label);
-      const urlTemplate = c.urlTemplate;
-      if (!label || typeof urlTemplate !== "string") {
-        fail(`profile "${key}" has an invalid custom payment method`);
-      }
-      // Rendered as a link later: only ever accept http(s) (no javascript:).
-      if (!/^https?:\/\//i.test(urlTemplate)) {
-        fail(`profile "${key}": custom payment URL must start with http(s)://`);
-      }
-      // Ids must exist and be unique, or list edits would hit the wrong row
-      // and React keys would collide. Synthesize one for the legacy shape.
-      let id = str(c.id) ?? `legacy-${customs.length}`;
-      while (seen.has(id)) id = `${id}-`;
-      seen.add(id);
-      customs.push({ id, label, urlTemplate });
-    }
-    if (customs.length > 0) p.customs = customs;
-    profiles[key] = p;
+    profiles[key] = parseProfileValue(v, `profile "${key}"`);
   }
 
   const expenses: Record<ExpenseId, Expense> = {};
@@ -515,6 +542,26 @@ export function createDoc() {
     flush();
   }
 
+  /**
+   * The local user's member id. It is set by registerSelf, which is only ever
+   * called with `host.selfAddr` (ensureSelfRegistered) — so the profile import
+   * below can never land on someone else's id.
+   */
+  function ownId(): MemberId {
+    if (!selfId) throw new Error("You are not registered in this group yet.");
+    return selfId;
+  }
+
+  /** Just your own payment coordinates, portable to another Halvsies group. */
+  function exportOwnProfile(): string {
+    return JSON.stringify({ profile: yProfiles.get(ownId()) ?? {} }, null, 2);
+  }
+
+  /** Non-destructive: writes only the local user's profile entry. */
+  function importOwnProfile(json: string): void {
+    setProfile(ownId(), parseProfileFile(json));
+  }
+
   return {
     doc,
     getSettings,
@@ -536,6 +583,8 @@ export function createDoc() {
     subscribe,
     exportSnapshot,
     importSnapshot,
+    exportOwnProfile,
+    importOwnProfile,
   };
 }
 
@@ -591,6 +640,8 @@ export const {
   subscribe,
   exportSnapshot,
   importSnapshot,
+  exportOwnProfile,
+  importOwnProfile,
 } = store;
 
 /** Register the local user as a member; idempotent, safe on every open. */
@@ -615,6 +666,23 @@ export function sendSnapshotToChat(): void {
     .sendToChat({
       file: { name: "halvsies.json", plainText: exportSnapshot() },
       text: "Halvsies backup — open Halvsies and use Import to restore it.",
+    })
+    .catch(() => {
+      /* user cancelled or the app is closing */
+    });
+}
+
+/** Send only your own payment details, to re-import in another group's chat. */
+export function sendOwnProfileToChat(): void {
+  if (!canSendToChat || !host) return;
+  flush(); // sendToChat may close the app
+  host
+    .sendToChat({
+      file: {
+        name: "halvsies-payment-details.json",
+        plainText: exportOwnProfile(),
+      },
+      text: "My Halvsies payment details — open Halvsies in another group and use Restore from file to add them there.",
     })
     .catch(() => {
       /* user cancelled or the app is closing */

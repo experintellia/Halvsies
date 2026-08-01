@@ -7,8 +7,10 @@ import {
   canSendToChat,
   getProfile,
   getSettings,
+  importOwnProfile,
   importSnapshot,
   now,
+  sendOwnProfileToChat,
   sendSnapshotToChat,
   setProfile,
   setSettings,
@@ -93,9 +95,23 @@ export function ProfileForm() {
       .then(async (files) => {
         const file = files[0];
         if (!file) return; // user cancelled
-        // parseSnapshot throws a human-readable Error on anything malformed;
+        const text = await file.text();
+        // One picker, two exports: a payment-details file has a top-level
+        // "profile" key, a full backup never does — so the shape decides,
+        // not the file name (which the user may have renamed).
+        let raw: unknown = undefined;
+        try {
+          raw = JSON.parse(text);
+        } catch {
+          throw new Error("Import failed: the file is not valid JSON");
+        }
+        // Both parsers throw a human-readable Error on anything malformed;
         // surface it rather than leaving the user staring at an inert button.
-        importSnapshot(await file.text());
+        if (typeof raw === "object" && raw !== null && "profile" in raw) {
+          importOwnProfile(text);
+        } else {
+          importSnapshot(text);
+        }
       })
       .catch((e: unknown) => {
         setImportError(e instanceof Error ? e.message : "Import failed");
@@ -347,32 +363,43 @@ export function ProfileForm() {
       )}
 
       <h2>Backup</h2>
-      <div className="field-row">
-        {canSendToChat && (
-          <button
-            type="button"
+      {canSendToChat && (
+        <>
+          <TapButton
             className="btn btn-secondary"
-            onPointerUp={sendSnapshotToChat}
-            onClick={(e) => {
-              if (e.detail === 0) sendSnapshotToChat();
-            }}
+            onActivate={sendSnapshotToChat}
           >
-            Send backup to chat
-          </button>
-        )}
-        {canImportFiles && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onPointerUp={handleImport}
-            onClick={(e) => {
-              if (e.detail === 0) handleImport();
-            }}
-          >
-            Restore from file
-          </button>
-        )}
-      </div>
+            Export everything
+          </TapButton>
+          <p className="field-suffix">
+            The whole ledger and everyone's payment details — sent to this chat
+            as one file, to restore this group later.
+          </p>
+
+          {/* Nothing configured means an empty file — offer the button only
+              once it would carry something. */}
+          {(methodCount > 0 || !!current.note) && (
+            <>
+              <TapButton
+                className="btn btn-secondary"
+                onActivate={sendOwnProfileToChat}
+              >
+                Export just your payment details
+              </TapButton>
+              <p className="field-suffix">
+                Only your own payment links, nobody else's data. Send it to
+                yourself so that when you join another Halvsies group you can
+                import it there instead of typing your details in again.
+              </p>
+            </>
+          )}
+        </>
+      )}
+      {canImportFiles && (
+        <TapButton className="btn btn-secondary" onActivate={handleImport}>
+          Restore from file
+        </TapButton>
+      )}
       {importError && (
         <p role="alert" className="money-negative">
           {importError}
@@ -380,7 +407,7 @@ export function ProfileForm() {
       )}
       <p className="field-suffix">
         {canImportFiles
-          ? "Restoring replaces this group's ledger with the contents of the backup file."
+          ? "Either file works here. Restoring everything is destructive: it replaces this group's ledger with the contents of the backup. Restoring only your payment details just fills in your own links and changes nothing else."
           : "This messenger cannot open files from inside the app, so a backup can only be restored on a device that can."}
       </p>
     </div>

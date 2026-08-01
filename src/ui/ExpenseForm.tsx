@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import {
   addExpense,
   deleteExpense,
-  ensureSelfRegistered,
   getSettings,
   listMembers,
   now,
@@ -21,25 +20,11 @@ import {
   type Split,
   type SplitMode,
 } from "../state/model";
-import { useDocValue } from "./useDoc";
+import { useDocValue, useSelfId } from "./useDoc";
 import { Sheet } from "./components/Sheet";
 import { Amount } from "./components/Amount";
 import { Avatar } from "./components/Avatar";
 import { Row } from "./components/Row";
-
-// Not imported from ExpenseList.tsx on purpose: that file imports
-// ExpenseForm, and a circular import for one 8-line hook isn't worth it.
-function useSelfId(): MemberId | undefined {
-  const [id, setId] = useState<MemberId | undefined>(undefined);
-  useEffect(() => {
-    try {
-      setId(ensureSelfRegistered().id);
-    } catch {
-      // no webxdc host — leave undefined (tests / SSR)
-    }
-  }, []);
-  return id;
-}
 
 export interface ExpenseFormProps {
   open: boolean;
@@ -282,22 +267,34 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
       </div>
 
       <div className="field">
-        <span className="field-label">Split between</span>
+        <span className="field-label">
+          Split between{" "}
+          <span className="field-suffix">
+            ({participants.length} of {members.length})
+          </span>
+        </span>
         {members.map((m) => {
           const selected = participants.includes(m.id);
           const share = shares[m.id] ?? 0;
           return (
             <div key={m.id} style={{ marginBottom: 8 }}>
+              {/* In "even" mode every share is identical, so the amount alone
+                  can't say who is in — hence an explicit checkbox and a
+                  selected-row outline, not colour or emphasis alone. */}
               <Row
                 role="checkbox"
                 aria-checked={selected}
+                className={selected ? "row-check selected" : "row-check"}
                 onActivate={() => toggleParticipant(m.id)}
               >
+                <span className="check-box" aria-hidden="true">
+                  {selected ? "✓" : ""}
+                </span>
                 <Avatar member={m} />
                 <span style={{ flex: 1 }}>{m.name}</span>
-                {selected && (
-                  <span className="money">{formatMoney(share, currency)}</span>
-                )}
+                <span className="money">
+                  {selected ? formatMoney(share, currency) : "not included"}
+                </span>
               </Row>
               {selected && mode === "weights" && (
                 <div style={{ marginLeft: 44, marginTop: 4 }}>

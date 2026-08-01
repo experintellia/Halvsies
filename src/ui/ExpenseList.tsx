@@ -2,53 +2,43 @@
 //
 // Ids are ULID-ish (model.newId): ascending id order is chronological, so
 // "newest first" is just the reverse of state/doc's listExpenses().
-import { useEffect, useState } from "preact/hooks";
-import {
-  ensureSelfRegistered,
-  getSettings,
-  listExpenses,
-  listMembers,
-} from "../state/doc";
+import { useState } from "preact/hooks";
+import { getSettings, listExpenses, listMembers } from "../state/doc";
 import { splitShares } from "../state/balances";
-import { formatMoney, type Expense, type MemberId } from "../state/model";
-import { useDocValue } from "./useDoc";
+import {
+  formatMoney,
+  type Expense,
+  type ExpenseId,
+  type MemberId,
+} from "../state/model";
+import { useDocValue, useSelfId } from "./useDoc";
 import { Row } from "./components/Row";
 import { Avatar } from "./components/Avatar";
 import { ExpenseForm } from "./ExpenseForm";
-
-/**
- * The local user's member id, once self-registration completes. Undefined
- * outside a webxdc host (vitest/SSR) or for the one render before the effect
- * below has run.
- */
-export function useSelfId(): MemberId | undefined {
-  const [id, setId] = useState<MemberId | undefined>(undefined);
-  useEffect(() => {
-    try {
-      setId(ensureSelfRegistered().id);
-    } catch {
-      // no webxdc host — leave undefined (tests / SSR)
-    }
-  }, []);
-  return id;
-}
-
-/** Which sheet is open: nothing, a fresh expense, or an existing one to edit. */
-type Target = "new" | Expense | null;
+import { ExpenseDetail } from "./ExpenseDetail";
 
 export function ExpenseList() {
   const expenses = useDocValue(listExpenses);
   const members = useDocValue(listMembers);
   const currency = useDocValue(getSettings).groupCurrency;
   const selfId = useSelfId();
-  const [target, setTarget] = useState<Target>(null);
+  // Ids, not the expense objects: a peer editing (or deleting) the expense
+  // you have open should update (or empty) the sheet, not leave you looking
+  // at a snapshot from the moment you tapped.
+  const [viewId, setViewId] = useState<ExpenseId | null>(null);
+  const [editId, setEditId] = useState<ExpenseId | "new" | null>(null);
 
   const newest = [...expenses].reverse();
   const memberIds = members.map((m) => m.id);
   const nameOf = (id: MemberId): string =>
     members.find((m) => m.id === id)?.name || "Someone";
 
-  const addBtn = () => setTarget("new");
+  const find = (id: ExpenseId | null): Expense | undefined =>
+    id === null ? undefined : expenses.find((e) => e.id === id);
+  const viewing = find(viewId);
+  const editing = editId === "new" ? undefined : find(editId);
+
+  const addBtn = () => setEditId("new");
 
   return (
     <section aria-label="Expenses">
@@ -74,28 +64,29 @@ export function ExpenseList() {
           const shares = splitShares(expense, memberIds);
           const myShare = selfId ? (shares[selfId] ?? 0) : undefined;
           return (
-            <Row key={expense.id} onActivate={() => setTarget(expense)}>
+            <Row key={expense.id} onActivate={() => setViewId(expense.id)}>
               <Avatar member={payer ?? { id: expense.payerId, name: "?" }} />
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "block" }}>
+              {/* Two lines, each with its own overflow rule: a long title or
+                  payer name ellipsizes, while the date and the amounts never
+                  shrink — sharing one nowrap line let a long name push the
+                  date straight over the amount column. */}
+              <span className="expense-main">
+                <span className="expense-title">
                   {expense.title || "Untitled"}
                 </span>
-                <span
-                  style={{ display: "block", fontSize: "0.85rem" }}
-                  className="field-suffix"
-                >
-                  {nameOf(expense.payerId)} paid · {expense.date}
+                <span className="expense-meta">
+                  <span className="expense-payer">
+                    {nameOf(expense.payerId)} paid
+                  </span>
+                  <span className="expense-date">{expense.date}</span>
                 </span>
               </span>
-              <span style={{ textAlign: "right", flexShrink: 0 }}>
-                <span className="money" style={{ display: "block" }}>
+              <span className="expense-amounts">
+                <span className="money">
                   {formatMoney(expense.amountCents, currency)}
                 </span>
                 {myShare !== undefined && (
-                  <span
-                    className="money field-suffix"
-                    style={{ display: "block", fontSize: "0.78rem" }}
-                  >
+                  <span className="money expense-share">
                     Your share {formatMoney(myShare, currency)}
                   </span>
                 )}
@@ -105,10 +96,21 @@ export function ExpenseList() {
         })
       )}
 
+      <ExpenseDetail
+        open={viewId !== null}
+        expense={viewing}
+        selfId={selfId}
+        onClose={() => setViewId(null)}
+        onEdit={() => {
+          setEditId(viewId);
+          setViewId(null);
+        }}
+      />
+
       <ExpenseForm
-        open={target !== null}
-        expense={target === "new" || target === null ? undefined : target}
-        onClose={() => setTarget(null)}
+        open={editId === "new" || editing !== undefined}
+        expense={editing}
+        onClose={() => setEditId(null)}
       />
     </section>
   );

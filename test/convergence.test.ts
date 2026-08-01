@@ -222,6 +222,94 @@ describe("snapshots", () => {
   });
 });
 
+describe("payment-details-only export", () => {
+  const anna = (): Store => {
+    const a = createDoc();
+    a.registerSelf("a@x.de", "Anna");
+    a.setProfile("a@x.de", {
+      paypalMe: "anna",
+      note: "IBAN please",
+      customs: [
+        {
+          id: "c1",
+          label: "Twint",
+          urlTemplate: "https://twint.example/{amount}",
+        },
+        {
+          id: "c2",
+          label: "PayNow",
+          urlTemplate: "https://paynow.example/{ref}",
+        },
+      ],
+    });
+    return a;
+  };
+
+  it("round-trips a profile with several custom links into another group", () => {
+    const a = anna();
+    const file = a.exportOwnProfile();
+    expect(Object.keys(JSON.parse(file))).toEqual(["profile"]);
+
+    const b = createDoc();
+    b.registerSelf("b@x.de", "Bob");
+    b.importOwnProfile(file);
+
+    expect(b.getProfile("b@x.de")).toEqual(a.getProfile("a@x.de"));
+    expect(b.getProfile("b@x.de")!.customs).toHaveLength(2);
+    // Written to the local member id only — never the exporter's.
+    expect(b.getProfile("a@x.de")).toBeUndefined();
+  });
+
+  it("leaves the ledger alone, unlike a full restore", () => {
+    const b = createDoc();
+    b.registerSelf("b@x.de", "Bob");
+    b.setSettings({ title: "Rome trip" });
+    b.addExpense(expense("001", { title: "Pizza" }));
+
+    b.importOwnProfile(anna().exportOwnProfile());
+
+    expect(b.listExpenses().map((e) => e.title)).toEqual(["Pizza"]);
+    expect(b.getSettings().title).toBe("Rome trip");
+    expect(b.listMembers().map((m) => m.id)).toEqual(["b@x.de"]);
+  });
+
+  it("still accepts a full snapshot on the same doc", () => {
+    const a = anna();
+    a.addExpense(expense("001", { title: "Pizza" }));
+
+    const b = createDoc();
+    b.registerSelf("b@x.de", "Bob");
+    b.importOwnProfile(a.exportOwnProfile());
+    b.importSnapshot(a.exportSnapshot());
+
+    expect(b.listExpenses().map((e) => e.title)).toEqual(["Pizza"]);
+    expect(b.getProfile("a@x.de")).toEqual(a.getProfile("a@x.de"));
+  });
+
+  it("rejects a hostile or malformed payment-details file", () => {
+    const b = createDoc();
+    b.registerSelf("b@x.de", "Bob");
+    const wrap = (profile: unknown): string => JSON.stringify({ profile });
+
+    expect(() =>
+      b.importOwnProfile(
+        wrap({
+          customs: [{ id: "c", label: "x", urlTemplate: "javascript:evil()" }],
+        }),
+      ),
+    ).toThrow(/http\(s\)/i);
+    expect(() => b.importOwnProfile("not json")).toThrow(/not valid JSON/);
+    expect(() => b.importOwnProfile('{"members":{}}')).toThrow(
+      /does not contain payment details/,
+    );
+    expect(() => b.importOwnProfile(wrap("nope"))).toThrow(/not an object/);
+    expect(() =>
+      b.importOwnProfile(wrap({ customs: [{ label: "x" }] })),
+    ).toThrow(/invalid custom payment method/);
+    expect(b.getProfile("b@x.de")).toBeUndefined();
+  });
+});
+
 describe("describeChange", () => {
   const base = {
     actorName: "Simon",
