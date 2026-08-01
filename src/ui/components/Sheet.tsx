@@ -3,6 +3,7 @@
 // restores focus to whatever opened it when it closes.
 import type { ComponentChildren } from "preact";
 import { useEffect, useId, useRef } from "preact/hooks";
+import { Icon } from "./Icon";
 
 export interface SheetProps {
   open: boolean;
@@ -104,7 +105,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
               if (e.detail === 0) onClose();
             }}
           >
-            ✕
+            <Icon name="close" size={18} />
           </button>
         </div>
         <div className="sheet-body">{children}</div>

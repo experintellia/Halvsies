@@ -7,13 +7,14 @@ import { Balances } from "./Balances";
 import { ExpenseList } from "./ExpenseList";
 import { ProfileForm } from "./ProfileForm";
 import { useDocValue } from "./useDoc";
+import { Icon, type IconName } from "./components/Icon";
 
 type Tab = "expenses" | "balances" | "me";
 
-const TABS: ReadonlyArray<{ id: Tab; label: string; icon: string }> = [
-  { id: "expenses", label: "Expenses", icon: "🧾" },
-  { id: "balances", label: "Balances", icon: "⚖️" },
-  { id: "me", label: "Me", icon: "🙂" },
+const TABS: ReadonlyArray<{ id: Tab; label: string; icon: IconName }> = [
+  { id: "expenses", label: "Expenses", icon: "receipt" },
+  { id: "balances", label: "Balances", icon: "scale" },
+  { id: "me", label: "Me", icon: "user" },
 ];
 
 export function App() {
@@ -47,8 +48,8 @@ export function App() {
               if (e.detail === 0) activate(item.id);
             }}
           >
-            <span className="tab-icon" aria-hidden="true">
-              {item.icon}
+            <span className="tab-icon">
+              <Icon name={item.icon} size={22} strokeWidth={1.75} />
             </span>
             <span className="tab-label">{item.label}</span>
           </button>

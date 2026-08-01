@@ -25,6 +25,7 @@ import { Sheet } from "./components/Sheet";
 import { Amount } from "./components/Amount";
 import { Avatar } from "./components/Avatar";
 import { Row } from "./components/Row";
+import { Icon } from "./components/Icon";
 
 export interface ExpenseFormProps {
   open: boolean;
@@ -288,7 +289,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                 onActivate={() => toggleParticipant(m.id)}
               >
                 <span className="check-box" aria-hidden="true">
-                  {selected ? "✓" : ""}
+                  {selected && <Icon name="check" size={14} strokeWidth={3} />}
                 </span>
                 <Avatar member={m} />
                 <span style={{ flex: 1 }}>{m.name}</span>

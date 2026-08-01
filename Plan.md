@@ -135,6 +135,35 @@ Identity: on first open, auto-register self as member via `webxdc.selfAddr`/`sel
 - [ ] CSV export of expense list via `sendToChat`.
 - [ ] Merge virtual member into real member (reassign ids).
 
+### M5 — Partial payments (installments) — not started
+
+A big shared cost (a deposit, a flight, a whole holiday) often isn't paid back
+in one go. Today a settlement can only be recorded for whatever amount you
+type, and nothing links those payments to the debt they are chipping away at —
+so "Anna still owes €340 of the original €800" is something people track in
+their heads.
+
+- [ ] `Settlement` gains an optional `forDebt` marker (creditor+debtor pair is
+      already there; the open question is whether an installment should point
+      at a *plan* rather than at the raw pair, since debts merge and simplify).
+- [ ] **Payment plan** as a new doc entity: agreed total, an optional schedule
+      (n × €X, or "whenever"), created by either party, visible to both.
+      Deliberately not a reminder system — a webxdc app only runs when opened,
+      so it cannot notify anyone; the chat is the reminder.
+- [ ] PayUpSheet: "Pay part of it" alongside "Mark as paid" — pick an amount
+      (with quick 1/2, 1/3, 1/4 buttons), and the payment link is generated for
+      *that* amount, not the full debt.
+- [ ] Balances: a debt with installments shows progress ("€460 of €800 paid,
+      3 payments") and the remainder, not just the net figure.
+- [ ] Simplification must stay honest: a partially-paid debt is still just a
+      net balance to `simplify.ts`, so the installment history is presentation
+      over the existing ledger, **not** a second source of truth. Any design
+      where the plan can disagree with the balances is wrong.
+- **Done when:** an €800 debt can be paid in four €200 installments across
+  peers, each one posting its own chat line, with the remaining balance correct
+  on every peer after each — and the ledger still reconciles if a peer only
+  ever saw some of the installments.
+
 ### M4 — Polish & release
 
 - [ ] Icon, `manifest.toml` (name = "Halvsies"); optionally register `halvsies.app` (appeared unregistered as of 2026-07-30).

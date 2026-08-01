@@ -26,6 +26,7 @@
     "@webxdc/webxdc-dev": "^0.21.0",
     "concurrently": "^10.0.3",
     "happy-dom": "^20.10.6",
+    "lucide-static": "^1.28.0",
     "prettier": "^3.9.0",
     "typescript": "^6.0.3",
     "vite": "^8.1.0",

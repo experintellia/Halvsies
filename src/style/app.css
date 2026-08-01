@@ -169,9 +169,19 @@ select {
   color: var(--color-accent);
 }
 
+/* flex, not inline: an inline <svg> sits on the text baseline and drags a
+   descender's worth of empty space under the icon. */
 .tab-icon {
-  font-size: 1.2rem;
+  display: flex;
   line-height: 1;
+}
+
+/* Icons inherit colour and size from their context by default (width/height
+   are set per call site), so they only need to stop being baseline-aligned
+   inline boxes when they sit next to text. */
+.icon {
+  flex-shrink: 0;
+  vertical-align: -0.125em;
 }
 
 .tab-label {
