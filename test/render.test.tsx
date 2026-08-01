@@ -9,6 +9,8 @@ import { App } from "../src/ui/App";
 import { ExpenseList } from "../src/ui/ExpenseList";
 import { ProfileForm } from "../src/ui/ProfileForm";
 import { addExpense, deleteExpense } from "../src/state/doc";
+import { PayUpSheet } from "../src/ui/PayUpSheet";
+import { getSettings, setProfile, setSettings } from "../src/state/doc";
 
 let host: HTMLDivElement;
 
@@ -130,7 +132,8 @@ describe("ProfileForm", () => {
     expect(text).toContain("can see your payment profile");
   });
 
-  it("opens the wizard picker listing every provider", async () => {
+  /** Opens the wizard picker. */
+  const openPicker = async (): Promise<void> => {
     render(<ProfileForm />, host);
     tap(
       Array.from(host.querySelectorAll("button")).find((b) =>
@@ -138,6 +141,18 @@ describe("ProfileForm", () => {
       ),
     );
     await flush();
+  };
+
+  const option = (label: string): HTMLElement | undefined =>
+    Array.from(host.querySelectorAll(".wizard-option")).find(
+      (b) => (b.querySelector("strong")?.textContent ?? "").trim() === label,
+    ) as HTMLElement | undefined;
+
+  /** The wizard sheet only — the profile screen behind it has fields too. */
+  const sheet = (): HTMLElement => host.querySelector(".sheet") as HTMLElement;
+
+  it("opens the wizard picker listing every provider", async () => {
+    await openPicker();
 
     const text = host.textContent ?? "";
     for (const label of [
@@ -146,6 +161,10 @@ describe("ProfileForm", () => {
       "Wise",
       "Venmo",
       "Monzo",
+      "bunq",
+      "Cash App",
+      "UPI",
+      "Crypto",
       "Bank transfer",
       "Custom link",
     ]) {
@@ -153,7 +172,82 @@ describe("ProfileForm", () => {
     }
     expect(
       host.querySelectorAll(".wizard-option").length,
-    ).toBeGreaterThanOrEqual(7);
+    ).toBeGreaterThanOrEqual(11);
+  });
+
+  it("groups the picker under three headings, in order", async () => {
+    await openPicker();
+
+    expect(
+      Array.from(host.querySelectorAll(".picker-section")).map((h) =>
+        (h.textContent ?? "").trim(),
+      ),
+    ).toEqual(["Bank & national standards", "Payment apps", "Anything else"]);
+    // Bank transfer leads the first section; Custom link closes the last.
+    const options = Array.from(host.querySelectorAll(".wizard-option"));
+    expect(options[0].textContent).toContain("Bank transfer");
+    expect(options[options.length - 1].textContent).toContain("Custom link");
+  });
+
+  it("pills the methods the group currency (EUR) can't use", async () => {
+    await openPicker();
+
+    // Warning, not a block: the entries stay tappable.
+    expect(option("Monzo")?.querySelector(".pill-warn")?.textContent).toBe(
+      "GBP only",
+    );
+    expect(option("Cash App")?.querySelector(".pill-warn")?.textContent).toBe(
+      "USD or GBP only",
+    );
+    expect(option("UPI")?.querySelector(".pill-warn")?.textContent).toBe(
+      "INR only",
+    );
+    // EUR-native or currency-agnostic methods carry no pill.
+    expect(option("Bank transfer")?.querySelector(".pill-warn")).toBeNull();
+    expect(option("bunq")?.querySelector(".pill-warn")).toBeNull();
+    expect(option("PayPal")?.querySelector(".pill-warn")).toBeNull();
+  });
+
+  it("repeats the currency warning on the fill step, still letting you save", async () => {
+    await openPicker();
+    tap(option("Cash App"));
+    await flush();
+
+    const text = host.textContent ?? "";
+    expect(text).toContain("USD or GBP only");
+    expect(text).toContain("won't be offered for EUR debts");
+
+    const input = sheet().querySelector("input") as HTMLInputElement;
+    input.value = "anna";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    const save = Array.from(host.querySelectorAll("button")).find(
+      (b) => (b.textContent ?? "").trim() === "Save",
+    ) as HTMLButtonElement | undefined;
+    expect(save?.disabled).toBe(false);
+  });
+
+  it("renders the crypto step's name, address and network inputs", async () => {
+    await openPicker();
+    tap(option("Crypto"));
+    await flush();
+
+    const labels = Array.from(sheet().querySelectorAll(".field-label")).map(
+      (l) => (l.textContent ?? "").trim(),
+    );
+    expect(labels).toEqual(["Name", "Wallet address", "Network"]);
+    expect(sheet().querySelectorAll("input")).toHaveLength(2);
+
+    const select = sheet().querySelector("select") as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual([
+      "bitcoin",
+      "ethereum",
+      "monero",
+      "other",
+    ]);
+    expect(host.textContent).toContain(
+      "the payer's wallet converts the amount you're owed",
+    );
   });
 
   it("walks to a provider step and shows where to find the handle", async () => {
@@ -180,5 +274,110 @@ describe("ProfileForm", () => {
       (b) => (b.textContent ?? "").trim() === "Save",
     ) as HTMLButtonElement | undefined;
     expect(save?.disabled).toBe(true);
+  });
+});
+
+describe("PayUpSheet", () => {
+  const CREDITOR = "b@example.org";
+  const TRANSFER = {
+    fromId: "a@example.org",
+    toId: CREDITOR,
+    amountCents: 2350,
+  };
+  const BTC = "bc1qexampleaddress0000000000000000000000000";
+
+  let currency: string;
+  beforeEach(() => {
+    currency = getSettings().groupCurrency;
+  });
+  afterEach(() => {
+    setProfile(CREDITOR, {}); // shared singleton doc
+    setSettings({ groupCurrency: currency });
+  });
+
+  const sheet = () =>
+    render(
+      <PayUpSheet
+        transfer={TRANSFER}
+        direction="pay"
+        open
+        onClose={() => {}}
+      />,
+      host,
+    );
+
+  const buttons = (text: string): HTMLButtonElement[] =>
+    Array.from(host.querySelectorAll("button")).filter((b) =>
+      (b.textContent ?? "").includes(text),
+    ) as HTMLButtonElement[];
+
+  it("always shows a crypto address in full, with copy buttons for both the address and the URI", () => {
+    setProfile(CREDITOR, {
+      accountHolder: "Anna",
+      crypto: { label: "Bitcoin", address: BTC, network: "bitcoin" },
+    });
+    sheet();
+
+    const text = host.textContent ?? "";
+    expect(text).toContain(BTC); // the link may be a no-op; the address never is
+    expect(buttons("Copy address")).toHaveLength(1);
+    expect(buttons("Copy link")).toHaveLength(1);
+    expect(host.querySelector("svg.qr-code")).not.toBeNull();
+    // The fiat amount is shown; no crypto amount is ever embedded.
+    expect(text).toContain("€23.50");
+    expect(text).toContain("not embedded in the address");
+    expect(
+      host.querySelector<HTMLAnchorElement>('a[href^="bitcoin:"]')?.href,
+    ).not.toContain("amount");
+  });
+
+  it("renders the Monero URI's reference and recipient name from the payee", () => {
+    setProfile(CREDITOR, {
+      accountHolder: "Anna",
+      crypto: { label: "Monero", address: "4Aexample", network: "monero" },
+    });
+    sheet();
+
+    const href =
+      host.querySelector<HTMLAnchorElement>('a[href^="monero:"]')?.href ?? "";
+    expect(href).toContain("recipient_name=Anna");
+    expect(href).toContain("tx_description=");
+    expect(href).not.toContain("tx_amount");
+    expect(host.textContent).toContain("4Aexample");
+  });
+
+  it("shows an address-only block when the network has no URI scheme", () => {
+    setProfile(CREDITOR, {
+      crypto: {
+        label: "USDC on Base",
+        address: "0xExampleAddress",
+        network: "other",
+      },
+    });
+    sheet();
+
+    const text = host.textContent ?? "";
+    expect(text).toContain("USDC on Base");
+    expect(text).toContain("0xExampleAddress");
+    expect(buttons("Copy address")).toHaveLength(1);
+    expect(host.querySelector("svg.qr-code")).not.toBeNull();
+    // No link exists for this network, and the "no details yet" placeholder
+    // must not claim the creditor added nothing.
+    expect(host.querySelector("a.btn-primary")).toBeNull();
+    expect(text).not.toContain("hasn't added any payment details");
+  });
+
+  it("shows the UPI QR without an extra tap, with the payee name in the link", () => {
+    setSettings({ groupCurrency: "INR" });
+    setProfile(CREDITOR, { accountHolder: "Anna", upiVpa: "anna@upi" });
+    sheet();
+
+    const href =
+      host.querySelector<HTMLAnchorElement>('a[href^="upi:"]')?.href ?? "";
+    expect(href).toContain("pa=anna@upi");
+    expect(href).toContain("pn=Anna");
+    // Scanning is the normal UPI flow: the code is there before any tap.
+    expect(host.querySelector("svg.qr-code")).not.toBeNull();
+    expect(buttons("Show QR")).toHaveLength(0);
   });
 });

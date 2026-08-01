@@ -2,10 +2,23 @@
 // no DOM. Every generator skips silently (returns null) on invalid/missing
 // input rather than emitting a broken or unsafe link.
 
-import type { CustomPaymentMethod, PaymentProfile } from "../state/model";
+import type {
+  CryptoPaymentMethod,
+  CustomPaymentMethod,
+  PaymentProfile,
+} from "../state/model";
 
 export type PayMethodKind =
-  "paypal" | "revolut" | "wise" | "venmo" | "monzo" | "custom";
+  | "paypal"
+  | "revolut"
+  | "wise"
+  | "venmo"
+  | "monzo"
+  | "bunq"
+  | "cashapp"
+  | "upi"
+  | "crypto"
+  | "custom";
 
 export interface PayMethod {
   /**
@@ -20,6 +33,58 @@ export interface PayMethod {
   url: string; // the deep link, amount pre-filled where supported
   amountPrefilled: boolean; // false where the service can't take an amount
   caveat?: string; // e.g. the Monzo limits, shown as a UI hint
+  /**
+   * Crypto only: the plain address, so the UI's mandatory raw-address-with-copy
+   * fallback (appendix A.3) never has to re-parse `url`. Many devices have no
+   * handler for `bitcoin:`/`ethereum:`/`monero:`, so tapping the link can be a
+   * no-op — the address must always be shown in full next to it.
+   */
+  rawAddress?: string;
+}
+
+// --- Currency gates --------------------------------------------------------
+
+/**
+ * The single source of truth for "which currencies may this method be offered
+ * in". Generators gate on it and the UI's warning pill reads it, so the two can
+ * never disagree. null = any currency.
+ */
+const PAY_METHOD_CURRENCIES: Record<PayMethodKind, readonly string[] | null> = {
+  paypal: null,
+  revolut: null,
+  wise: null,
+  venmo: null,
+  monzo: ["GBP"],
+  bunq: ["EUR"],
+  cashapp: ["USD", "GBP"],
+  upi: ["INR"],
+  crypto: null, // the ledger stays fiat; the payer's wallet converts
+  custom: null,
+};
+
+/** Currencies a method may be offered in, or null when it takes any. */
+export function currenciesFor(kind: PayMethodKind): readonly string[] | null {
+  return PAY_METHOD_CURRENCIES[kind];
+}
+
+/** True when `currency` passes `kind`'s gate. Case-insensitive. */
+export function currencyAllowedFor(
+  kind: PayMethodKind,
+  currency: string,
+): boolean {
+  const allowed = currenciesFor(kind);
+  return allowed === null || allowed.includes(currency.trim().toUpperCase());
+}
+
+/**
+ * encodeURIComponent, tightened to RFC 3986: it leaves !'()* alone, which are
+ * reserved sub-delims. Used for the Monero URI parameters.
+ */
+function encodeRfc3986(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }
 
 /** Integer cents -> "23.50". No locale, no separators: a URL parameter, not a display string. */
@@ -125,7 +190,7 @@ export function monzoUnavailableReason(
   amountCents: number,
   currency: string,
 ): string | null {
-  if (currency !== "GBP") return "Monzo only supports GBP.";
+  if (!currencyAllowedFor("monzo", currency)) return "Monzo only supports GBP.";
   if (amountCents < MONZO_MIN_CENTS) return "Amount below Monzo's £1 minimum.";
   if (amountCents > MONZO_MAX_CENTS) return "Amount above Monzo's £100 limit.";
   return null;
@@ -147,6 +212,165 @@ export function monzoLink(
     url: `https://monzo.me/${encodeURIComponent(user)}/${amountForUrl(amountCents)}?d=${encodeURIComponent(reference)}`,
     amountPrefilled: true,
     caveat: MONZO_LIMITS_CAVEAT,
+  };
+}
+
+// --- bunq.me ---------------------------------------------------------------
+
+const BUNQ_HANDLE_RE = /^[A-Za-z0-9._-]{1,50}$/;
+/** iDEAL — the payment option most bunq.me payers use — is capped at €2,000. */
+const BUNQ_IDEAL_CAP_CENTS = 200_000;
+const BUNQ_CAVEAT =
+  "The payer needs no bunq account: the landing page takes iDEAL/Wero, Bancontact, card and Apple/Google Pay.";
+const BUNQ_OVER_CAP_HINT =
+  " Above €2,000 iDEAL is unavailable, so the payer has to use a card or split the payment.";
+
+export function bunqLink(
+  handleInput: string,
+  amountCents: number,
+  currency: string,
+  reference: string,
+): PayMethod | null {
+  const handle = handleInput.trim();
+  if (!BUNQ_HANDLE_RE.test(handle)) return null;
+  if (!currencyAllowedFor("bunq", currency)) return null;
+  const description = reference.trim();
+  const base = `https://bunq.me/${encodeURIComponent(handle)}/${amountForUrl(amountCents)}`;
+  return {
+    id: "bunq",
+    kind: "bunq",
+    label: "bunq",
+    url: description ? `${base}/${encodeURIComponent(description)}` : base,
+    amountPrefilled: true,
+    caveat:
+      amountCents > BUNQ_IDEAL_CAP_CENTS
+        ? BUNQ_CAVEAT + BUNQ_OVER_CAP_HINT
+        : BUNQ_CAVEAT,
+  };
+}
+
+// --- Cash App --------------------------------------------------------------
+
+const CASHTAG_RE = /^[A-Za-z0-9_-]{1,20}$/;
+
+/**
+ * Accepts a bare cashtag, a pasted "$anna", or a full cash.app URL and
+ * normalizes to the bare tag (stored without the "$"), the way
+ * normalizePaypalHandle does for PayPal.
+ */
+function normalizeCashtag(input: string): string | null {
+  let tag = input.trim();
+  const urlMatch = tag.match(
+    /^(?:https?:\/\/)?(?:www\.)?cash\.app\/\$?([^/?#\s]+)/i,
+  );
+  if (urlMatch) tag = urlMatch[1];
+  if (tag.startsWith("$")) tag = tag.slice(1);
+  return CASHTAG_RE.test(tag) ? tag : null;
+}
+
+/** Cash App has no note/reference parameter — the amount goes in the path, nothing else. */
+export function cashAppLink(
+  cashtagInput: string,
+  amountCents: number,
+  currency: string,
+): PayMethod | null {
+  const tag = normalizeCashtag(cashtagInput);
+  if (!tag) return null;
+  if (!currencyAllowedFor("cashapp", currency)) return null;
+  return {
+    id: "cashapp",
+    kind: "cashapp",
+    label: "Cash App",
+    url: `https://cash.app/$${encodeURIComponent(tag)}/${amountForUrl(amountCents)}`,
+    amountPrefilled: true,
+    caveat: "No reference can be attached — Cash App links carry no note.",
+  };
+}
+
+// --- UPI -------------------------------------------------------------------
+
+/** `local@handle`: the VPA shape. Deliberately strict — it goes into a URI unescaped. */
+const UPI_VPA_RE = /^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9.-]{1,64}$/;
+
+/**
+ * A fully static deep link. The UI renders this exact same string as a QR code
+ * (offline, same component as the EPC QR) — payload and link must stay equal.
+ */
+export function upiLink(
+  vpaInput: string,
+  payeeName: string,
+  amountCents: number,
+  currency: string,
+  reference: string,
+): PayMethod | null {
+  const vpa = vpaInput.trim();
+  if (!UPI_VPA_RE.test(vpa)) return null;
+  if (!currencyAllowedFor("upi", currency)) return null;
+  // vpa is emitted raw: UPI apps expect the literal "@", and the regex above
+  // already excludes everything that could break out of the query string.
+  const params = [
+    `pa=${vpa}`,
+    `pn=${encodeURIComponent(payeeName.trim())}`,
+    `am=${amountForUrl(amountCents)}`,
+    "cu=INR",
+    `tn=${encodeURIComponent(reference.trim())}`,
+  ];
+  return {
+    id: "upi",
+    kind: "upi",
+    label: "UPI",
+    url: `upi://pay?${params.join("&")}`,
+    amountPrefilled: true,
+  };
+}
+
+// --- Crypto ----------------------------------------------------------------
+
+const CRYPTO_SCHEMES: Record<string, string> = {
+  bitcoin: "bitcoin",
+  ethereum: "ethereum",
+  monero: "monero",
+};
+
+const CRYPTO_CAVEAT =
+  "No amount is embedded — the payer's wallet converts the fiat amount at pay time. If the link does nothing, copy the address.";
+
+/**
+ * Any currency: the ledger stays fiat-denominated and this app has no network,
+ * so it can never convert. Nothing amount-carrying is ever emitted — no
+ * `amount=`, and Monero's `tx_amount` stays deliberately unused.
+ *
+ * Returns null for network "other"/undefined: those have no URI scheme, and an
+ * empty url would be a broken link. The UI falls back to the raw address alone
+ * (appendix A.3); for the schemes that do exist, `rawAddress` on the returned
+ * method carries that same address for the mandatory copy button.
+ */
+export function cryptoLink(
+  method: CryptoPaymentMethod,
+  reference: string,
+  payeeName: string,
+): PayMethod | null {
+  const address = method.address.trim();
+  if (!address) return null; // non-empty is the only address check: no checksum validation
+  const scheme = CRYPTO_SCHEMES[method.network ?? ""];
+  if (!scheme) return null;
+  let url = `${scheme}:${encodeRfc3986(address)}`;
+  if (scheme === "monero") {
+    const params: string[] = [];
+    if (reference.trim())
+      params.push(`tx_description=${encodeRfc3986(reference.trim())}`);
+    if (payeeName.trim())
+      params.push(`recipient_name=${encodeRfc3986(payeeName.trim())}`);
+    if (params.length) url += `?${params.join("&")}`;
+  }
+  return {
+    id: "crypto",
+    kind: "crypto",
+    label: method.label.trim() || "Crypto",
+    url,
+    amountPrefilled: false,
+    caveat: CRYPTO_CAVEAT,
+    rawAddress: address,
   };
 }
 
@@ -193,13 +417,20 @@ export function customLink(
 
 // --- Aggregate -------------------------------------------------------------
 
-/** Which payment methods this creditor can offer for this debt, in a fixed, deterministic order. */
+/**
+ * Which payment methods this creditor can offer for this debt, in a fixed,
+ * deterministic order. `payeeName` (the creditor's display name) feeds UPI's
+ * `pn` and Monero's `recipient_name`; it falls back to the profile's account
+ * holder, then to empty.
+ */
 export function paymentMethodsFor(
   profile: PaymentProfile,
   amountCents: number,
   currency: string,
   reference: string,
+  payeeName?: string,
 ): PayMethod[] {
+  const name = payeeName ?? profile.accountHolder ?? "";
   const methods: PayMethod[] = [];
   if (profile.paypalMe) {
     const m = paypalLink(profile.paypalMe, amountCents, currency);
@@ -219,6 +450,22 @@ export function paymentMethodsFor(
   }
   if (profile.monzoMe) {
     const m = monzoLink(profile.monzoMe, amountCents, currency, reference);
+    if (m) methods.push(m);
+  }
+  if (profile.bunqMe) {
+    const m = bunqLink(profile.bunqMe, amountCents, currency, reference);
+    if (m) methods.push(m);
+  }
+  if (profile.cashtag) {
+    const m = cashAppLink(profile.cashtag, amountCents, currency);
+    if (m) methods.push(m);
+  }
+  if (profile.upiVpa) {
+    const m = upiLink(profile.upiVpa, name, amountCents, currency, reference);
+    if (m) methods.push(m);
+  }
+  if (profile.crypto) {
+    const m = cryptoLink(profile.crypto, reference, name);
     if (m) methods.push(m);
   }
   // Custom templates last, in stored order, so the list stays stable across

@@ -310,6 +310,66 @@ describe("payment-details-only export", () => {
   });
 });
 
+describe("removing members", () => {
+  it("refuses while the ledger still references them, then allows it", () => {
+    const s = createDoc();
+    const gran = s.addVirtualMember("Grandma", 1);
+    s.addExpense(
+      expense("e1", {
+        payerId: gran.id,
+        split: { mode: "even", entries: { [gran.id]: 1, "b@x.de": 1 } },
+      }),
+    );
+
+    expect(s.removeMember(gran.id)).toMatch(/paid for 1 expense/);
+    expect(s.removeMember(gran.id)).toMatch(/is in 1 split/);
+    expect(s.getMember(gran.id)).toBeDefined();
+
+    s.deleteExpense("e1");
+    expect(s.removeMember(gran.id)).toBeNull();
+    expect(s.getMember(gran.id)).toBeUndefined();
+  });
+
+  it("blocks on a settlement too, and takes the profile with the member", () => {
+    const s = createDoc();
+    const gran = s.addVirtualMember("Grandma", 1);
+    s.setProfile(gran.id, { note: "cash only" });
+    s.addSettlement({
+      id: "s1",
+      fromId: "b@x.de",
+      toId: gran.id,
+      amountCents: 500,
+      date: "2026-07-30",
+      createdBy: "b@x.de",
+    });
+
+    expect(s.removeMember(gran.id)).toMatch(/1 recorded payment/);
+
+    // A settlement can't be deleted, so remove one that never had any.
+    const other = s.addVirtualMember("Nobody", 2);
+    s.setProfile(other.id, { note: "x" });
+    expect(s.removeMember(other.id)).toBeNull();
+    expect(s.getProfile(other.id)).toBeUndefined();
+  });
+
+  it("is a no-op for an id that isn't a member", () => {
+    const s = createDoc();
+    expect(s.removeMember("ghost@x.de")).toBeNull();
+  });
+
+  it("propagates the removal to other peers", () => {
+    const a = createDoc();
+    const b = createDoc();
+    const gran = a.addVirtualMember("Grandma", 1);
+    sync(a, b);
+    expect(b.getMember(gran.id)).toBeDefined();
+
+    a.removeMember(gran.id);
+    sync(a, b);
+    expect(b.getMember(gran.id)).toBeUndefined();
+  });
+});
+
 describe("describeChange", () => {
   const base = {
     actorName: "Simon",

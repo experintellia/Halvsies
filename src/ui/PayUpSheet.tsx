@@ -14,7 +14,7 @@ import {
   now,
 } from "../state/doc";
 import { newId, formatMoney, type Transfer } from "../state/model";
-import { paymentMethodsFor } from "../pay/links";
+import { paymentMethodsFor, type PayMethodKind } from "../pay/links";
 import { buildEpcPayload, epcReference, validateEpcParams } from "../pay/epcqr";
 import { formatIban } from "../pay/iban";
 import { Sheet } from "./components/Sheet";
@@ -68,6 +68,39 @@ function TapButton({
   );
 }
 
+// Scanning is the normal way UPI gets paid, and a crypto entry must show its
+// QR unconditionally (A.3, its link may be a no-op) — both skip the show/hide
+// tap and render the code up front. Everything else keeps the toggle.
+const alwaysShowQr = (kind: PayMethodKind): boolean =>
+  kind === "upi" || kind === "crypto";
+
+// Appendix A.3: many devices have no handler registered for `bitcoin:`/
+// `ethereum:`/`monero:`, so tapping the link can silently do nothing — the
+// raw address is always shown in full with its own copy button, never the
+// link alone. No crypto amount is ever emitted: the ledger is fiat and this
+// app has no exchange rates, so the fiat debt is shown as text instead.
+function CryptoAddress({
+  address,
+  amount,
+}: {
+  address: string;
+  amount: string;
+}) {
+  return (
+    <>
+      <div className="field-row">
+        <span className="money">{address}</span>
+        <CopyButton value={address} label="Copy address" />
+      </div>
+      <p className="field-suffix">
+        Send the equivalent of <span className="money">{amount}</span> — the
+        amount is not embedded in the address; the paying wallet converts it at
+        pay time.
+      </p>
+    </>
+  );
+}
+
 export function PayUpSheet({
   transfer,
   direction,
@@ -118,19 +151,33 @@ export function PayUpSheet({
   // only one that makes sense when the viewer isn't part of the debt.
   const profile = getProfile(transfer.toId) ?? {};
   const reference = epcReference(settings.title);
+
+  // The stored member name, never the display substitution: creditorName is
+  // the literal "You" when the creditor is the local user, and a QR whose
+  // beneficiary reads "You" gets flagged by banks that match payee to IBAN.
+  // The same name feeds UPI's `pn` and Monero's `recipient_name`, which land
+  // in the payer's app the same way.
+  const payeeName = profile.accountHolder || creditor?.name || "";
+
   const methods = paymentMethodsFor(
     profile,
     transfer.amountCents,
     currency,
     reference,
+    payeeName,
   );
 
-  // The stored member name, never the display substitution: creditorName is
-  // the literal "You" when the creditor is the local user, and a QR whose
-  // beneficiary reads "You" gets flagged by banks that match payee to IBAN.
-  const epcName = profile.accountHolder || creditor?.name || "";
+  // network "other" (or none) has no URI scheme, so cryptoLink() deliberately
+  // returns null and no crypto method is in the list — the address is still
+  // the whole point of having filled it in, so it gets its own block below.
+  const crypto = profile.crypto;
+  const cryptoAddressOnly =
+    crypto?.address.trim() && !methods.some((m) => m.kind === "crypto")
+      ? crypto
+      : undefined;
+
   const epcParams = {
-    name: epcName,
+    name: payeeName,
     iban: profile.iban || "",
     amountCents: transfer.amountCents,
     currency,
@@ -180,13 +227,16 @@ export function PayUpSheet({
         </p>
       )}
 
-      {methods.length === 0 && epcError && !profile.note && (
-        <p className="placeholder">
-          {direction === "pay"
-            ? `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to fill in their profile in the Me tab.`
-            : "Add your payment details in the Me tab so this is a one-tap payment next time."}
-        </p>
-      )}
+      {methods.length === 0 &&
+        epcError &&
+        !profile.note &&
+        !cryptoAddressOnly && (
+          <p className="placeholder">
+            {direction === "pay"
+              ? `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to fill in their profile in the Me tab.`
+              : "Add your payment details in the Me tab so this is a one-tap payment next time."}
+          </p>
+        )}
 
       {methods.length > 0 && (
         <>
@@ -199,6 +249,9 @@ export function PayUpSheet({
                   <span className="field-suffix"> — amount not pre-filled</span>
                 )}
               </p>
+              {m.rawAddress && (
+                <CryptoAddress address={m.rawAddress} amount={amount} />
+              )}
               <div className="field-row">
                 <a
                   className="btn btn-primary"
@@ -212,12 +265,16 @@ export function PayUpSheet({
                 <CopyButton value={m.url} label="Copy link" />
               </div>
               <div className="field-row">
-                <TapButton
-                  className="btn btn-secondary"
-                  onActivate={() => setShownQr(shownQr === m.id ? null : m.id)}
-                >
-                  {shownQr === m.id ? "Hide QR" : "Show QR"}
-                </TapButton>
+                {!alwaysShowQr(m.kind) && (
+                  <TapButton
+                    className="btn btn-secondary"
+                    onActivate={() =>
+                      setShownQr(shownQr === m.id ? null : m.id)
+                    }
+                  >
+                    {shownQr === m.id ? "Hide QR" : "Show QR"}
+                  </TapButton>
+                )}
                 {canSendToChat && (
                   <TapButton
                     className="btn btn-secondary"
@@ -236,11 +293,30 @@ export function PayUpSheet({
                   </TapButton>
                 )}
               </div>
-              {shownQr === m.id && <QR payload={m.url} />}
+              {(alwaysShowQr(m.kind) || shownQr === m.id) && (
+                <QR payload={m.url} />
+              )}
               {m.caveat && <p className="field-suffix">{m.caveat}</p>}
             </div>
           ))}
         </>
+      )}
+
+      {cryptoAddressOnly && (
+        <div className="row" style={{ display: "block" }}>
+          <p>
+            <strong>{cryptoAddressOnly.label.trim() || "Crypto"}</strong>
+            <span className="field-suffix">
+              {" "}
+              — address only, no payment link
+            </span>
+          </p>
+          <CryptoAddress
+            address={cryptoAddressOnly.address.trim()}
+            amount={amount}
+          />
+          <QR payload={cryptoAddressOnly.address.trim()} />
+        </div>
       )}
 
       {!epcError ? (
@@ -257,7 +333,7 @@ export function PayUpSheet({
               label="Copy IBAN"
             />
           </div>
-          <p>{epcName}</p>
+          <p>{payeeName}</p>
           <div className="field-row">
             <span>{reference}</span>
             <CopyButton value={reference} label="Copy reference" />

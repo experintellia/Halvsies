@@ -1,15 +1,14 @@
 // The "Me" tab: your payment methods (added one at a time via a wizard, so the
 // screen stays short), a free-text note that is always visible, group settings,
-// a virtual-member add, and JSON backup.
-import { useId, useState } from "preact/hooks";
+// a way into the members sub-screen, and JSON backup.
+import { useState } from "preact/hooks";
 import {
-  addVirtualMember,
   canSendToChat,
   getProfile,
   getSettings,
   importOwnProfile,
   importSnapshot,
-  now,
+  listMembers,
   sendOwnProfileToChat,
   sendSnapshotToChat,
   setProfile,
@@ -24,6 +23,7 @@ import { buildEpcPayload, epcReference, validateEpcParams } from "../pay/epcqr";
 import { QR } from "./components/QR";
 import { CopyButton } from "./components/CopyButton";
 import { PaymentMethodWizard, type WizardTarget } from "./PaymentMethodWizard";
+import { MembersSheet } from "./MembersSheet";
 
 function selfAddr(): string | undefined {
   return typeof window === "undefined" ? undefined : window.webxdc?.selfAddr;
@@ -76,10 +76,10 @@ export function ProfileForm() {
   // fresh visit always starts from the current doc state without needing a
   // continuous sync effect that could clobber an in-progress edit.
   const [note, setNote] = useState(profile?.note ?? "");
-  const [virtualName, setVirtualName] = useState("");
+  const [showMembers, setShowMembers] = useState(false);
   const [importError, setImportError] = useState<string | undefined>(undefined);
   const [wizard, setWizard] = useState<WizardTarget | "new" | null>(null);
-  const virtualNameId = useId();
+  const memberCount = useDocValue(listMembers).length;
 
   const current: PaymentProfile = profile ?? {};
 
@@ -122,7 +122,9 @@ export function ProfileForm() {
   const providers = configuredProviders(current);
   const customs = current.customs ?? [];
   const hasBank = !!current.iban;
-  const methodCount = providers.length + customs.length + (hasBank ? 1 : 0);
+  const crypto = current.crypto;
+  const methodCount =
+    providers.length + customs.length + (hasBank ? 1 : 0) + (crypto ? 1 : 0);
 
   const previewReference = epcReference(settings.title);
   const previewMethods = paymentMethodsFor(
@@ -148,14 +150,6 @@ export function ProfileForm() {
 
       <h2>Group</h2>
       <label className="field">
-        <span className="field-label">Group title</span>
-        <input
-          type="text"
-          defaultValue={settings.title ?? ""}
-          onBlur={(e) => setSettings({ title: textValue(e).trim() })}
-        />
-      </label>
-      <label className="field">
         <span className="field-label">Group currency (3-letter code)</span>
         <input
           type="text"
@@ -164,37 +158,34 @@ export function ProfileForm() {
           onBlur={(e) => setSettings({ groupCurrency: textValue(e).trim() })}
         />
       </label>
-      <div className="field">
-        <label className="field-label" htmlFor={virtualNameId}>
-          Add a member who doesn't use this app
-        </label>
-        <span className="field-row">
-          <input
-            id={virtualNameId}
-            type="text"
-            placeholder="Grandma"
-            value={virtualName}
-            onInput={(e) => setVirtualName(textValue(e))}
-          />
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onPointerUp={() => {
-              if (!virtualName.trim()) return;
-              addVirtualMember(virtualName, now());
-              setVirtualName("");
-            }}
-            onClick={(e) => {
-              if (e.detail === 0 && virtualName.trim()) {
-                addVirtualMember(virtualName, now());
-                setVirtualName("");
-              }
-            }}
-          >
-            Add
-          </button>
+      <label className="field">
+        <span className="field-label">Name (optional)</span>
+        <input
+          type="text"
+          placeholder="Halvsies"
+          defaultValue={settings.title ?? ""}
+          onBlur={(e) => setSettings({ title: textValue(e).trim() })}
+        />
+        <span className="field-suffix">
+          Shown in the chat as this app's name, and used as the reference on
+          bank transfers ("{previewReference}"). Worth setting if the chat runs
+          more than one split, or so the payment shows up recognisably on
+          people's statements.
         </span>
-      </div>
+      </label>
+
+      <TapButton
+        className="btn btn-secondary"
+        onActivate={() => setShowMembers(true)}
+      >
+        Members ({memberCount})
+      </TapButton>
+      <p className="field-suffix">
+        Add someone who doesn't use this app, rename anyone, or remove a member
+        no expense mentions.
+      </p>
+
+      <MembersSheet open={showMembers} onClose={() => setShowMembers(false)} />
 
       <h2>Your payment details</h2>
       {methodCount === 0 ? (
@@ -257,6 +248,29 @@ export function ProfileForm() {
                       bic: undefined,
                     })
                   }
+                >
+                  Remove
+                </TapButton>
+              </span>
+            </li>
+          )}
+
+          {crypto && (
+            <li className="method-row">
+              <span className="method-main">
+                <strong>{crypto.label || "Crypto"}</strong>
+                <span className="field-suffix">{crypto.address}</span>
+              </span>
+              <span className="field-row">
+                <TapButton
+                  className="btn btn-secondary"
+                  onActivate={() => setWizard({ kind: "crypto" })}
+                >
+                  Edit
+                </TapButton>
+                <TapButton
+                  className="btn btn-danger"
+                  onActivate={() => save({ ...current, crypto: undefined })}
                 >
                   Remove
                 </TapButton>

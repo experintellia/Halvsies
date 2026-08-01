@@ -112,7 +112,14 @@ Identity: on first open, auto-register self as member via `webxdc.selfAddr`/`sel
   - PayPal: `https://paypal.me/<user>/<amount><CUR>` e.g. `/23.50EUR`
   - Revolut: `https://revolut.me/<tag>` · Wise: `https://wise.com/pay/me/<tag>` · Venmo: `https://venmo.com/u/<user>`
   - Monzo (UK, GBP only): `https://monzo.me/<user>/<amount>?d=<reference>` e.g. `https://monzo.me/anna/23.50?d=Halvsies%3A%20Rome%20trip`. Payer needs no Monzo account (UK debit card / Apple Pay / Google Pay). Enforce limits in UI hint: £1–£100 per payment, recipient max £1,000 per 30 days. Only offer when debt currency is GBP.
-  - Custom template: substitute `{amount}` `{currency}` `{ref}`; treat as power-user escape hatch (Twint, MobilePay, PayNow…).
+  - Custom template: substitute `{amount}` `{currency}` `{ref}`; treat as power-user escape hatch (Twint, MobilePay, PayNow…). **Any number of these per profile**, each with a stable id.
+- [x] **Appendix A methods** (`plan-appendix-a.md`, merged 2026-08-01):
+  - bunq (EUR only): `https://bunq.me/<name>/<amount>/<description>`. Payer needs no bunq account; iDEAL caps at €2,000 → hint above that.
+  - Cash App (USD/GBP): `https://cash.app/$<cashtag>/<amount>`. No note parameter exists — none invented.
+  - UPI (INR only): `upi://pay?pa=…&pn=…&am=…&cu=INR&tn=…`, also rendered as a QR.
+  - Crypto (any currency): `bitcoin:` / `ethereum:` / `monero:<addr>?tx_description=…&recipient_name=…`. **Never carries an amount** — the ledger is fiat and the app has no rates; the payer's wallet converts. Raw address always shown with its own copy button, since many devices have no handler for these URI schemes.
+  - Currency gating lives in ONE table in `links.ts` (`currenciesFor`), read by both the generators and the wizard's warning pill, so they cannot disagree.
+  - Explicitly **not** generatable (no static link format): Tikkie, Swish, Vipps, MobilePay, Twint, Bizum, Blik, Zelle, Interac — these are what the custom template and the profile note are for. Brazil's PIX BR Code *is* offline-generatable and is an M3+ candidate.
 - [x] `epcqr.ts`: EPC069-12 payload (`BCD/002/1/SCT/BIC?/Name/IBAN/EUR23.50/…/reference`) + render QR in-app. Reference auto-set to group/expense context ("Halvsies: Rome trip").
 - [x] `PayUpSheet`: from a debt row ("You owe Anna €23.50") show Anna's available methods, amount pre-filled. Per method offer **all** of: tappable link, copy-to-clipboard, QR (bank + PayPal), and **Send to chat** (`webxdc.sendToChat({text})` — link lands as tappable chat message and doubles as "I'm paying now" announcement).
 - [x] "Mark as paid" from the sheet → settlement recorded, info line posted, balances update.
@@ -178,6 +185,31 @@ Identity: on first open, auto-register self as member via `webxdc.selfAddr`/`sel
 - **M3 is not started.** M4 is partially done: license (MIT), README, CI +
   release workflow, icon, size audit. Cross-messenger testing, i18n, the
   accessibility pass and the app-store submission are outstanding.
+
+### Later additions (2026-08-01)
+
+- **Payment methods are added through a wizard**, not a wall of always-visible
+  fields: pick a provider → it says where to find your handle → it builds a
+  live test link from the *same* generator the pay-up sheet uses, so a handle
+  that validates here cannot be one `paymentMethodsFor()` silently drops. The
+  picker is grouped: bank/national standards first, then payment apps, then
+  crypto and the custom template last.
+- **The free-text note is always visible** in the profile — and is now actually
+  rendered to the payer. It had been write-only: stored, but displayed nowhere.
+- **Two exports, not one.** "Export everything" (the ledger) and "Export just
+  your payment details" (portable to another group, so links are typed once).
+  One Restore button routes by file *shape*, not file name.
+- **Tapping an expense opens a read-only summary** with an Edit button — an
+  accidental tap can no longer reach the edit form of a shared ledger.
+- **Members are a sub-screen** (add / rename / remove). Removal is refused while
+  any expense or settlement still references the member: dropping them would
+  leave the balances not summing to zero against peers that still have them.
+  The rule is one pure function (`removalBlockedBy`) used by both the button's
+  disabled state and the writer, so a stale screen can't get around it.
+- **`Settings.title` is optional and explained.** It is not decoration: it is
+  the webxdc *document* name shown in the chat, and it becomes the payment
+  reference on bank transfers ("Halvsies: Rome trip"), which is what the payee
+  sees on their statement.
 
 ## 8. Open questions / risks
 

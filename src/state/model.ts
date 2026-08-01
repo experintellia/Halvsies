@@ -30,6 +30,19 @@ export interface CustomPaymentMethod {
   urlTemplate: string;
 }
 
+/**
+ * A crypto address to receive at. Deliberately NOT amount-carrying: the ledger
+ * is fiat-denominated and this app has no network, so it cannot convert. The
+ * payer's wallet does the conversion at pay time (Plan.md appendix A).
+ */
+export interface CryptoPaymentMethod {
+  /** User-facing name, e.g. "Bitcoin" or "USDC on Base". */
+  label: string;
+  address: string;
+  /** Selects the URI scheme; anything else means "show the address only". */
+  network?: "bitcoin" | "ethereum" | "monero" | "other";
+}
+
 /** Y.Map "profiles" entry, keyed by MemberId — self-edited only. */
 export interface PaymentProfile {
   paypalMe?: string;
@@ -40,6 +53,13 @@ export interface PaymentProfile {
   wiseTag?: string;
   venmo?: string;
   monzoMe?: string;
+  /** bunq.me handle (EUR). */
+  bunqMe?: string;
+  /** Cash App $cashtag, stored WITHOUT the leading "$". */
+  cashtag?: string;
+  /** UPI virtual payment address, e.g. "anna@upi" (INR). */
+  upiVpa?: string;
+  crypto?: CryptoPaymentMethod;
   /** Any number of user-defined link templates (Twint, MobilePay, PayNow…). */
   customs?: CustomPaymentMethod[];
   /** Free text: "IBAN transfers only please", "no PayPal after the 3rd", … */

@@ -79,6 +79,37 @@ suggested transfers, in the same order.
       between two _other_ members. There is no "Mark as paid" button — only a
       note saying who can record it.
 
+## C2. Appendix-A methods
+
+- [ ] **CA1 — Currency gating end to end.** With group currency `EUR`: bunq is
+      offered, Cash App and UPI are not. `USD`: Cash App only. `INR`: UPI, and
+      its QR scans in a UPI app with the right VPA, amount and note. `GBP`:
+      Monzo and Cash App.
+- [ ] **CA2 — Crypto never carries an amount.** Copy the crypto URI and read
+      it: there is no `amount`/`tx_amount` parameter anywhere. The fiat figure
+      is shown beside it as text only.
+- [ ] **CA3 — Crypto address is always reachable.** On a device with **no**
+      wallet installed, the `bitcoin:`/`monero:` link does nothing when tapped
+      — the raw address and its Copy button must still be right there, plus the
+      QR. With network `other`, the address block shows even though there is no
+      URI at all.
+- [ ] **CA4 — Warning pill.** Set group currency to `CHF`, open the add-payment
+      wizard: bunq/Cash App/UPI/Monzo show a pill saying they won't be offered.
+      Saving is still allowed (you may be about to change the currency).
+
+## C3. Members
+
+- [ ] **CM1 — Add and use a virtual member.** Add "Grandma" from Me →
+      Members. She appears as a payer option and a participant on every peer.
+- [ ] **CM2 — Removal is blocked while referenced.** Try to remove a member who
+      is in an expense: the button is disabled and the reason is shown. Delete
+      that expense, and removal succeeds.
+- [ ] **CM3 — Removal syncs.** Removing a member on peer 1 removes them on
+      peers 2 and 3, and the balances still sum to zero everywhere.
+- [ ] **CM4 — A real member returns.** Remove a member who is in the chat.
+      When they next open Halvsies they re-register — that is expected, and the
+      screen says so.
+
 ## D. WebView quirks (do these on a real Delta Chat Android device)
 
 - [ ] **D1 — Tap while an input is focused.** With the keyboard open and the
@@ -100,8 +131,15 @@ suggested transfers, in the same order.
 
 ## E. Import / export
 
-- [ ] **E1 — Round trip.** "Send backup to chat", then "Restore from file" on
+- [ ] **E1 — Round trip.** "Export everything", then "Restore from file" on
       another peer reproduces the same ledger.
+- [ ] **E4 — Payment details travel between groups.** In group A, "Export just
+      your payment details"; in a _different_ Halvsies chat, "Restore from
+      file". Your links appear there, and group B's expenses are **untouched**
+      (this file must not behave like a full restore).
+- [ ] **E5 — Either file, one button.** Rename the exported files to something
+      else. Restore still routes each one correctly — the shape decides, not
+      the name.
 - [ ] **E2 — Malformed file is refused.** Hand-edit the JSON to set an
       `amountCents` to `-5000`, then import it. It is rejected with a readable
       message and the ledger is untouched — it must **not** import a negative

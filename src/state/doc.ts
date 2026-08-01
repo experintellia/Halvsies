@@ -118,6 +118,34 @@ const str = (v: unknown): string | undefined =>
   typeof v === "string" && v ? v : undefined;
 
 /**
+ * Why `id` cannot be removed from the roster, or null if they can be. Pure —
+ * takes the ledger as arguments so the members screen and the writer below
+ * apply exactly the same rule.
+ *
+ * Removing someone the ledger still references would silently rewrite history:
+ * their share stops being attributed to anyone and the remaining balances no
+ * longer sum to zero on peers that still have the member.
+ */
+export function removalBlockedBy(
+  id: MemberId,
+  expenses: Expense[],
+  settlements: Settlement[],
+): string | null {
+  const paid = expenses.filter((e) => e.payerId === id).length;
+  const shared = expenses.filter((e) => id in e.split.entries).length;
+  const settled = settlements.filter(
+    (s) => s.fromId === id || s.toId === id,
+  ).length;
+  const parts: string[] = [];
+  if (paid) parts.push(`paid for ${paid} expense${paid === 1 ? "" : "s"}`);
+  if (shared) parts.push(`is in ${shared} split${shared === 1 ? "" : "s"}`);
+  if (settled) {
+    parts.push(`has ${settled} recorded payment${settled === 1 ? "" : "s"}`);
+  }
+  return parts.length === 0 ? null : parts.join(", ");
+}
+
+/**
  * Validate one profile entry. Shared by the full snapshot and the
  * payment-details-only file — both are file content arriving from a chat, so
  * neither path gets a weaker check. `label` names the offender in errors
@@ -134,8 +162,33 @@ function parseProfileValue(v: unknown, label: string): PaymentProfile {
     wiseTag: str(v.wiseTag),
     venmo: str(v.venmo),
     monzoMe: str(v.monzoMe),
+    bunqMe: str(v.bunqMe),
+    cashtag: str(v.cashtag),
+    upiVpa: str(v.upiVpa),
     note: str(v.note),
   };
+
+  // Crypto is an object, so it needs its own shape check. The address is
+  // rendered as a URI and shown for copying, so an unknown network must fall
+  // back to "other" (address-only, no scheme) rather than be trusted to name
+  // a URI scheme of the file's choosing.
+  if (v.crypto !== undefined && v.crypto !== null) {
+    if (!isObj(v.crypto)) fail(`${label} has an invalid crypto method`);
+    const address = str(v.crypto.address);
+    const cryptoLabel = str(v.crypto.label);
+    if (!address || !cryptoLabel) {
+      fail(`${label}: a crypto method needs a label and an address`);
+    }
+    const network = str(v.crypto.network);
+    p.crypto = {
+      label: cryptoLabel,
+      address,
+      network:
+        network === "bitcoin" || network === "ethereum" || network === "monero"
+          ? network
+          : "other",
+    };
+  }
   // A profile may carry any number of custom link templates. `custom` (a
   // single object) is the pre-0.2 shape — still accepted on import so an
   // older backup restores, folded into the array.
@@ -449,6 +502,24 @@ export function createDoc() {
     flush();
   }
 
+  /**
+   * Remove a member. Refuses while the ledger still references them — the UI
+   * disables the button with the same reason, this is the backstop that keeps
+   * a stale screen (or a concurrent peer's new expense) from tearing a hole in
+   * the balances. Their payment profile goes with them.
+   */
+  function removeMember(id: MemberId): string | null {
+    if (!yMembers.has(id)) return null;
+    const blocked = removalBlockedBy(id, listExpenses(), listSettlements());
+    if (blocked) return blocked;
+    doc.transact(() => {
+      yMembers.delete(id);
+      yProfiles.delete(id);
+    });
+    flush();
+    return null;
+  }
+
   function addVirtualMember(name: string, now: number): Member {
     const member: Member = {
       id: newId(now),
@@ -578,6 +649,7 @@ export function createDoc() {
     setProfile,
     renameMember,
     addVirtualMember,
+    removeMember,
     setSettings,
     registerSelf,
     subscribe,
@@ -636,6 +708,7 @@ export const {
   setProfile,
   renameMember,
   addVirtualMember,
+  removeMember,
   setSettings,
   subscribe,
   exportSnapshot,

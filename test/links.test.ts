@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   amountForUrl,
+  bunqLink,
+  cashAppLink,
+  cryptoLink,
+  currenciesFor,
+  currencyAllowedFor,
   customLink,
   monzoLink,
   monzoUnavailableReason,
   paymentMethodsFor,
   paypalLink,
   revolutLink,
+  upiLink,
   validateCustomTemplate,
   venmoLink,
   wiseLink,
@@ -99,6 +105,227 @@ describe("monzo", () => {
       "£1–£100 per payment; recipient max £1,000 per 30 days.",
     );
     expect(monzoUnavailableReason(2350, "GBP")).toBeNull();
+  });
+});
+
+describe("bunq", () => {
+  it("produces the exact expected URL with an encoded description", () => {
+    const m = bunqLink("anna", 2350, "EUR", "Rome trip");
+    expect(m?.url).toBe("https://bunq.me/anna/23.50/Rome%20trip");
+    expect(m?.amountPrefilled).toBe(true);
+    expect(m?.caveat).toMatch(/no bunq account/i);
+  });
+
+  it("omits the description segment when there is no reference", () => {
+    expect(bunqLink("anna", 2350, "EUR", "  ")?.url).toBe(
+      "https://bunq.me/anna/23.50",
+    );
+  });
+
+  it("adds the iDEAL cap hint only above €2,000", () => {
+    expect(bunqLink("anna", 200_000, "EUR", "x")?.caveat).not.toMatch(/2,000/);
+    expect(bunqLink("anna", 200_001, "EUR", "x")?.caveat).toMatch(/2,000/);
+  });
+
+  it("is EUR-only", () => {
+    expect(bunqLink("anna", 2350, "GBP", "Rome trip")).toBeNull();
+    expect(bunqLink("anna", 2350, "USD", "Rome trip")).toBeNull();
+  });
+
+  it("rejects handles with path or query characters", () => {
+    for (const bad of ["a/b", "a?b", "a#b", ""]) {
+      expect(bunqLink(bad, 2350, "EUR", "x")).toBeNull();
+    }
+  });
+});
+
+describe("cashAppLink", () => {
+  it("produces the exact expected URL, amount in the path, no note param", () => {
+    const m = cashAppLink("anna", 2350, "USD");
+    expect(m?.url).toBe("https://cash.app/$anna/23.50");
+    expect(m?.amountPrefilled).toBe(true);
+    expect(m?.url).not.toMatch(/[?&]/);
+  });
+
+  it("normalizes a pasted $cashtag and a pasted cash.app URL", () => {
+    expect(cashAppLink("$anna", 2350, "USD")?.url).toBe(
+      "https://cash.app/$anna/23.50",
+    );
+    expect(cashAppLink("https://cash.app/$anna", 2350, "USD")?.url).toBe(
+      "https://cash.app/$anna/23.50",
+    );
+    expect(cashAppLink("cash.app/anna/5", 2350, "USD")?.url).toBe(
+      "https://cash.app/$anna/23.50",
+    );
+  });
+
+  it("accepts USD and GBP only", () => {
+    expect(cashAppLink("anna", 2350, "GBP")?.url).toBe(
+      "https://cash.app/$anna/23.50",
+    );
+    expect(cashAppLink("anna", 2350, "EUR")).toBeNull();
+    expect(cashAppLink("anna", 2350, "INR")).toBeNull();
+  });
+
+  it("rejects cashtags over 20 chars or with path/query characters", () => {
+    expect(cashAppLink("a".repeat(21), 100, "USD")).toBeNull();
+    for (const bad of ["a?b", "a/b", "a#b"]) {
+      expect(cashAppLink(bad, 100, "USD")).toBeNull();
+    }
+  });
+});
+
+describe("upiLink", () => {
+  it("produces the exact expected deep link", () => {
+    const m = upiLink("anna@upi", "Anna Müller", 2350, "INR", "Rome trip");
+    expect(m?.url).toBe(
+      "upi://pay?pa=anna@upi&pn=Anna%20M%C3%BCller&am=23.50&cu=INR&tn=Rome%20trip",
+    );
+    expect(m?.amountPrefilled).toBe(true);
+  });
+
+  it("is INR-only", () => {
+    expect(upiLink("anna@upi", "Anna", 2350, "EUR", "x")).toBeNull();
+    expect(upiLink("anna@upi", "Anna", 2350, "USD", "x")).toBeNull();
+  });
+
+  it("rejects anything that is not a local@handle VPA", () => {
+    for (const bad of ["anna", "anna@", "@upi", "anna@upi&am=1", "a b@upi"]) {
+      expect(upiLink(bad, "Anna", 2350, "INR", "x")).toBeNull();
+    }
+  });
+});
+
+describe("cryptoLink", () => {
+  it("produces bare scheme:address URIs for bitcoin and ethereum", () => {
+    expect(
+      cryptoLink(
+        { label: "Bitcoin", address: "bc1qexampleaddr", network: "bitcoin" },
+        "Rome trip",
+        "Anna",
+      )?.url,
+    ).toBe("bitcoin:bc1qexampleaddr");
+    expect(
+      cryptoLink(
+        { label: "USDC on Base", address: "0xAbC123", network: "ethereum" },
+        "Rome trip",
+        "Anna",
+      )?.url,
+    ).toBe("ethereum:0xAbC123");
+  });
+
+  it("carries RFC-3986-encoded tx_description and recipient_name on Monero", () => {
+    const m = cryptoLink(
+      { label: "Monero", address: "4AddrExample", network: "monero" },
+      "Rome trip (Anna's)",
+      "Anna Müller",
+    );
+    expect(m?.url).toBe(
+      "monero:4AddrExample?tx_description=Rome%20trip%20%28Anna%27s%29&recipient_name=Anna%20M%C3%BCller",
+    );
+  });
+
+  it("never embeds an amount, in any network", () => {
+    for (const network of ["bitcoin", "ethereum", "monero"] as const) {
+      const m = cryptoLink(
+        { label: network, address: "addr1", network },
+        "Rome trip",
+        "Anna",
+      );
+      expect(m?.amountPrefilled).toBe(false);
+      expect(m?.url).not.toMatch(/amount/i);
+      expect(m?.url).not.toMatch(/tx_amount/);
+      expect(m?.url).not.toMatch(/23\.50/);
+    }
+  });
+
+  it("exposes the raw address alongside the URI", () => {
+    const m = cryptoLink(
+      { label: "Bitcoin", address: "  bc1qexampleaddr  ", network: "bitcoin" },
+      "",
+      "",
+    );
+    expect(m?.rawAddress).toBe("bc1qexampleaddr");
+    expect(m?.url).toBe("bitcoin:bc1qexampleaddr");
+  });
+
+  it("returns null when there is no URI scheme or no address", () => {
+    expect(
+      cryptoLink({ label: "L", address: "a", network: "other" }, "", ""),
+    ).toBeNull();
+    expect(cryptoLink({ label: "L", address: "a" }, "", "")).toBeNull();
+    expect(
+      cryptoLink({ label: "L", address: "   ", network: "bitcoin" }, "", ""),
+    ).toBeNull();
+  });
+});
+
+describe("currency gates", () => {
+  it("currenciesFor is the single source of truth (null = any currency)", () => {
+    expect(currenciesFor("bunq")).toEqual(["EUR"]);
+    expect(currenciesFor("cashapp")).toEqual(["USD", "GBP"]);
+    expect(currenciesFor("upi")).toEqual(["INR"]);
+    expect(currenciesFor("monzo")).toEqual(["GBP"]);
+    expect(currenciesFor("crypto")).toBeNull();
+    expect(currenciesFor("paypal")).toBeNull();
+    expect(currencyAllowedFor("bunq", "eur")).toBe(true);
+    expect(currencyAllowedFor("bunq", "GBP")).toBe(false);
+  });
+
+  const everything: PaymentProfile = {
+    paypalMe: "anna",
+    revolutTag: "annatag",
+    wiseTag: "anna-w",
+    venmo: "anna_v",
+    monzoMe: "anna",
+    bunqMe: "anna",
+    cashtag: "anna",
+    upiVpa: "anna@upi",
+    crypto: { label: "Bitcoin", address: "bc1qaddr", network: "bitcoin" },
+  };
+
+  const kindsFor = (currency: string) =>
+    paymentMethodsFor(everything, 2350, currency, "Rome trip", "Anna").map(
+      (m) => m.kind,
+    );
+
+  it("EUR offers bunq and hides Monzo/CashApp/UPI", () => {
+    const kinds = kindsFor("EUR");
+    expect(kinds).toContain("bunq");
+    expect(kinds).toContain("crypto");
+    expect(kinds).not.toContain("monzo");
+    expect(kinds).not.toContain("cashapp");
+    expect(kinds).not.toContain("upi");
+  });
+
+  it("GBP offers Monzo and Cash App, hides bunq/UPI", () => {
+    const kinds = kindsFor("GBP");
+    expect(kinds).toContain("monzo");
+    expect(kinds).toContain("cashapp");
+    expect(kinds).not.toContain("bunq");
+    expect(kinds).not.toContain("upi");
+  });
+
+  it("USD offers Cash App only of the gated methods", () => {
+    const kinds = kindsFor("USD");
+    expect(kinds).toContain("cashapp");
+    expect(kinds).not.toContain("monzo");
+    expect(kinds).not.toContain("bunq");
+    expect(kinds).not.toContain("upi");
+  });
+
+  it("INR offers UPI only of the gated methods", () => {
+    const kinds = kindsFor("INR");
+    expect(kinds).toContain("upi");
+    expect(kinds).not.toContain("bunq");
+    expect(kinds).not.toContain("cashapp");
+    expect(kinds).not.toContain("monzo");
+  });
+
+  it("crypto is offered in every currency", () => {
+    for (const c of ["EUR", "GBP", "USD", "INR", "JPY"]) {
+      expect(kindsFor(c)).toContain("crypto");
+    }
   });
 });
 
@@ -224,6 +451,55 @@ describe("paymentMethodsFor", () => {
       "monzo",
       "custom",
     ]);
+  });
+
+  it("keeps ids unique with every field populated at once", () => {
+    const profile: PaymentProfile = {
+      paypalMe: "anna",
+      revolutTag: "annatag",
+      wiseTag: "anna-w",
+      venmo: "anna_v",
+      monzoMe: "anna",
+      bunqMe: "anna",
+      cashtag: "anna",
+      upiVpa: "anna@upi",
+      crypto: { label: "Bitcoin", address: "bc1qaddr", network: "bitcoin" },
+      accountHolder: "Anna",
+      customs: [
+        { id: "c1", label: "A", urlTemplate: "https://a.example/{amount}" },
+        { id: "c2", label: "B", urlTemplate: "https://b.example/{amount}" },
+      ],
+    };
+    for (const currency of ["EUR", "GBP", "USD", "INR"]) {
+      const ids = paymentMethodsFor(profile, 2350, currency, "Rome trip").map(
+        (m) => m.id,
+      );
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+    // GBP hits the most methods at once (Monzo + Cash App).
+    expect(
+      paymentMethodsFor(profile, 2350, "GBP", "Rome trip").map((m) => m.kind),
+    ).toEqual([
+      "paypal",
+      "revolut",
+      "wise",
+      "venmo",
+      "monzo",
+      "cashapp",
+      "crypto",
+      "custom",
+      "custom",
+    ]);
+  });
+
+  it("falls back to the profile's account holder as the UPI payee name", () => {
+    const [upi] = paymentMethodsFor(
+      { upiVpa: "anna@upi", accountHolder: "Anna Müller" },
+      2350,
+      "INR",
+      "Rome trip",
+    );
+    expect(upi.url).toContain("pn=Anna%20M%C3%BCller");
   });
 
   it("skips a method entirely when its field is absent", () => {

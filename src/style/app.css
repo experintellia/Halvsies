@@ -470,10 +470,16 @@ select {
   background: var(--color-surface-2);
 }
 
+/* Prose, not a value: this carries multi-sentence help text in the wizard, the
+   profile screen and the pay-up sheet, so it must wrap. (It used to be
+   white-space:nowrap with per-screen `normal` overrides bolted on, which meant
+   every new caveat overflowed the screen sideways until someone noticed.)
+   `.method-main .field-suffix` below is the one place that opts back in, and
+   it pairs the nowrap with an ellipsis so it clips instead of overflowing. */
 .field-suffix {
   color: var(--color-text-dim);
   font-size: 0.9rem;
-  white-space: nowrap;
+  overflow-wrap: anywhere; /* long URLs and IBANs have nothing to break at */
 }
 
 /* text-mode amount input: no number spinners, since it's type="text" already;
@@ -492,6 +498,11 @@ select {
 
 .money {
   font-variant-numeric: tabular-nums;
+  /* Not every `.money` is a short figure: PayUpSheet renders crypto addresses
+     here (a Monero one is ~95 characters with nothing to break at), and in a
+     flex row that would push the copy button off-screen. */
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .money-positive {
@@ -598,25 +609,41 @@ select {
   background: var(--color-surface-2);
 }
 
+.wizard-option-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Group headings in the provider picker. */
+.picker-section {
+  margin: 16px 0 6px;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-dim);
+}
+
+/* "EUR only" — this method won't be offered for the current group currency.
+   A warning, never a block: the group currency can change after setup. */
+.pill-warn {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text-dim);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .wizard-test {
   margin: 12px 0;
   padding: 12px;
   background: var(--color-surface-2);
   border-radius: var(--radius);
-}
-
-/* .field-suffix is nowrap by default (it is normally a short inline hint).
-   Inside the wizard it carries prose and long URLs, so re-enable wrapping —
-   overflow-wrap alone would do nothing while white-space stays nowrap. */
-.wizard-option .field-suffix,
-.wizard-test .field-suffix,
-.field .field-suffix {
-  white-space: normal;
-}
-
-/* The test URL has no spaces to break at. */
-.wizard-test .field-suffix {
-  overflow-wrap: anywhere;
 }
 
 /* The payee's own instructions, shown above the payment buttons. */
