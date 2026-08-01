@@ -107,6 +107,15 @@ select {
   min-height: 100vh;
   max-width: 640px; /* cap width on desktop; still full-bleed on phones */
   margin: 0 auto;
+  /* Every string on every screen is user- or peer-supplied: member names,
+     expense titles, IBANs, wallet addresses, 200-char URL templates. Break
+     them rather than let one of them widen the whole app past the viewport.
+     Two declarations on purpose: `anywhere` is Safari 15.4+, and on the
+     14.1 floor the second line is simply dropped, leaving `break-word` —
+     which still breaks the word, it just doesn't shrink min-content, so the
+     flex items that need to collapse also carry an explicit min-width:0. */
+  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .app-header {
@@ -118,12 +127,16 @@ select {
   border-bottom: 1px solid var(--color-border);
 }
 
+/* min-width:0 so a long group name wraps instead of pushing the currency
+   code off the right edge (flex items default to min-width:auto). */
 .app-title {
+  min-width: 0;
   margin: 0;
   font-size: 1.15rem;
 }
 
 .app-currency {
+  flex-shrink: 0;
   color: var(--color-text-dim);
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
@@ -133,6 +146,14 @@ select {
   flex: 1;
   padding: 12px 16px calc(16px + var(--safe-bottom));
   overflow-y: auto;
+}
+
+/* Section headings on the tab screens (Balances, Me). They had no rule at
+   all, so they rendered at the UA default 1.5rem/0.83em — twice the size of
+   .sheet-title and .app-title, with a different rhythm on every screen. */
+.app-content h2 {
+  margin: 20px 0 8px;
+  font-size: 1.05rem;
 }
 
 .placeholder {
@@ -210,6 +231,38 @@ select {
 
 .row:active {
   background: var(--color-surface-2);
+}
+
+/* Non-tappable <div> variants of .row — a plain card (.row-block) or a
+   still-flex but inert list row (.row-static). Both were inline styles on
+   five call sites that each re-stated half of this. */
+.row-block {
+  display: block;
+}
+
+.row-block,
+.row-static {
+  cursor: default;
+}
+
+.row-block:active,
+.row-static:active {
+  background: var(--color-surface);
+}
+
+/* The shrinkable text column of a .row: a member name or a "X owes Y …"
+   sentence. Without min-width:0 the row refuses to go below the text's
+   min-content width and overflows the viewport — an email-shaped member id
+   or a hyphen-less surname has no break opportunity at all. */
+.row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* …and the figure it lines up against never shrinks, so the right-hand
+   column lands in the same place on every row of the list. */
+.row-amount {
+  flex-shrink: 0;
 }
 
 /* ---- expense list card ----
@@ -312,6 +365,13 @@ select {
   white-space: nowrap;
 }
 
+/* .money is deliberately breakable (it also carries wallet addresses), but a
+   share figure must not wrap mid-number — the name column is the one that
+   gives way. */
+.detail-share .money {
+  flex-shrink: 0;
+}
+
 /* ---- selectable participant rows ---- */
 
 .row-check .check-box {
@@ -400,12 +460,21 @@ select {
   margin-bottom: 8px;
 }
 
-.sheet-title {
+/* The title is user content on three of the five sheets (an expense title,
+   "<name> owes <name> <amount>", a custom method's label), so it has to be
+   allowed to wrap under the close button rather than shove it off-screen. */
+/* Two classes deep on purpose: a Sheet is rendered inside .app-content's
+   subtree, so the `.app-content h2` section rule above would otherwise win
+   on specificity and give the sheet title that rule's 20px top margin. */
+.sheet-header .sheet-title {
+  min-width: 0;
   margin: 0;
   font-size: 1.05rem;
 }
 
 .sheet-close {
+  position: relative;
+  flex-shrink: 0;
   border: none;
   background: var(--color-surface-2);
   color: var(--color-text);
@@ -413,6 +482,16 @@ select {
   height: 32px;
   border-radius: 50%;
   cursor: pointer;
+}
+
+/* Pads the hit area out to 44px without growing the visible circle. */
+.sheet-close::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  bottom: -6px;
+  left: -6px;
 }
 
 /* ---- buttons ---- */
@@ -464,10 +543,26 @@ select {
   margin-bottom: 4px;
 }
 
+/* A .field-row holds either "input + unit" or two-to-three buttons (Edit /
+   Remove, Open / Copy, Show QR / Send to chat). At 320px a pair of buttons
+   with a user-supplied label ("Open <custom method name>") does not fit, so
+   the row wraps rather than overflowing, and every child may shrink. */
 .field-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.field-row > * {
+  min-width: 0;
+}
+
+/* Paragraph children (the "what others see" preview lines) would otherwise
+   bring the UA's 1em block margins into a centred flex row and sit visibly
+   off the button next to them. */
+.field-row > p {
+  margin: 4px 0;
 }
 
 .field input,
@@ -480,6 +575,17 @@ select {
   background: var(--color-surface-2);
 }
 
+/* Inside a row an input flexes instead of claiming width:100% (which, now
+   that the row wraps, would push its own unit/button onto a second line) and
+   instead of the UA's ~180px intrinsic minimum (which overflowed the member
+   rows in MembersSheet, where the input sits inside a 60%-wide column). */
+.field-row input,
+.field-row textarea,
+.field-row select {
+  flex: 1 1 8em;
+  width: auto;
+}
+
 /* Prose, not a value: this carries multi-sentence help text in the wizard, the
    profile screen and the pay-up sheet, so it must wrap. (It used to be
    white-space:nowrap with per-screen `normal` overrides bolted on, which meant
@@ -489,7 +595,23 @@ select {
 .field-suffix {
   color: var(--color-text-dim);
   font-size: 0.9rem;
-  overflow-wrap: anywhere; /* long URLs and IBANs have nothing to break at */
+  /* long URLs and IBANs have nothing to break at; see .app-shell for why
+     this is stated twice */
+  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* As a direct child of a .field it is help text under the control, not a
+   unit beside it (that one lives inside .field-row) — give it the same 4px
+   gap the label has above the control, and the same 14px rhythm .field uses
+   between fields when it stands alone as a paragraph. */
+.field > .field-suffix {
+  display: block;
+  margin-top: 4px;
+}
+
+p.field-suffix {
+  margin: 6px 0 14px;
 }
 
 /* text-mode amount input: no number spinners, since it's type="text" already;
@@ -510,7 +632,9 @@ select {
   font-variant-numeric: tabular-nums;
   /* Not every `.money` is a short figure: PayUpSheet renders crypto addresses
      here (a Monero one is ~95 characters with nothing to break at), and in a
-     flex row that would push the copy button off-screen. */
+     flex row that would push the copy button off-screen. Stated twice — see
+     .app-shell. */
+  overflow-wrap: break-word;
   overflow-wrap: anywhere;
   min-width: 0;
 }

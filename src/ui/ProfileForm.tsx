@@ -359,7 +359,7 @@ export function ProfileForm() {
         </div>
       ))}
       {!previewEpc && hasBank && (
-        <div className="row" style={{ display: "block" }}>
+        <div className="row row-block">
           <p>
             <strong>Bank transfer QR</strong>
           </p>

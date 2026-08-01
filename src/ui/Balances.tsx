@@ -70,10 +70,10 @@ export function Balances() {
               : "money money-negative";
         const sign = cents > 0 ? "+" : "";
         return (
-          <div className="row" key={m.id} style={{ cursor: "default" }}>
+          <div className="row row-static" key={m.id}>
             <Avatar member={m} />
-            <span>{m.id === self ? "You" : m.name}</span>
-            <span className={cls} style={{ marginLeft: "auto" }}>
+            <span className="row-text">{m.id === self ? "You" : m.name}</span>
+            <span className={cls + " row-amount"}>
               {sign}
               {formatMoney(cents, currency)}
             </span>
@@ -101,7 +101,7 @@ export function Balances() {
             onActivate={() => setSelected({ transfer: t, direction })}
           >
             <Avatar member={memberOf(otherId)} />
-            <span>{label}</span>
+            <span className="row-text">{label}</span>
           </Row>
         );
       })}

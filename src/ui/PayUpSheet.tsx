@@ -242,7 +242,7 @@ export function PayUpSheet({
         <>
           <p>{introText}</p>
           {methods.map((m) => (
-            <div className="row" key={m.id} style={{ display: "block" }}>
+            <div className="row row-block" key={m.id}>
               <p>
                 <strong>{m.label}</strong>
                 {!m.amountPrefilled && (
@@ -303,7 +303,7 @@ export function PayUpSheet({
       )}
 
       {cryptoAddressOnly && (
-        <div className="row" style={{ display: "block" }}>
+        <div className="row row-block">
           <p>
             <strong>{cryptoAddressOnly.label.trim() || "Crypto"}</strong>
             <span className="field-suffix">
@@ -320,7 +320,7 @@ export function PayUpSheet({
       )}
 
       {!epcError ? (
-        <div className="row" style={{ display: "block" }}>
+        <div className="row row-block">
           <p>
             <strong>Bank transfer</strong>
           </p>

@@ -237,7 +237,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
 
       <div className="field">
         <span className="field-label">Paid by</span>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <div className="field-row">
           {members.map((m) => (
             <TapButton
               key={m.id}
@@ -253,7 +253,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
 
       <div className="field">
         <span className="field-label">Split</span>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="field-row">
           {(["even", "weights", "exact"] as SplitMode[]).map((m) => (
             <TapButton
               key={m}
@@ -292,8 +292,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                   {selected && <Icon name="check" size={14} strokeWidth={3} />}
                 </span>
                 <Avatar member={m} />
-                <span style={{ flex: 1 }}>{m.name}</span>
-                <span className="money">
+                <span className="row-text">{m.name}</span>
+                <span className="money row-amount">
                   {selected ? formatMoney(share, currency) : "not included"}
                 </span>
               </Row>
@@ -359,7 +359,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         </p>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <div className="field-row" style={{ marginTop: 8 }}>
         {expense && (
           <button
             type="button"
