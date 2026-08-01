@@ -6,7 +6,13 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { render } from "preact";
 import { App } from "../src/ui/App";
 import { needsSetup } from "../src/ui/GroupSettings";
-import { getSettings, importSnapshot, setSettings } from "../src/state/doc";
+import {
+  getSettings,
+  importSnapshot,
+  listMembers,
+  setSettings,
+} from "../src/state/doc";
+import { uninstallWebxdc } from "./webxdc-mock";
 
 let host: HTMLDivElement;
 
@@ -36,25 +42,37 @@ beforeEach(() => {
 afterEach(() => {
   render(null, host);
   host.remove();
+  uninstallWebxdc();
 });
 
 describe("needsSetup", () => {
   it("asks only while nobody has written the settings", () => {
     // Nothing in the doc yet: the one case that gets the screen.
-    expect(needsSetup({ groupCurrency: "EUR" }, 1, 0)).toBe(true);
     expect(needsSetup({ groupCurrency: "EUR" }, 0, 0)).toBe(true);
 
     // The setup screen always writes a title, "" when it was skipped — that
     // empty string is the marker, and it syncs like any other doc entry.
-    expect(needsSetup({ groupCurrency: "EUR", title: "" }, 1, 0)).toBe(false);
+    expect(needsSetup({ groupCurrency: "EUR", title: "" }, 0, 0)).toBe(false);
     expect(needsSetup({ groupCurrency: "EUR", title: "Trip" }, 9, 4)).toBe(
       false,
     );
 
-    // Backstop for a group created before this screen existed: a second member
-    // or any expense means the split is already running, so nobody is asked.
-    expect(needsSetup({ groupCurrency: "EUR" }, 2, 0)).toBe(false);
-    expect(needsSetup({ groupCurrency: "EUR" }, 1, 1)).toBe(false);
+    // Backstop for a group created before this screen existed: a running
+    // ledger means the split is already under way, so nobody is asked.
+    expect(needsSetup({ groupCurrency: "EUR" }, 1, 0)).toBe(false);
+    expect(needsSetup({ groupCurrency: "EUR" }, 0, 1)).toBe(false);
+  });
+
+  // The regression: the backstop used to count members. Members register
+  // themselves the instant the app opens, so two people opening the same
+  // unconfigured group took the count to 2 and silently dismissed the setup
+  // screen on BOTH of them — leaving the currency on its default forever,
+  // with nobody ever asked.
+  it("does not care how many people have opened the app", () => {
+    const unconfigured = { groupCurrency: "EUR" };
+    expect(needsSetup(unconfigured, 0, 0)).toBe(true);
+    // Whatever the roster does, only the ledger and the title decide.
+    expect(needsSetup({ ...unconfigured, title: "" }, 0, 0)).toBe(false);
   });
 });
 
@@ -161,5 +179,40 @@ describe("the group settings sub-page", () => {
     );
     await flush();
     expect(subpage()).toBeNull();
+  });
+});
+
+describe("first open writes nothing", () => {
+  // The regression the user spotted: main.tsx called ensureSelfRegistered()
+  // before render. That is a document write, and every write flushes to the
+  // chat — so Halvsies announced "X joined the split" into the group while the
+  // setup screen was still asking which currency this split is even in.
+  // Opening the app out of curiosity and closing it must leave no trace.
+  //
+  // What this pins is the mechanism: registration now happens in an effect
+  // that App skips while unconfigured, and NOTHING behind the setup screen is
+  // mounted — the tab screens each register the local user via useSelfId() on
+  // mount, so leaving the shell mounted underneath would defeat the whole fix.
+  // (The registration call itself is not assertable here: doc.ts captures
+  // window.webxdc at module load, before any test can install the mock, and
+  // the file that can — host.test.tsx — cannot run effects. See its header.)
+  beforeEach(() => importSnapshot("{}"));
+
+  it("mounts nothing behind the setup screen, so nobody is registered", async () => {
+    render(<App />, host);
+    await flush();
+
+    expect(host.textContent).toContain("Set up this split");
+    expect(listMembers()).toEqual([]);
+    // No shell at all: no tab bar, and no expense screen to call useSelfId().
+    expect(host.querySelector(".tab-bar")).toBeNull();
+    expect(host.textContent).not.toContain("Add expense");
+
+    tap(button("Start without a name"));
+    await flush();
+
+    // Only now does the app — and its registration effect — exist.
+    expect(host.querySelector(".tab-bar")).not.toBeNull();
+    expect(host.textContent).toContain("Add expense");
   });
 });

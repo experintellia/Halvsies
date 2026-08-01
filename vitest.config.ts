@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [preact()],
   test: {
     environment: "happy-dom",
+    setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.test.{ts,tsx}"],
     exclude: ["node_modules/**", "dist/**", "dist-xdc/**"],
   },

@@ -66,10 +66,18 @@ function NameHint({ title }: { title?: string }) {
  * raw, and the setup screen below always writes it, as "" when it is skipped.
  *
  * A late joiner cannot trip this: once anyone finished setup the empty string
- * is in the doc, and it reaches every peer with the rest of the state. The
- * member/expense clauses are the backstop for a group created before this
- * screen existed (title genuinely never written) — a running ledger, or a
- * second member, means the group is under way and nobody is asked again.
+ * is in the doc, and it reaches every peer with the rest of the state.
+ *
+ * The ledger clauses are the backstop for a group created before this screen
+ * existed, where the title genuinely never got written — expenses or
+ * settlements mean the split is already running, so nobody is asked.
+ *
+ * NOT the member count, though it is tempting. Members register themselves the
+ * moment the app opens, so the count says nothing about whether a human
+ * configured anything: two people opening an unconfigured group would take it
+ * to 2 and silently close the setup screen on BOTH of them, leaving the
+ * currency on its default forever. (The app no longer registers anyone until
+ * setup is done — see App.tsx — but this predicate must not depend on that.)
  *
  * The one window is the moment before a joining peer's doc has replayed: it is
  * empty, so this says "unconfigured" for a frame or two until the updates land
@@ -79,11 +87,11 @@ function NameHint({ title }: { title?: string }) {
  */
 export function needsSetup(
   settings: Settings,
-  memberCount: number,
   expenseCount: number,
+  settlementCount: number,
 ): boolean {
   if (settings.title !== undefined) return false;
-  return memberCount <= 1 && expenseCount === 0;
+  return expenseCount === 0 && settlementCount === 0;
 }
 
 /** The one-screen form shown until needsSetup() goes false. */

@@ -52,6 +52,11 @@ afterEach(() => {
 });
 
 describe("App shell", () => {
+  // App now shows the first-run setup screen until the group is configured,
+  // and nothing behind it mounts — so these tests have to start from a
+  // configured group, the same as every real second open.
+  beforeEach(() => setSettings({ groupCurrency: "EUR", title: "Test group" }));
+
   it("mounts the real screens, not placeholders", () => {
     render(<App />, host);
     const text = host.textContent ?? "";

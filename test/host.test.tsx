@@ -6,7 +6,6 @@
 // singleton + provider from it, so each test boots a fresh module graph with a
 // fresh mock host — that is also what makes "reopening the app" expressible.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "preact";
 import * as Y from "yjs";
 import { formatMoney, type Expense } from "../src/state/model";
 import {
@@ -20,6 +19,23 @@ const eur = (cents: number): string => formatMoney(cents, "EUR");
 
 let dom: HTMLDivElement;
 const booted: { provider?: { destroy(): void } }[] = [];
+/**
+ * boot()'s render, taken from the same preact instance the components got.
+ *
+ * KNOWN LIMITATION: useEffect still does not run in this file. vi.resetModules()
+ * is what makes "reopen the app" expressible, and it also severs Preact's hook
+ * plumbing badly enough that passive effects never fire — a forced re-render
+ * paints the right tree, but no effect body ever executes. Everything here
+ * therefore asserts first-render output and direct store calls only.
+ *
+ * Anything that depends on an effect — useDocValue's doc subscription,
+ * useSelfId's registration, re-rendering in response to a remote update —
+ * belongs in a test file that does NOT reset modules (test/render.test.tsx,
+ * test/settings.test.tsx), where test/setup.ts's rAF shim makes effects run.
+ */
+let render: (vnode: unknown, parent: Element) => void = () => {
+  throw new Error("render before boot()");
+};
 
 /** Preact batches, and importFiles() resolves through a promise chain. */
 const tick = (): Promise<void> =>
@@ -44,6 +60,8 @@ const buttons = (text: string): HTMLButtonElement[] =>
 async function boot(o: MockOptions = {}) {
   vi.resetModules();
   const webxdc = installWebxdc(o);
+  const preact = await import("preact");
+  render = preact.render as typeof render;
   const doc = await import("../src/state/doc");
   const { ProfileForm } = await import("../src/ui/ProfileForm");
   const { PayUpSheet } = await import("../src/ui/PayUpSheet");
@@ -73,7 +91,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  render(null, dom);
+  try {
+    render(null, dom); // unmount so effects/subscriptions don't leak
+  } catch {
+    // a test that never called boot() has no renderer; nothing to unmount
+  }
   dom.remove();
   // Each provider holds an autosave interval and window listeners.
   for (const m of booted.splice(0)) m.provider?.destroy();

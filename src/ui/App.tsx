@@ -5,8 +5,13 @@
 // Above the tabs sits one "route": a full-screen sub-page that covers the
 // shell, tab bar included. Three tabs and one sub-page is a useState, not a
 // router.
-import { useState } from "preact/hooks";
-import { getSettings, listExpenses, listMembers } from "../state/doc";
+import { useEffect, useState } from "preact/hooks";
+import {
+  ensureSelfRegistered,
+  getSettings,
+  listExpenses,
+  listSettlements,
+} from "../state/doc";
 import { Balances } from "./Balances";
 import { ExpenseList } from "./ExpenseList";
 import { FirstRunSetup, GroupSettings, needsSetup } from "./GroupSettings";
@@ -28,13 +33,32 @@ export function App() {
   const [route, setRoute] = useState<Route>(null);
   const settings = useDocValue(getSettings);
   const firstRun = useDocValue(() =>
-    needsSetup(getSettings(), listMembers().length, listExpenses().length),
+    needsSetup(getSettings(), listExpenses().length, listSettlements().length),
   );
+
+  // Registering the local user is a document write, and every write flushes to
+  // the chat — so doing it at startup (which main.tsx used to) posted
+  // "X joined the split" into the group before the app had asked which
+  // currency this split is even in. Opening Halvsies out of curiosity and
+  // closing it again should leave no trace. Deferred until setup is done;
+  // idempotent, so the screens' own useSelfId() calls stay harmless.
+  useEffect(() => {
+    if (firstRun) return;
+    try {
+      ensureSelfRegistered();
+    } catch {
+      // no webxdc host (vitest/SSR) — the doc still works
+    }
+  }, [firstRun]);
+
+  // Nothing behind the setup screen may mount: the tab screens register the
+  // local user on mount, which is exactly the write we are deferring.
+  if (firstRun) return <FirstRunSetup open />;
 
   const activate = (id: Tab) => setTab(id);
   // A sub-page covers the shell completely; hide what it covers from assistive
   // tech rather than leaving two screens' worth of content readable at once.
-  const covered = firstRun || route !== null;
+  const covered = route !== null;
 
   return (
     <>
@@ -74,7 +98,6 @@ export function App() {
       </div>
 
       <GroupSettings open={route === "group"} onClose={() => setRoute(null)} />
-      <FirstRunSetup open={firstRun} />
     </>
   );
 }
