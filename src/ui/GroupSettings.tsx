@@ -18,10 +18,16 @@ import {
   sendSnapshotToChat,
   setSettings,
 } from "../state/doc";
-import { isCurrencyCode, type Settings } from "../state/model";
+import type { Settings } from "../state/model";
+import {
+  currencyName,
+  deviceLocales,
+  suggestCurrency,
+} from "../state/currency";
 import { epcReference } from "../pay/epcqr";
 import { useDocValue } from "./useDoc";
 import { MembersSheet } from "./MembersSheet";
+import { CurrencyField } from "./components/CurrencyField";
 import { SubPage } from "./components/SubPage";
 import { TapButton } from "./components/TapButton";
 
@@ -97,9 +103,13 @@ export function needsSetup(
 /** The one-screen form shown until needsSetup() goes false. */
 export function FirstRunSetup({ open }: { open: boolean }) {
   const settings = useDocValue(getSettings);
-  const [currency, setCurrency] = useState(settings.groupCurrency);
+  // The device's language is the only signal available offline, and it is a
+  // good one: someone whose phone is set to de-DE is overwhelmingly likely to
+  // be splitting in euros. Only a suggestion — it is pre-selected, not forced,
+  // and undefined for the tags where the guess would be a coin flip.
+  const [suggested] = useState(() => suggestCurrency(deviceLocales()));
+  const [currency, setCurrency] = useState(suggested ?? settings.groupCurrency);
   const [title, setTitle] = useState("");
-  const valid = isCurrencyCode(currency);
 
   return (
     <SubPage open={open} title="Set up this split">
@@ -108,19 +118,18 @@ export function FirstRunSetup({ open }: { open: boolean }) {
         settings on the Me tab.
       </p>
 
-      <label className="field">
-        <span className="field-label">Group currency (3-letter code)</span>
-        <input
-          type="text"
-          maxLength={3}
-          value={currency}
-          onInput={(e) => setCurrency(textValue(e).trim())}
-        />
-        <span className="field-suffix">
-          Every expense and every balance in this chat is in this currency —
-          Halvsies never converts, so pick the one you will actually pay in.
-        </span>
-      </label>
+      <CurrencyField
+        value={currency}
+        onChange={setCurrency}
+        hint={
+          (suggested === currency
+            ? `Picked from your device's language${
+                currencyName(currency) ? ` (${currencyName(currency)})` : ""
+              }. `
+            : "") +
+          "Every expense and every balance in this chat is in this currency — Halvsies never converts, so pick the one you will actually pay in."
+        }
+      />
 
       <label className="field">
         <span className="field-label">Name (optional)</span>
@@ -133,11 +142,12 @@ export function FirstRunSetup({ open }: { open: boolean }) {
         <NameHint title={title.trim()} />
       </label>
 
+      {/* No validity gate: every value comes from the picker, so there is no
+          way to reach an unparseable code here. setSettings() still refuses
+          one — that guard is for what a peer syncs, not for this form. */}
       <TapButton
         className="btn btn-primary"
-        disabled={!valid}
         onActivate={() => {
-          if (!valid) return;
           // One write, both keys: `title` is what marks this group configured,
           // so it must land in the same transaction as the currency.
           setSettings({ groupCurrency: currency, title: title.trim() });
@@ -145,11 +155,6 @@ export function FirstRunSetup({ open }: { open: boolean }) {
       >
         {title.trim() ? "Start splitting" : "Start without a name"}
       </TapButton>
-      {!valid && (
-        <p className="field-suffix">
-          A currency code is three letters, e.g. EUR, GBP, USD, INR.
-        </p>
-      )}
     </SubPage>
   );
 }
@@ -207,15 +212,11 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
 
   return (
     <SubPage open={open} title="Group settings" onBack={onClose}>
-      <label className="field">
-        <span className="field-label">Group currency (3-letter code)</span>
-        <input
-          type="text"
-          maxLength={3}
-          defaultValue={settings.groupCurrency}
-          onBlur={(e) => setSettings({ groupCurrency: textValue(e).trim() })}
-        />
-      </label>
+      <CurrencyField
+        value={settings.groupCurrency}
+        onChange={(code) => setSettings({ groupCurrency: code })}
+        hint="Changing this re-labels every existing amount — it does not convert them."
+      />
       <label className="field">
         <span className="field-label">Name (optional)</span>
         <input

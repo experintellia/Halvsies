@@ -12,6 +12,7 @@ import {
   listMembers,
   setSettings,
 } from "../src/state/doc";
+import { isCurrencyCode } from "../src/state/model";
 import { uninstallWebxdc } from "./webxdc-mock";
 
 let host: HTMLDivElement;
@@ -88,9 +89,9 @@ describe("first run", () => {
     expect(subpage()).not.toBeNull();
     expect(host.textContent).toContain("Set up this split");
 
-    const currency = host.querySelector(".subpage input") as HTMLInputElement;
+    const currency = host.querySelector(".subpage select") as HTMLSelectElement;
     currency.value = "GBP";
-    currency.dispatchEvent(new Event("input", { bubbles: true }));
+    currency.dispatchEvent(new Event("change", { bubbles: true }));
     await flush();
 
     // The name is optional, so there is always a way through this screen.
@@ -108,19 +109,27 @@ describe("first run", () => {
     expect(subpage()).toBeNull();
   });
 
-  it("won't start on a currency that isn't a 3-letter code", async () => {
+  // The currency is picked, not typed, so an unparseable code is unreachable
+  // from this screen — which is why the form carries no validity gate. Every
+  // option it offers has to survive setSettings(), whose isCurrencyCode()
+  // check is there for what a peer syncs.
+  it("only offers codes the document will actually accept", async () => {
     render(<App />, host);
     await flush();
 
-    const currency = host.querySelector(".subpage input") as HTMLInputElement;
-    currency.value = "€";
-    currency.dispatchEvent(new Event("input", { bubbles: true }));
-    await flush();
+    const select = host.querySelector(".subpage select") as HTMLSelectElement;
+    const codes = Array.from(select.querySelectorAll("option")).map(
+      (o) => o.value,
+    );
+    expect(codes.length).toBeGreaterThan(40);
+    expect(codes.every((c) => isCurrencyCode(c))).toBe(true);
+    expect(codes).toContain("EUR");
 
-    expect(button("Start")?.disabled).toBe(true);
-    tap(button("Start"));
-    await flush();
-    expect(subpage()).not.toBeNull();
+    // Common ones are grouped first so the usual answer needs no scrolling.
+    const groups = Array.from(select.querySelectorAll("optgroup")).map((g) =>
+      g.getAttribute("label"),
+    );
+    expect(groups[0]).toBe("Common");
   });
 });
 
