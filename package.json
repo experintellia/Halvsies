@@ -6,7 +6,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "vite --host --port 3000",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/audit-bundle.mjs",
+    "audit:bundle": "node scripts/audit-bundle.mjs",
     "test": "vitest run",
     "test:peers": "concurrently \"pnpm dev\" \"webxdc-dev run http://localhost:3000\"",
     "check": "prettier --check .",
