@@ -7,5 +7,4 @@ public/icon.png
 # Spec/planning docs are hand-maintained prose — reformatting them churns the
 # diff and fights the author's line breaks.
 Plan.md
-plan-appendix-a.md
 CHANGELOG.md

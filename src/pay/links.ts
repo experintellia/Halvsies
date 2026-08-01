@@ -35,7 +35,7 @@ export interface PayMethod {
   caveat?: string; // e.g. the Monzo limits, shown as a UI hint
   /**
    * Crypto only: the plain address, so the UI's mandatory raw-address-with-copy
-   * fallback (appendix A.3) never has to re-parse `url`. Many devices have no
+   * fallback (Plan.md §5 M2) never has to re-parse `url`. Many devices have no
    * handler for `bitcoin:`/`ethereum:`/`monero:`, so tapping the link can be a
    * no-op — the address must always be shown in full next to it.
    */
@@ -342,7 +342,7 @@ const CRYPTO_CAVEAT =
  *
  * Returns null for network "other"/undefined: those have no URI scheme, and an
  * empty url would be a broken link. The UI falls back to the raw address alone
- * (appendix A.3); for the schemes that do exist, `rawAddress` on the returned
+ * (Plan.md §5 M2); for the schemes that do exist, `rawAddress` on the returned
  * method carries that same address for the mandatory copy button.
  */
 export function cryptoLink(

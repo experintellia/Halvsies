@@ -79,7 +79,7 @@ suggested transfers, in the same order.
       between two _other_ members. There is no "Mark as paid" button — only a
       note saying who can record it.
 
-## C2. Appendix-A methods
+## Ca. bunq / Cash App / UPI / crypto
 
 - [ ] **CA1 — Currency gating end to end.** With group currency `EUR`: bunq is
       offered, Cash App and UPI are not. `USD`: Cash App only. `INR`: UPI, and
@@ -97,7 +97,7 @@ suggested transfers, in the same order.
       wizard: bunq/Cash App/UPI/Monzo show a pill saying they won't be offered.
       Saving is still allowed (you may be about to change the currency).
 
-## C3. Members
+## Cm. Members
 
 - [ ] **CM1 — Add and use a virtual member.** Add "Grandma" from Me →
       Members. She appears as a payer option and a participant on every peer.

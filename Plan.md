@@ -73,7 +73,13 @@ halvsies/
 
 // Y.Map "profiles" (key: memberId, self-edited only)
 { paypalMe?, iban?, accountHolder?, bic?, revolutTag?, wiseTag?, venmo?, monzoMe?,
-  custom?: { label: string, urlTemplate: string /* {amount} {currency} {ref} */ },
+  bunqMe?,        // bunq.me handle (EUR)
+  cashtag?,       // Cash App $cashtag, stored WITHOUT the "$"
+  upiVpa?,        // UPI virtual payment address, e.g. "anna@upi" (INR)
+  crypto?: { label: string, address: string,
+             network?: "bitcoin" | "ethereum" | "monero" | "other" },
+  customs?: Array<{ id: string, label: string,
+                    urlTemplate: string /* {amount} {currency} {ref} */ }>,
   note? }
 
 // Y.Map "expenses" (key: expenseId; ulid-style ids for stable ordering)
@@ -113,18 +119,27 @@ Identity: on first open, auto-register self as member via `webxdc.selfAddr`/`sel
   - Revolut: `https://revolut.me/<tag>` · Wise: `https://wise.com/pay/me/<tag>` · Venmo: `https://venmo.com/u/<user>`
   - Monzo (UK, GBP only): `https://monzo.me/<user>/<amount>?d=<reference>` e.g. `https://monzo.me/anna/23.50?d=Halvsies%3A%20Rome%20trip`. Payer needs no Monzo account (UK debit card / Apple Pay / Google Pay). Enforce limits in UI hint: £1–£100 per payment, recipient max £1,000 per 30 days. Only offer when debt currency is GBP.
   - Custom template: substitute `{amount}` `{currency}` `{ref}`; treat as power-user escape hatch (Twint, MobilePay, PayNow…). **Any number of these per profile**, each with a stable id.
-- [x] **Appendix A methods** (`plan-appendix-a.md`, merged 2026-08-01):
-  - bunq (EUR only): `https://bunq.me/<name>/<amount>/<description>`. Payer needs no bunq account; iDEAL caps at €2,000 → hint above that.
-  - Cash App (USD/GBP): `https://cash.app/$<cashtag>/<amount>`. No note parameter exists — none invented.
-  - UPI (INR only): `upi://pay?pa=…&pn=…&am=…&cu=INR&tn=…`, also rendered as a QR.
-  - Crypto (any currency): `bitcoin:` / `ethereum:` / `monero:<addr>?tx_description=…&recipient_name=…`. **Never carries an amount** — the ledger is fiat and the app has no rates; the payer's wallet converts. Raw address always shown with its own copy button, since many devices have no handler for these URI schemes.
-  - Currency gating lives in ONE table in `links.ts` (`currenciesFor`), read by both the generators and the wizard's warning pill, so they cannot disagree.
-  - Explicitly **not** generatable (no static link format): Tikkie, Swish, Vipps, MobilePay, Twint, Bizum, Blik, Zelle, Interac — these are what the custom template and the profile note are for. Brazil's PIX BR Code *is* offline-generatable and is an M3+ candidate.
+  - bunq (**EUR only**): `https://bunq.me/<name>/<amount>/<description>` e.g. `https://bunq.me/anna/23.50/Rome%20trip`. URL-encode the description. Payer needs **no** bunq account — the landing page offers iDEAL/Wero, Bancontact, Visa/Mastercard, Apple/Google Pay. iDEAL caps at €2,000, so hint above that amount.
+  - Cash App (**USD or GBP**): `https://cash.app/$<cashtag>/<amount>` e.g. `https://cash.app/$anna/23.50`. Amount in the path; **no note parameter exists** — don't invent one.
+  - UPI (**INR only**): `upi://pay?pa=<vpa>&pn=<name>&am=<amount>&cu=INR&tn=<note>`. A fully static deep link, so also render it as a QR (same offline pattern as the EPC QR, reusing the `QR` component) — scanning is the normal UPI flow.
+  - Crypto (**any currency**): `bitcoin:<address>` / `ethereum:<address>` / `monero:<address>?tx_description=<ref>&recipient_name=<name>` (RFC 3986 encoded), plus a QR, with the debt shown **in fiat only**. **Never embed a crypto amount** — Monero's `tx_amount` exists and stays unused: the ledger is fiat-denominated and this app has no exchange rates (no network). The payer's wallet, which does have internet, converts at pay time. Stablecoin users name the token in `crypto.label`. Settlement is recorded manually via "mark as paid", like cash.
+- [x] **Currency gating is one table** (`currenciesFor` in `links.ts`), read by the generators AND the wizard's warning pill, so the two can never disagree. A method is only offered when the debt's currency matches; the pill *warns* rather than blocks, since the group currency may be about to change.
+- [x] Payment methods are added through a **wizard**, not a wall of fields: pick a provider → it says where in that app to find your handle → it builds a live test link with the *same* generator the pay-up sheet uses, so a handle that validates cannot be one `paymentMethodsFor()` silently drops. Picker grouped: bank/national standards first (SEPA, UPI), then payment apps, then crypto and the custom template last.
 - [x] `epcqr.ts`: EPC069-12 payload (`BCD/002/1/SCT/BIC?/Name/IBAN/EUR23.50/…/reference`) + render QR in-app. Reference auto-set to group/expense context ("Halvsies: Rome trip").
-- [x] `PayUpSheet`: from a debt row ("You owe Anna €23.50") show Anna's available methods, amount pre-filled. Per method offer **all** of: tappable link, copy-to-clipboard, QR (bank + PayPal), and **Send to chat** (`webxdc.sendToChat({text})` — link lands as tappable chat message and doubles as "I'm paying now" announcement).
+- [x] `PayUpSheet`: from a debt row ("You owe Anna €23.50") show Anna's available methods, filtered by the currency gate, amount pre-filled. Per method offer **all** of: tappable link, copy-to-clipboard, QR where applicable (SEPA, UPI, crypto, PayPal), and **Send to chat** (`webxdc.sendToChat({text})` — link lands as tappable chat message and doubles as "I'm paying now" announcement).
+- [x] **Crypto fallback is mandatory.** Many devices have no handler registered for `bitcoin:`/`ethereum:`/`monero:`, so tapping the link may silently do nothing. The crypto entry always shows the **raw address in full with its own copy button** (separate from the copy button for the URI), alongside the QR. Never the link alone. A `network` with no URI scheme (`"other"`) still gets an address-only block.
+- [x] Creditor's free-text `note` is shown to the payer **above** the buttons — it may override which method to use ("IBAN please, PayPal charges me a fee"), so showing it after would be showing it too late.
 - [x] "Mark as paid" from the sheet → settlement recorded, info line posted, balances update.
 - [x] Reverse direction: from "Anna owes you" row, **Request** generates your own link/QR and sends a friendly nudge to chat.
 - **Done when:** end-to-end on a real device: open debt → PayUpSheet → banking app scans EPC QR with correct IBAN/amount/reference; PayPal.Me link opens pre-filled; settlement zeroes the debt on all peers.
+
+**Deliberately NOT generated.** These have no static, templatable public link
+format — links are minted per-request inside their own apps, or they work by
+phone number only: **Tikkie** (NL), **Swish** (SE), **Vipps** (NO),
+**MobilePay** (DK/FI), **Twint** (CH), **Bizum** (ES), **Blik** (PL), **Zelle**
+(US), **Interac** (CA). Do not attempt generators for them — that is exactly
+what the custom `{amount}`/`{currency}`/`{ref}` template and the profile note
+are for. Watch **Wero** for a future P2P link standard.
 
 ### M3 — Comfort features
 
@@ -134,6 +149,7 @@ Identity: on first open, auto-register self as member via `webxdc.selfAddr`/`sel
 - [ ] Recurring expense templates (rent, streaming) — one-tap re-add, no background jobs (webxdc apps only run when open).
 - [ ] CSV export of expense list via `sendToChat`.
 - [ ] Merge virtual member into real member (reassign ids).
+- [ ] **Brazilian PIX BR Code** — unlike the list above this one *is* offline-generatable (EMV QR + CRC16), so it belongs with the bank/national standards at the top of the wizard's picker. Worth building if Brazilian users show up.
 
 ### M5 — Partial payments (installments) — not started
 
@@ -175,7 +191,12 @@ their heads.
 ## 6. Testing strategy
 
 - **vitest** for all pure modules: `balances`, `simplify`, `links`, `epcqr`, `iban`, split math (remainder distribution). Property-style checks: balances always sum to zero; simplify output zeroes balances with ≤ n−1 transfers; EPC payload field lengths per spec.
-- Multi-peer sync smoke tests via `webxdc-dev` (manual checklist in `tests/MANUAL.md`: concurrent edit, offline merge, late join).
+- **Link builders**: the exact expected URL for every method, including URL-encoding of descriptions and amount formatting (always dot-decimal, two digits, derived from integer cents).
+- **Currency gating**: EUR ⇒ bunq + PayPal + SEPA offered, Monzo/Cash App/UPI hidden; GBP ⇒ Monzo + Cash App (+ PayPal); USD ⇒ Cash App; INR ⇒ UPI; crypto always. The wizard's pill must read the same table the generators do — assert identity, not equality, so the two cannot drift apart.
+- **UPI**: the QR payload equals the deep-link string exactly.
+- **Crypto**: assert the generated URI contains **no** amount parameter (including no `tx_amount` for Monero); that the Monero URI carries URL-encoded `tx_description`/`recipient_name`; and that the raw address is always exposed alongside the URI.
+- **Render smoke tests** (`test/render.test.tsx`) mount the real screens. These exist because the first build shipped screens that typechecked, passed every unit test, and rendered nothing but placeholder text — no test had ever mounted a component.
+- Multi-peer sync smoke tests via `webxdc-dev` (manual checklist in `test/MANUAL.md`: concurrent edit, offline merge, late join, crypto/currency gating, members).
 - No network in tests — everything must run offline by construction.
 
 ## 7. Conventions

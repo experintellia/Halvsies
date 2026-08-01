@@ -74,7 +74,7 @@ function TapButton({
 const alwaysShowQr = (kind: PayMethodKind): boolean =>
   kind === "upi" || kind === "crypto";
 
-// Appendix A.3: many devices have no handler registered for `bitcoin:`/
+// Plan.md §5 M2: many devices have no handler registered for `bitcoin:`/
 // `ethereum:`/`monero:`, so tapping the link can silently do nothing — the
 // raw address is always shown in full with its own copy button, never the
 // link alone. No crypto amount is ever emitted: the ledger is fiat and this

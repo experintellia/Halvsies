@@ -33,7 +33,7 @@ export interface CustomPaymentMethod {
 /**
  * A crypto address to receive at. Deliberately NOT amount-carrying: the ledger
  * is fiat-denominated and this app has no network, so it cannot convert. The
- * payer's wallet does the conversion at pay time (Plan.md appendix A).
+ * payer's wallet does the conversion at pay time (Plan.md §5 M2).
  */
 export interface CryptoPaymentMethod {
   /** User-facing name, e.g. "Bitcoin" or "USDC on Base". */
