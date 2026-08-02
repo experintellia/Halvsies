@@ -65,12 +65,17 @@ export function Amount({
   label,
 }: AmountProps) {
   const [text, setText] = useState(() => formatForEdit(valueCents));
-  const focused = useRef(false);
+  // Typed in, not merely focused. This field is autofocused the instant the
+  // expense sheet opens — which happens *before* the sheet's init effect
+  // writes the expense being edited into `valueCents` — so treating focus as
+  // ownership showed an empty amount box for every edit. Only a keystroke
+  // means the text is the user's; until then it must follow the value.
+  const typed = useRef(false);
 
   // Follow external value changes (e.g. a parent resetting the form) as long
-  // as the user isn't actively typing in this field.
+  // as the user isn't part-way through an amount of their own.
   useEffect(() => {
-    if (!focused.current) setText(formatForEdit(valueCents));
+    if (!typed.current) setText(formatForEdit(valueCents));
   }, [valueCents]);
 
   return (
@@ -83,16 +88,14 @@ export function Amount({
           inputMode="decimal"
           autoFocus={autoFocus}
           value={text}
-          onFocus={(e) => {
-            focused.current = true;
-            (e.currentTarget as HTMLInputElement).select();
-          }}
+          onFocus={(e) => (e.currentTarget as HTMLInputElement).select()}
           onBlur={() => {
-            focused.current = false;
+            typed.current = false;
             setText(formatForEdit(valueCents));
           }}
           onInput={(e) => {
             const raw = (e.currentTarget as HTMLInputElement).value;
+            typed.current = true;
             setText(raw);
             const cents = parseAmountInput(raw);
             if (cents !== null) onChange(cents);
