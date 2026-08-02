@@ -212,11 +212,23 @@ export function PayUpSheet({
   // nothing about, attributed to them in the chat info line.
   const isParty = transfer.fromId === self || transfer.toId === self;
 
-  // "Send to chat" said nothing about what would land in the chat, and the two
-  // directions post opposite things: one announces a payment, the other asks
-  // for one.
-  const sendLabel =
-    direction === "pay" ? "Tell the chat you're paying" : "Ask for the money";
+  // The two directions post opposite things, and they do not belong in the
+  // same place. Announcing a payment is method-specific — you paid by *one* of
+  // these — so it stays inside the card. Asking for money is not: the debtor
+  // should get every way to pay in one message and pick, so the ask is a single
+  // action beside "Mark as received" rather than one button per card.
+  const askText = (): string => {
+    const ways = methods.map((m) => `${m.label}: ${m.url}`);
+    if (cryptoAddressOnly) {
+      ways.push(
+        `${cryptoAddressOnly.label.trim() || "Crypto"}: ${cryptoAddressOnly.address.trim()}`,
+      );
+    }
+    if (hasIban) ways.push(`Bank transfer — ${bankLine}`);
+    const ask = `Hey ${debtorName} — ${amount} whenever you get a chance`;
+    // No payment details on file is not a reason to withhold the nudge.
+    return ways.length ? `${ask}:\n${ways.join("\n")}` : `${ask}.`;
+  };
 
   function record(): void {
     if (!isParty) return;
@@ -283,25 +295,21 @@ export function PayUpSheet({
                 </a>
                 <CopyButton value={m.url} label="Copy link" />
               </div>
-              <div className="field-row">
-                {canSendToChat && (
+              {canSendToChat && direction === "pay" && (
+                <div className="field-row">
                   <TapButton
                     className="btn btn-secondary"
                     onActivate={() => {
                       setUsedMethod(m.label);
-                      const otherName =
-                        direction === "pay" ? creditorName : debtorName;
-                      const text =
-                        direction === "pay"
-                          ? `Paying ${otherName} ${amount} now — ${m.url}`
-                          : `Hey ${otherName} — ${amount} whenever you get a chance: ${m.url}`;
-                      sendToChat(text);
+                      sendToChat(
+                        `Paying ${creditorName} ${amount} now — ${m.url}`,
+                      );
                     }}
                   >
-                    {sendLabel}
+                    I'm paying now
                   </TapButton>
-                )}
-              </div>
+                </div>
+              )}
               {/* Every method's code is up front, exactly like the bank
                   transfer below. A QR behind a "Show QR" tap was one rule for
                   bank details and another for everything else, and the payer
@@ -359,22 +367,18 @@ export function PayUpSheet({
             value={reference}
             copyName="payment reference"
           />
-          {canSendToChat && (
+          {canSendToChat && direction === "pay" && (
             <div className="field-row">
               <TapButton
                 className="btn btn-secondary"
                 onActivate={() => {
                   setUsedMethod("Bank transfer");
-                  const otherName =
-                    direction === "pay" ? creditorName : debtorName;
-                  const text =
-                    direction === "pay"
-                      ? `Paying ${otherName} ${amount} by bank transfer — ${bankLine}`
-                      : `Hey ${otherName} — ${amount} whenever you get a chance: ${bankLine}`;
-                  sendToChat(text);
+                  sendToChat(
+                    `Paying ${creditorName} ${amount} by bank transfer — ${bankLine}`,
+                  );
                 }}
               >
-                {sendLabel}
+                I'm paying now
               </TapButton>
             </div>
           )}
@@ -410,12 +414,22 @@ export function PayUpSheet({
           </div>
         </>
       ) : (
-        <TapButton
-          className="btn btn-primary"
-          onActivate={() => setConfirming(true)}
-        >
-          {direction === "pay" ? "Mark as paid" : "Mark as received"}
-        </TapButton>
+        <div className="field-row">
+          <TapButton
+            className="btn btn-primary"
+            onActivate={() => setConfirming(true)}
+          >
+            {direction === "pay" ? "Mark as paid" : "Mark as received"}
+          </TapButton>
+          {direction === "request" && canSendToChat && (
+            <TapButton
+              className="btn btn-secondary"
+              onActivate={() => sendToChat(askText())}
+            >
+              Ask for the money
+            </TapButton>
+          )}
+        </div>
       )}
     </Sheet>
   );

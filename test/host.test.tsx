@@ -195,7 +195,7 @@ describe("send to chat", () => {
       dom,
     );
 
-    tap(buttons("Tell the chat you're paying")[0]);
+    tap(buttons("I'm paying now")[0]);
     expect(webxdc.chat).toHaveLength(1);
     expect(webxdc.chat[0].text).toContain("https://paypal.me/anna/23.50EUR");
   });
@@ -214,8 +214,59 @@ describe("send to chat", () => {
       dom,
     );
 
-    expect(buttons("Tell the chat you're paying")).toHaveLength(0);
+    expect(buttons("I'm paying now")).toHaveLength(0);
     expect(buttons("Copy link")).toHaveLength(1); // the alternative is there
+  });
+
+  // Announcing a payment is method-specific; asking for one is not. The debtor
+  // should be able to pick, so the ask is one action carrying every method
+  // rather than a button per card that posts a single link.
+  it("asks for money once, listing every way to pay", async () => {
+    const { webxdc, doc, PayUpSheet } = await boot({ selfAddr: "b@x.de" });
+    doc.setProfile("b@x.de", {
+      paypalMe: "anna",
+      bunqMe: "anna",
+      accountHolder: "Anna Beispiel",
+      iban: "DE89370400440532013000",
+    });
+    render(
+      <PayUpSheet
+        transfer={transfer}
+        direction="request"
+        open
+        onClose={() => {}}
+      />,
+      dom,
+    );
+
+    // One ask, and no per-card send button competing with it.
+    expect(buttons("I'm paying now")).toHaveLength(0);
+    const ask = buttons("Ask for the money");
+    expect(ask).toHaveLength(1);
+
+    tap(ask[0]);
+    const text = webxdc.chat[0]?.text ?? "";
+    expect(text).toContain("https://paypal.me/anna/23.50EUR");
+    expect(text).toContain("https://bunq.me/anna/23.50");
+    expect(text).toContain("DE89 3704 0044 0532 0130 00");
+    expect(text).toContain("€23.50");
+  });
+
+  // Nothing on file is no reason to swallow the nudge.
+  it("still asks when the creditor has no payment details", async () => {
+    const { webxdc, PayUpSheet } = await boot({ selfAddr: "b@x.de" });
+    render(
+      <PayUpSheet
+        transfer={transfer}
+        direction="request"
+        open
+        onClose={() => {}}
+      />,
+      dom,
+    );
+
+    tap(buttons("Ask for the money")[0]);
+    expect(webxdc.chat[0]?.text).toContain("€23.50");
   });
 });
 
