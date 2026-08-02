@@ -291,22 +291,22 @@ select {
   white-space: nowrap;
 }
 
-.expense-meta {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
+.expense-payer {
   font-size: 0.85rem;
   color: var(--color-text-dim);
 }
 
-.expense-date {
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
+/* The date lives here rather than on every card. First one sits directly
+   under the Add button, which brings its own bottom margin. */
+.day-heading {
+  margin: 16px 0 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-dim);
 }
 
-.expense-date::before {
-  content: "· ";
+.day-heading:first-of-type {
+  margin-top: 0;
 }
 
 .expense-amounts {

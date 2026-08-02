@@ -1,7 +1,6 @@
-// The Expenses tab: newest-first list + the add/edit sheet.
-//
-// Ids are ULID-ish (model.newId): ascending id order is chronological, so
-// "newest first" is just the reverse of state/doc's listExpenses().
+// The Expenses tab: a newest-first list grouped by day, plus the add/edit
+// sheet.
+import { Fragment } from "preact";
 import { useState } from "preact/hooks";
 import { getSettings, listExpenses, listMembers } from "../state/doc";
 import { splitShares } from "../state/balances";
@@ -17,6 +16,45 @@ import { Avatar } from "./components/Avatar";
 import { ExpenseForm } from "./ExpenseForm";
 import { ExpenseDetail } from "./ExpenseDetail";
 
+const WEEKDAY = new Intl.DateTimeFormat(undefined, { weekday: "long" });
+const DATE = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+/** "Wednesday - 6 May 2026", the day header for an ISO `yyyy-mm-dd` date. */
+export function dayHeading(iso: string): string {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!parts) return iso; // an imported ledger can carry anything
+  // Built from the components, not Date.parse: an ISO date string parses as
+  // UTC midnight, which formats as the *previous* day everywhere west of
+  // Greenwich — the one place a date is allowed to move by a timezone.
+  const d = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+  return `${WEEKDAY.format(d)} - ${DATE.format(d)}`;
+}
+
+/**
+ * Newest day first, and newest-added first within a day.
+ *
+ * Not the id order the list used to run on: an id is chronological by
+ * creation, but a date is whatever the user typed, so an expense added today
+ * can belong to last Tuesday. Grouping runs of id-ordered rows would print
+ * that Tuesday's header twice, with other days in between.
+ */
+const byDayThenNewest = (a: Expense, b: Expense): number =>
+  a.date === b.date ? (a.id < b.id ? 1 : -1) : a.date < b.date ? 1 : -1;
+
+function groupByDay(expenses: Expense[]): { date: string; items: Expense[] }[] {
+  const days: { date: string; items: Expense[] }[] = [];
+  for (const e of [...expenses].sort(byDayThenNewest)) {
+    const open = days[days.length - 1];
+    if (open && open.date === e.date) open.items.push(e);
+    else days.push({ date: e.date, items: [e] });
+  }
+  return days;
+}
+
 export function ExpenseList() {
   const expenses = useDocValue(listExpenses);
   const members = useDocValue(listMembers);
@@ -28,7 +66,7 @@ export function ExpenseList() {
   const [viewId, setViewId] = useState<ExpenseId | null>(null);
   const [editId, setEditId] = useState<ExpenseId | "new" | null>(null);
 
-  const newest = [...expenses].reverse();
+  const days = groupByDay(expenses);
   const memberIds = members.map((m) => m.id);
   const nameOf = (id: MemberId): string =>
     members.find((m) => m.id === id)?.name || "Someone";
@@ -39,6 +77,34 @@ export function ExpenseList() {
   const editing = editId === "new" ? undefined : find(editId);
 
   const addBtn = () => setEditId("new");
+
+  const card = (expense: Expense) => {
+    const payer = members.find((m) => m.id === expense.payerId);
+    const shares = splitShares(expense, memberIds);
+    const myShare = selfId ? (shares[selfId] ?? 0) : undefined;
+    return (
+      <Row key={expense.id} onActivate={() => setViewId(expense.id)}>
+        <Avatar member={payer ?? { id: expense.payerId, name: "?" }} />
+        {/* The day header carries the date now, so the card's middle column
+            is title over payer — both user-typed, both ellipsizing, neither
+            able to push the amounts out of their column. */}
+        <span className="expense-main">
+          <span className="expense-title">{expense.title || "Untitled"}</span>
+          <span className="expense-payer">{nameOf(expense.payerId)} paid</span>
+        </span>
+        <span className="expense-amounts">
+          <span className="money">
+            {formatMoney(expense.amountCents, currency)}
+          </span>
+          {myShare !== undefined && (
+            <span className="money expense-share">
+              Your share {formatMoney(myShare, currency)}
+            </span>
+          )}
+        </span>
+      </Row>
+    );
+  };
 
   return (
     <section aria-label="Expenses">
@@ -54,46 +120,17 @@ export function ExpenseList() {
         + Add expense
       </button>
 
-      {newest.length === 0 ? (
+      {days.length === 0 ? (
         <p className="placeholder">
           No expenses yet — add the first one to start splitting.
         </p>
       ) : (
-        newest.map((expense) => {
-          const payer = members.find((m) => m.id === expense.payerId);
-          const shares = splitShares(expense, memberIds);
-          const myShare = selfId ? (shares[selfId] ?? 0) : undefined;
-          return (
-            <Row key={expense.id} onActivate={() => setViewId(expense.id)}>
-              <Avatar member={payer ?? { id: expense.payerId, name: "?" }} />
-              {/* Two lines, each with its own overflow rule: a long title or
-                  payer name ellipsizes, while the date and the amounts never
-                  shrink — sharing one nowrap line let a long name push the
-                  date straight over the amount column. */}
-              <span className="expense-main">
-                <span className="expense-title">
-                  {expense.title || "Untitled"}
-                </span>
-                <span className="expense-meta">
-                  <span className="expense-payer">
-                    {nameOf(expense.payerId)} paid
-                  </span>
-                  <span className="expense-date">{expense.date}</span>
-                </span>
-              </span>
-              <span className="expense-amounts">
-                <span className="money">
-                  {formatMoney(expense.amountCents, currency)}
-                </span>
-                {myShare !== undefined && (
-                  <span className="money expense-share">
-                    Your share {formatMoney(myShare, currency)}
-                  </span>
-                )}
-              </span>
-            </Row>
-          );
-        })
+        days.map((day) => (
+          <Fragment key={day.date}>
+            <h2 className="day-heading">{dayHeading(day.date)}</h2>
+            {day.items.map(card)}
+          </Fragment>
+        ))
       )}
 
       <ExpenseDetail

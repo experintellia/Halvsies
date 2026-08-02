@@ -6,7 +6,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { render } from "preact";
 import { App } from "../src/ui/App";
-import { ExpenseList } from "../src/ui/ExpenseList";
+import { ExpenseList, dayHeading } from "../src/ui/ExpenseList";
 import { ProfileForm } from "../src/ui/ProfileForm";
 import { addExpense, deleteExpense } from "../src/state/doc";
 import { PayUpSheet } from "../src/ui/PayUpSheet";
@@ -135,6 +135,50 @@ describe("ExpenseList", () => {
 
     expect(host.textContent).toContain("Edit expense");
     expect(buttonWith("Save")).not.toBeUndefined();
+  });
+
+  it("names the weekday, and never shifts the date by a timezone", () => {
+    // Parsing "2026-05-06" with Date.parse gives UTC midnight, which prints as
+    // Tuesday the 5th for everyone west of Greenwich.
+    expect(dayHeading("2026-05-06")).toContain("Wednesday");
+    expect(dayHeading("2026-05-06")).toMatch(/\b6\b/);
+    expect(dayHeading("2026-01-01")).toContain("Thursday");
+    // A ledger imported from elsewhere can carry anything; better the raw
+    // string than a header reading "Invalid Date".
+    expect(dayHeading("whenever")).toBe("whenever");
+  });
+
+  it("groups by day, newest first, with one header per day", () => {
+    // Deliberately out of order, and the *last* added belongs to the oldest
+    // day: grouping runs of creation order would print 07-30 twice.
+    const extra = [
+      { ...EXPENSE, id: "e-test-2", title: "Beer", date: "2026-07-30" },
+      { ...EXPENSE, id: "e-test-3", title: "Cab", date: "2026-08-01" },
+      { ...EXPENSE, id: "e-test-4", title: "Museum", date: "2026-07-30" },
+    ];
+    extra.forEach(addExpense);
+    try {
+      render(<ExpenseList />, host);
+
+      const headings = Array.from(host.querySelectorAll("h2")).map((h) =>
+        (h.textContent ?? "").trim(),
+      );
+      expect(headings).toEqual([
+        dayHeading("2026-08-01"),
+        dayHeading("2026-07-30"),
+      ]);
+
+      // Newest day first, newest-added first inside it.
+      const titles = Array.from(host.querySelectorAll(".expense-title")).map(
+        (t) => t.textContent,
+      );
+      expect(titles).toEqual(["Cab", "Dinner", "Museum", "Beer"]);
+
+      // The date is the header's job now, not the card's.
+      expect(host.querySelector(".row")?.textContent).not.toContain("2026-");
+    } finally {
+      extra.forEach((e) => deleteExpense(e.id));
+    }
   });
 });
 

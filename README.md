@@ -14,12 +14,12 @@ Members attach payment coordinates (PayPal.Me, IBAN, Revolut, Wise, Venmo, Monzo
 
 <table>
   <tr>
-    <td width="33%"><img src="docs/screenshots/expenses.png" alt="A list of eight expenses from a trip, each showing who paid, the date, the total and your own share." width="240"></td>
+    <td width="33%"><img src="docs/screenshots/expenses.png" alt="Eight expenses from a trip under three day headings, each card showing who paid, the total and your own share." width="240"></td>
     <td width="33%"><img src="docs/screenshots/expense.png" alt="A read-only summary of one expense, listing what each person owes, with an Edit button." width="240"></td>
     <td width="33%"><img src="docs/screenshots/shares.png" alt="The expense editor with the split set to Shares: each person has a stepper, and one person has two shares, which reads as 50 percent." width="240"></td>
   </tr>
   <tr>
-    <td>Every expense, newest first — with your share on each.</td>
+    <td>Grouped by day, newest first — with your share on each.</td>
     <td>Tapping an expense opens a read-only summary. Editing is a deliberate second tap.</td>
     <td>Split evenly, by shares, or by exact amounts.</td>
   </tr>
