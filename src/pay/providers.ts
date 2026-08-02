@@ -337,3 +337,22 @@ export function currencyPill(
   if (currencies.includes(currency.trim().toUpperCase())) return null;
   return `${currencies.join(" or ")} only`;
 }
+
+/**
+ * Why a *saved* provider is not being offered in this group, or null when it
+ * is. Same gate as {@link currencyPill}, worded for someone looking at their
+ * own profile rather than at a picker.
+ *
+ * The profile screen needs this because a method the currency excludes simply
+ * vanishes from what the payer sees — and a creditor who has just added a bunq
+ * handle to a SEK group has no way to tell that from the app being broken.
+ */
+export function notOfferedReason(
+  spec: Pick<ProviderSpec, "kind">,
+  currency: string,
+): string | null {
+  const code = currency.trim().toUpperCase();
+  const currencies = currenciesFor(spec.kind);
+  if (!currencies || currencies.includes(code)) return null;
+  return `${currencies.join(" or ")} only — not offered for ${code} debts`;
+}

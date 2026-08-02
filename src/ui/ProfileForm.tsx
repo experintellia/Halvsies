@@ -8,7 +8,7 @@ import { useDocValue } from "./useDoc";
 import type { PaymentProfile } from "../state/model";
 import { formatIban, isValidIban } from "../pay/iban";
 import { paymentMethodsFor } from "../pay/links";
-import { configuredProviders } from "../pay/providers";
+import { configuredProviders, notOfferedReason } from "../pay/providers";
 import { epcReference } from "../pay/epcqr";
 import { bankQr } from "../pay/bankqr";
 import { QR } from "./components/QR";
@@ -101,32 +101,41 @@ export function ProfileForm({ onOpenGroupSettings }: ProfileFormProps) {
         </p>
       ) : (
         <ul className="method-list">
-          {providers.map((spec) => (
-            <li key={spec.field} className="method-row">
-              <span className="method-main">
-                <strong>{spec.label}</strong>
-                <span className="field-suffix">{current[spec.field]}</span>
-              </span>
-              <span className="field-row">
-                <TapButton
-                  className="btn btn-secondary"
-                  onActivate={() =>
-                    setWizard({ kind: "provider", field: spec.field })
-                  }
-                >
-                  Edit
-                </TapButton>
-                <TapButton
-                  className="btn btn-danger"
-                  onActivate={() =>
-                    save({ ...current, [spec.field]: undefined })
-                  }
-                >
-                  Remove
-                </TapButton>
-              </span>
-            </li>
-          ))}
+          {providers.map((spec) => {
+            // A method the currency gate excludes vanishes from what the payer
+            // sees. Silently, until now: someone who had just added a bunq
+            // handle to a SEK group could not tell that from a broken app.
+            const notOffered = notOfferedReason(spec, settings.groupCurrency);
+            return (
+              <li key={spec.field} className="method-row">
+                <span className="method-main">
+                  <strong>{spec.label}</strong>{" "}
+                  {notOffered && (
+                    <span className="pill-warn">{notOffered}</span>
+                  )}
+                  <span className="field-suffix">{current[spec.field]}</span>
+                </span>
+                <span className="field-row">
+                  <TapButton
+                    className="btn btn-secondary"
+                    onActivate={() =>
+                      setWizard({ kind: "provider", field: spec.field })
+                    }
+                  >
+                    Edit
+                  </TapButton>
+                  <TapButton
+                    className="btn btn-danger"
+                    onActivate={() =>
+                      save({ ...current, [spec.field]: undefined })
+                    }
+                  >
+                    Remove
+                  </TapButton>
+                </span>
+              </li>
+            );
+          })}
 
           {hasBank && (
             <li className="method-row">
@@ -257,7 +266,11 @@ export function ProfileForm({ onOpenGroupSettings }: ProfileFormProps) {
           was a perfectly good IBAN that they had nothing at all. */}
       {previewMethods.length === 0 && !hasBank && (
         <p className="placeholder">
-          Nothing yet — fill in at least one method above.
+          {methodCount === 0
+            ? "Nothing yet — fill in at least one method above."
+            : // The lie this replaces: someone who had just added a bunq
+              // handle to a SEK group was told they had added nothing.
+              `None of your saved methods work for ${settings.groupCurrency} debts — see the notes above. Add one that does, or change the group currency.`}
         </p>
       )}
       {previewMethods.map((m) => (
