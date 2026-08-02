@@ -383,14 +383,23 @@ export function createDoc() {
   const yExpenses = doc.getMap<Expense>("expenses");
   const ySettlements = doc.getMap<Settlement>("settlements");
 
-  /** Last local change, for the chat info line at the next flush. */
-  let last: {
-    kind: ChangeKind;
-    actorId?: MemberId;
-    title?: string;
-    amountCents?: number;
-    toId?: MemberId;
-  } = { kind: "join" };
+  /**
+   * Last local change, for the chat info line at the next flush — cleared by
+   * editInfo() the moment it reads it. undefined means "nothing chat-worthy
+   * happened since the last flush": setProfile, setSettings, renameMember,
+   * removeMember and addVirtualMember all flush without setting this, and
+   * must not have that silent write mistaken for whatever change (a join, an
+   * old edit) last happened to leave this variable holding.
+   */
+  let last:
+    | {
+        kind: ChangeKind;
+        actorId?: MemberId;
+        title?: string;
+        amountCents?: number;
+        toId?: MemberId;
+      }
+    | undefined;
   let selfId: MemberId | undefined;
 
   function getSettings(): Settings {
@@ -416,7 +425,7 @@ export function createDoc() {
   function editInfo(): {
     document: string;
     summary: string;
-    startinfo: string;
+    startinfo?: string;
   } {
     const settings = getSettings();
     // Computed here, from the document, rather than read from a counter a
@@ -430,20 +439,28 @@ export function createDoc() {
         listMembers().map((m) => m.id),
       ),
     );
-    const { text, summary } = describeChange(last.kind, {
+    const change = last;
+    last = undefined; // consumed: the next flush starts from "nothing to report"
+    // "join" is a throwaway kind when there is no change to describe — only
+    // .summary is used below in that case, which (like every kind) never
+    // depends on it (see the same trick in Balances.tsx).
+    const { text, summary } = describeChange(change?.kind ?? "join", {
       // The flush only ever carries local edits, so the actor is this peer.
-      actorName: nameOf(selfId ?? last.actorId),
+      actorName: nameOf(selfId ?? change?.actorId),
       currency: settings.groupCurrency,
-      title: last.title,
-      amountCents: last.amountCents,
-      toName: nameOf(last.toId),
+      title: change?.title,
+      amountCents: change?.amountCents,
+      toName: nameOf(change?.toId),
       openDebts: open.length,
       openTotalCents: open.reduce((s, t) => s + t.amountCents, 0),
     });
     return {
       document: settings.title || "Halvsies",
       summary,
-      startinfo: text,
+      // No text at all — not "Someone joined the split" — for a write that
+      // never described itself (setProfile, setSettings, ...): silence is
+      // more informative than a fabricated or stale announcement.
+      startinfo: change ? text : undefined,
     };
   }
 
@@ -715,9 +732,69 @@ const store = createDoc();
 /** Outside a webxdc host (vitest/SSR) there is no provider; the doc still works. */
 const host = typeof window === "undefined" ? undefined : window.webxdc;
 
-export const provider = host
+/**
+ * True once webxdc has replayed every status update that existed when the app
+ * opened (see `setUpdateListener` in @webxdc/types) — i.e. once this peer's
+ * doc reflects everything a previous session already wrote to the chat, not
+ * just whatever happened to arrive before first paint. That replay is a real
+ * round trip to the host, so on a real device it is briefly false on every
+ * open; App.tsx must wait for it before deciding "needs setup", or the setup
+ * screen flashes past every single time while history is still catching up.
+ * Already true with no host (tests/SSR) — there is nothing to wait for.
+ */
+export let hydrated = !host;
+let notifyHydrated: () => void = () => {};
+/** Single promise, not one per call: every caller shares the same settlement. */
+const hydratedPromise: Promise<void> = host
+  ? new Promise((resolve) => {
+      notifyHydrated = resolve;
+    })
+  : Promise.resolve();
+
+/** Resolves once `hydrated` flips true; already-resolved if it already has. */
+export function whenHydrated(): Promise<void> {
+  return hydratedPromise;
+}
+
+// y-webxdc's WebxdcProvider calls webxdc.setUpdateListener() itself and
+// discards the promise it returns — the promise is the only signal the host
+// gives for "caught up", so it is tapped here rather than registering a
+// second listener (the spec only allows one). Built narrow — exactly the
+// three members WebxdcTransport picks — rather than `{ ...host, ... }`: a
+// spread copies `host.sendUpdate` etc. as plain properties, so WebxdcProvider
+// would later call them with `this` bound to the copy, not the host. Harmless
+// for every host implementation on hand (closures, not `this`-using methods),
+// but the host is injected by the messenger, not this codebase, so it isn't
+// this file's call to make.
+const transport = host && {
+  sendUpdate: (
+    update: Parameters<typeof host.sendUpdate>[0],
+    description: "",
+  ) => host.sendUpdate(update, description),
+  sendUpdateInterval: host.sendUpdateInterval,
+  setUpdateListener(
+    cb: Parameters<typeof host.setUpdateListener>[0],
+    serial?: number,
+  ) {
+    // `setUpdateListener`'s Promise return is a newer addition to the webxdc
+    // spec than most of this file already assumes elsewhere (canSendToChat,
+    // importFiles below) — Promise.resolve() tolerates a host that predates
+    // it and still returns nothing thenable. The .catch treats a rejection
+    // the same as "caught up": a stale flash once beats never rendering the
+    // app again over one bad promise.
+    const settle = (): void => {
+      hydrated = true;
+      notifyHydrated();
+    };
+    return Promise.resolve(host.setUpdateListener(cb, serial))
+      .then(settle)
+      .catch(settle);
+  },
+};
+
+export const provider = transport
   ? new WebxdcProvider({
-      webxdc: host,
+      webxdc: transport,
       ydoc: store.doc,
       getEditInfo: store.editInfo,
       // matches the webxdc default sendUpdateInterval

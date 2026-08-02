@@ -350,3 +350,95 @@ describe("restore from file", () => {
     expect(dom.textContent).toContain("cannot open files from inside the app");
   });
 });
+
+// The transport wrapper doc.ts builds around window.webxdc for hydration
+// tracking (see `hydrated`/`whenHydrated()`) — no React involved, so
+// vi.resetModules() + a fresh window.webxdc per test is enough; none of
+// boot()'s "effects don't run" limitation applies here.
+describe("the hydration transport wrapper", () => {
+  /** Just enough for `new WebxdcProvider(...)` to construct without throwing. */
+  function bareHost(
+    overrides: Partial<Record<string, unknown>> = {},
+  ): Record<string, unknown> {
+    return {
+      selfAddr: "self@x.de",
+      selfName: "Self",
+      sendUpdateInterval: 1000,
+      sendUpdate: () => {},
+      setUpdateListener: () => Promise.resolve(),
+      ...overrides,
+    };
+  }
+
+  async function bootWith(host: unknown) {
+    vi.resetModules();
+    (window as unknown as { webxdc?: unknown }).webxdc = host;
+    const doc = await import("../src/state/doc");
+    booted.push(doc);
+    return doc;
+  }
+
+  it("hydrates even against a host old enough that setUpdateListener returns nothing", async () => {
+    const doc = await bootWith(
+      bareHost({ setUpdateListener: () => undefined }),
+    );
+
+    // A synchronous mock settles almost immediately either way — what this
+    // pins is that a non-thenable return doesn't throw out of module load
+    // (which a bare `.then()` would) and whenHydrated() still resolves.
+    await doc.whenHydrated();
+    expect(doc.hydrated).toBe(true);
+  });
+
+  it("hydrates instead of hanging forever when the replay promise rejects", async () => {
+    const doc = await bootWith(
+      bareHost({ setUpdateListener: () => Promise.reject(new Error("nope")) }),
+    );
+
+    await doc.whenHydrated();
+    expect(doc.hydrated).toBe(true);
+  });
+
+  it("resolves every whenHydrated() caller, not just the most recent one", async () => {
+    let resolveReplay: () => void = () => {};
+    const doc = await bootWith(
+      bareHost({
+        setUpdateListener: () =>
+          new Promise<void>((resolve) => {
+            resolveReplay = resolve;
+          }),
+      }),
+    );
+
+    const first = doc.whenHydrated();
+    const second = doc.whenHydrated();
+    resolveReplay();
+
+    await Promise.all([first, second]);
+    expect(doc.hydrated).toBe(true);
+  });
+
+  // What a naive `{ ...host }` transport breaks: a host whose methods rely on
+  // `this` (a class instance, not a closure) — a real host is injected by the
+  // messenger, so this codebase does not get to assume it is closure-based.
+  it("calls host methods with the host itself as `this`, not a copy of it", async () => {
+    class ClassHost {
+      sent: unknown[] = [];
+      selfAddr = "self@x.de";
+      selfName = "Self";
+      sendUpdateInterval = 1000;
+      setUpdateListener(): Promise<void> {
+        return Promise.resolve();
+      }
+      sendUpdate(update: { payload: unknown }): void {
+        this.sent.push(update.payload);
+      }
+    }
+    const host = new ClassHost();
+    const doc = await bootWith(host);
+
+    doc.setSettings({ groupCurrency: "EUR", title: "Trip" });
+
+    expect(host.sent).toHaveLength(1);
+  });
+});

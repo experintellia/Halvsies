@@ -9,8 +9,10 @@ import { useEffect, useState } from "preact/hooks";
 import {
   ensureSelfRegistered,
   getSettings,
+  hydrated,
   listExpenses,
   listSettlements,
+  whenHydrated,
 } from "../state/doc";
 import { Balances } from "./Balances";
 import { ExpenseList } from "./ExpenseList";
@@ -31,10 +33,21 @@ const TABS: ReadonlyArray<{ id: Tab; label: string; icon: IconName }> = [
 export function App() {
   const [tab, setTab] = useState<Tab>("expenses");
   const [route, setRoute] = useState<Route>(null);
+  // Starts true already for tests/SSR (no host to wait for); on a real device
+  // this flips once webxdc has replayed the chat history into the doc.
+  const [ready, setReady] = useState(hydrated);
   const settings = useDocValue(getSettings);
   const firstRun = useDocValue(() =>
     needsSetup(getSettings(), listExpenses().length, listSettlements().length),
   );
+
+  // Until hydration lands, the doc may still be missing a previous session's
+  // answer — deciding firstRun against it would flash the setup screen past
+  // on every single open while history is still replaying in.
+  useEffect(() => {
+    if (ready) return;
+    whenHydrated().then(() => setReady(true));
+  }, [ready]);
 
   // Registering the local user is a document write, and every write flushes to
   // the chat — so doing it at startup (which main.tsx used to) posted
@@ -43,14 +56,18 @@ export function App() {
   // closing it again should leave no trace. Deferred until setup is done;
   // idempotent, so the screens' own useSelfId() calls stay harmless.
   useEffect(() => {
-    if (firstRun) return;
+    if (!ready || firstRun) return;
     try {
       ensureSelfRegistered();
     } catch {
       // no webxdc host (vitest/SSR) — the doc still works
     }
-  }, [firstRun]);
+  }, [ready, firstRun]);
 
+  // Nothing may mount before hydration: the tab screens register the local
+  // user on mount, which is exactly the write firstRun's own check must not
+  // race. Blank is better than a setup screen that then has to un-flash.
+  if (!ready) return null;
   // Nothing behind the setup screen may mount: the tab screens register the
   // local user on mount, which is exactly the write we are deferring.
   if (firstRun) return <FirstRunSetup open />;

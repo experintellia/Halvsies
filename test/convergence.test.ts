@@ -403,6 +403,30 @@ describe("chat info lines", () => {
 
     expect(s.editInfo().startinfo).toBe(`Simon paid Anna ${eur(2350)}`);
   });
+
+  // The regression this pins: a brand-new doc's very first flush used to
+  // default to `{kind: "join"}` with no actor, so completing first-run setup
+  // (setSettings, which has nothing of its own to announce) posted "Someone
+  // joined the split" — a phantom join, by nobody, describing nothing.
+  it("a settings change on a brand-new doc announces nothing, not a phantom join", () => {
+    const s = createDoc();
+    s.setSettings({ groupCurrency: "GBP", title: "Trip" });
+
+    expect(s.editInfo().startinfo).toBeUndefined();
+  });
+
+  // The same bug, general form: a writer with nothing to announce for itself
+  // (setProfile here) must not inherit whatever change last happened to be
+  // announced, once that change has actually been flushed.
+  it("a silent write never inherits the previous change's announcement", () => {
+    const { s, annaId } = group();
+    s.addExpense(pizza(annaId));
+    s.editInfo(); // consumes the "add" announcement, as the real flush would
+
+    s.setProfile("simon@x.de", { paypalMe: "simon" });
+
+    expect(s.editInfo().startinfo).toBeUndefined();
+  });
 });
 
 describe("snapshots", () => {
