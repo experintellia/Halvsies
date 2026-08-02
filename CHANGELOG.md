@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-08-02
+
+### Fixed
+
+- The first-run setup screen no longer flashes past on every open. App decided
+  "needs setup" from the document before webxdc had replayed the chat history
+  into it — a real round trip on a device — so the answer was read before it
+  had arrived. It now waits for the host to signal that replay is done.
+- No more phantom "Someone joined the split" in the chat. A brand-new document
+  defaulted its pending chat-info line to a join by nobody, so the first flush
+  of a session — usually `setSettings` from finishing setup, which has nothing
+  of its own to announce — posted it. Writers with nothing to say are now
+  silent instead of inheriting a stale or invented announcement.
+
+### Changed
+
+- The wrapper around `window.webxdc` delegates to the host rather than copying
+  its methods, and tolerates a host whose `setUpdateListener` returns nothing
+  thenable — an older API level than the rest of the app already assumes.
+  Without it, the oldest supported webviews would have rendered a blank app.
+
 ## [0.1.0] — 2026-08-02
 
 First beta. Milestones M1 (ledger) and M2 (pay-up helpers) of
