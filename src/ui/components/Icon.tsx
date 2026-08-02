@@ -15,7 +15,14 @@
 import type { JSX } from "preact";
 
 export type IconName =
-  "receipt" | "scale" | "user" | "check" | "close" | "chevron-left";
+  | "receipt"
+  | "scale"
+  | "user"
+  | "check"
+  | "close"
+  | "chevron-left"
+  | "chevron-down"
+  | "search";
 
 /** Icon geometry only: everything else (stroke, size) comes from <Icon>. */
 const ICONS: Record<IconName, JSX.Element> = {
@@ -56,6 +63,15 @@ const ICONS: Record<IconName, JSX.Element> = {
   ),
   // lucide/chevron-left
   "chevron-left": <path d="m15 18-6-6 6-6" />,
+  // lucide/chevron-down
+  "chevron-down": <path d="m6 9 6 6 6-6" />,
+  // lucide/search
+  search: (
+    <>
+      <path d="m21 21-4.34-4.34" />
+      <circle cx="11" cy="11" r="8" />
+    </>
+  ),
 };
 
 export interface IconProps {

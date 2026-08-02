@@ -4,6 +4,7 @@ import {
   currencyCodes,
   currencyName,
   regionOf,
+  searchCurrencies,
   suggestCurrency,
 } from "../src/state/currency";
 import { isCurrencyCode } from "../src/state/model";
@@ -93,5 +94,48 @@ describe("currencyName", () => {
     expect(eur === undefined || /euro/i.test(eur)).toBe(true);
     // A code with no display name must come back undefined, never "XTS".
     expect(currencyName("XTS", ["en"])).not.toBe("XTS");
+  });
+});
+
+describe("searchCurrencies", () => {
+  const codes = currencyCodes();
+
+  it("returns everything for an empty query", () => {
+    expect(searchCurrencies(codes, "")).toEqual(codes);
+    expect(searchCurrencies(codes, "   ")).toEqual(codes);
+  });
+
+  it("matches a code, case-insensitively", () => {
+    expect(searchCurrencies(codes, "eur")[0]).toBe("EUR");
+    expect(searchCurrencies(codes, "SEK")[0]).toBe("SEK");
+  });
+
+  it("matches a name, which is the whole point", () => {
+    // Nobody knows that Sweden's code is SEK; they know "krona".
+    expect(searchCurrencies(codes, "swedish", ["en"])[0]).toBe("SEK");
+    expect(searchCurrencies(codes, "british", ["en"])[0]).toBe("GBP");
+    expect(searchCurrencies(codes, "indian rupee", ["en"])[0]).toBe("INR");
+  });
+
+  // Ranked, not merely filtered: an exact code beats a name that contains the
+  // same letters, so typing a code you know never buries it under prose.
+  it("puts an exact code first", () => {
+    const hits = searchCurrencies(codes, "INR", ["en"]);
+    expect(hits[0]).toBe("INR");
+    const prefix = searchCurrencies(codes, "IN", ["en"]);
+    expect(prefix.indexOf("INR")).toBeLessThan(prefix.indexOf("ARS"));
+  });
+
+  it("is empty for something that matches nothing", () => {
+    expect(searchCurrencies(codes, "zzzzqq", ["en"])).toEqual([]);
+  });
+
+  it("never invents a code that wasn't offered", () => {
+    const subset = ["EUR", "GBP", "SEK"];
+    for (const q of ["e", "kron", "pound", "S"]) {
+      for (const hit of searchCurrencies(subset, q, ["en"])) {
+        expect(subset).toContain(hit);
+      }
+    }
   });
 });

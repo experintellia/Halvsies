@@ -412,6 +412,68 @@ select {
   font-size: 0.85rem;
 }
 
+/* ---- value button that opens a picker sheet ---- */
+
+/* Reads as a field, behaves as a button: same box as .field input so the two
+   line up when they sit in the same form. */
+.picker-value {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-value:active {
+  background: var(--color-border);
+}
+
+.currency-code {
+  flex-shrink: 0;
+  font-weight: 700;
+  /* Three characters, but tabular-nums means the box is stable anyway. */
+  min-width: 3.2em;
+}
+
+/* Section heading inside a picker list. */
+.picker-section {
+  margin: 12px 0 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.currency-search {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  background: var(--color-surface);
+}
+
+/* 160-odd rows: drop the card treatment so the list scans as a list. */
+.currency-list .currency-row {
+  margin-bottom: 2px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: none;
+  background: none;
+}
+
+.currency-list .currency-row.selected {
+  background: var(--color-surface-2);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
 /* ---- sheet / modal ---- */
 
 .sheet-backdrop {

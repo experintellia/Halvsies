@@ -261,6 +261,38 @@ export function currencyCodes(include?: string): string[] {
   return [...set].sort();
 }
 
+type Namer = { of(code: string): string | undefined };
+
+// One Intl.DisplayNames per locale set, and one lookup per code. Constructing
+// a formatter is expensive, and the search box below re-filters 162 codes on
+// every keystroke — building 162 formatters per character is the difference
+// between a picker that feels instant and one that stutters on a phone.
+const namers = new Map<string, Namer | null>();
+const nameCache = new Map<string, string | undefined>();
+
+function namerFor(locales: readonly string[]): Namer | null {
+  const key = locales.join(",");
+  const cached = namers.get(key);
+  if (cached !== undefined) return cached;
+  const DisplayNames = (
+    Intl as {
+      DisplayNames?: new (l: readonly string[], o: object) => Namer;
+    }
+  ).DisplayNames;
+  let namer: Namer | null = null;
+  if (typeof DisplayNames === "function") {
+    try {
+      namer = new DisplayNames(locales.length ? locales : ["en"], {
+        type: "currency",
+      });
+    } catch {
+      namer = null;
+    }
+  }
+  namers.set(key, namer);
+  return namer;
+}
+
 /**
  * "Swedish Krona" for SEK, in the device's language. Undefined when the engine
  * has no display-name data — callers show the bare code, which is the thing
@@ -270,24 +302,51 @@ export function currencyName(
   code: string,
   locales: readonly string[] = deviceLocales(),
 ): string | undefined {
-  const DisplayNames = (
-    Intl as {
-      DisplayNames?: new (
-        l: readonly string[],
-        o: object,
-      ) => {
-        of(code: string): string | undefined;
-      };
-    }
-  ).DisplayNames;
-  if (typeof DisplayNames !== "function") return undefined;
+  const key = `${locales.join(",")}|${code}`;
+  if (nameCache.has(key)) return nameCache.get(key);
+  const namer = namerFor(locales);
+  let name: string | undefined;
   try {
-    const name = new DisplayNames(locales.length ? locales : ["en"], {
-      type: "currency",
-    }).of(code);
-    // Engines echo the input back when they have no name for it.
-    return name && name !== code ? name : undefined;
+    name = namer?.of(code);
   } catch {
-    return undefined;
+    name = undefined;
   }
+  // Engines echo the input back when they have no name for it.
+  const out = name && name !== code ? name : undefined;
+  nameCache.set(key, out);
+  return out;
+}
+
+/**
+ * Codes matching `query`, best first: an exact code, then a code starting with
+ * it, then a name starting with it, then a name containing it. Everything else
+ * is dropped.
+ *
+ * Ranked rather than merely filtered because the useful answer is usually the
+ * shortest: typing "in" should offer INR before it offers "Indonesian Rupiah",
+ * "Indian Rupee" before "Argentine Peso".
+ */
+export function searchCurrencies(
+  codes: readonly string[],
+  query: string,
+  locales?: readonly string[],
+): string[] {
+  const q = query.trim().toUpperCase();
+  if (!q) return [...codes];
+  const lower = q.toLowerCase();
+  const scored: { code: string; rank: number }[] = [];
+  for (const code of codes) {
+    const name = currencyName(code, locales)?.toLowerCase();
+    let rank = -1;
+    if (code === q) rank = 0;
+    else if (code.startsWith(q)) rank = 1;
+    else if (name?.startsWith(lower)) rank = 2;
+    else if (name?.includes(lower)) rank = 3;
+    else if (code.includes(q)) rank = 4;
+    if (rank >= 0) scored.push({ code, rank });
+  }
+  // Stable within a rank: `codes` arrives sorted, so ties stay alphabetical.
+  return scored
+    .sort((a, b) => a.rank - b.rank || (a.code < b.code ? -1 : 1))
+    .map((s) => s.code);
 }

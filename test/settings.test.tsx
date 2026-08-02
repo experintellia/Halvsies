@@ -89,9 +89,16 @@ describe("first run", () => {
     expect(subpage()).not.toBeNull();
     expect(host.textContent).toContain("Set up this split");
 
-    const currency = host.querySelector(".subpage select") as HTMLSelectElement;
-    currency.value = "GBP";
-    currency.dispatchEvent(new Event("change", { bubbles: true }));
+    // Open the picker, search, pick — the whole point of the control.
+    tap(host.querySelector(".subpage .picker-value"));
+    await flush();
+    const search = document.querySelector(
+      ".sheet input",
+    ) as HTMLInputElement | null;
+    search!.value = "british";
+    search!.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    tap(document.querySelector(".sheet .currency-row"));
     await flush();
 
     // The name is optional, so there is always a way through this screen.
@@ -116,20 +123,54 @@ describe("first run", () => {
   it("only offers codes the document will actually accept", async () => {
     render(<App />, host);
     await flush();
+    tap(host.querySelector(".subpage .picker-value"));
+    await flush();
 
-    const select = host.querySelector(".subpage select") as HTMLSelectElement;
-    const codes = Array.from(select.querySelectorAll("option")).map(
-      (o) => o.value,
-    );
+    const codes = Array.from(
+      document.querySelectorAll(".sheet .currency-code"),
+    ).map((el) => (el.textContent ?? "").trim());
     expect(codes.length).toBeGreaterThan(40);
     expect(codes.every((c) => isCurrencyCode(c))).toBe(true);
     expect(codes).toContain("EUR");
+    // Common ones lead, so the usual answer needs no scrolling.
+    expect(codes.slice(0, 5)).toContain("EUR");
+  });
 
-    // Common ones are grouped first so the usual answer needs no scrolling.
-    const groups = Array.from(select.querySelectorAll("optgroup")).map((g) =>
-      g.getAttribute("label"),
-    );
-    expect(groups[0]).toBe("Common");
+  // The trap this control exists inside: Delta Chat's Android WebView fires
+  // blur before click, so a picker that closed its list when the search field
+  // lost focus would swallow every tap. Nothing here listens to blur, and the
+  // rows arm on pointerdown — this asserts a tap dispatched while the search
+  // input holds focus still selects.
+  it("picks a row tapped while the search field is focused", async () => {
+    render(<App />, host);
+    await flush();
+    tap(host.querySelector(".subpage .picker-value"));
+    await flush();
+
+    const search = document.querySelector(".sheet input") as HTMLInputElement;
+    search.focus();
+    search.value = "swedish";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    const first = document.querySelector(".sheet .currency-row");
+    expect((first?.textContent ?? "").trim()).toMatch(/^SEK/);
+
+    // The event order a real device produces: blur lands before the tap ends.
+    first!.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    search.dispatchEvent(new Event("blur", { bubbles: true }));
+    first!.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await flush();
+
+    expect(document.querySelector(".sheet")).toBeNull();
+    // This is the first-run screen, so the pick lives in local state until
+    // Start — what matters is that the tap was not swallowed.
+    expect(
+      host.querySelector(".picker-value .currency-code")?.textContent,
+    ).toBe("SEK");
+    tap(button("Start without a name"));
+    await flush();
+    expect(getSettings().groupCurrency).toBe("SEK");
   });
 });
 
