@@ -104,7 +104,7 @@ describe("PayUpSheet bank transfer", () => {
     expect(host.querySelector("svg.qr-code")).toBeNull();
     expect(text).not.toContain("Scan with your banking app");
     expect(text).toContain("EPC QR only supports EUR");
-    expect(text).toContain("Only the scannable code is missing");
+    expect(text).toContain("Only the code is missing");
     expect(text).toContain("the details below work for a transfer in GBP");
 
     // Not a "they added nothing" screen — they added a perfectly usable IBAN.

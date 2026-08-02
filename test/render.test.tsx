@@ -471,7 +471,7 @@ describe("PayUpSheet", () => {
     setSettings({ groupCurrency: "USD" });
     sheetFor(TRANSFER);
     expect(host.textContent).toContain(
-      "Bank transfer QR unavailable: EPC QR only supports EUR",
+      "No scannable code for this debt: EPC QR only supports EUR",
     );
     expect(host.textContent).not.toContain("Scan with your banking app");
 

@@ -15,7 +15,8 @@ import {
 } from "../state/doc";
 import { newId, formatMoney, type Transfer } from "../state/model";
 import { paymentMethodsFor, type PayMethodKind } from "../pay/links";
-import { buildEpcPayload, epcReference, validateEpcParams } from "../pay/epcqr";
+import { epcReference } from "../pay/epcqr";
+import { bankQr } from "../pay/bankqr";
 import { formatIban, isValidIban } from "../pay/iban";
 import { Sheet } from "./components/Sheet";
 import { CopyButton } from "./components/CopyButton";
@@ -188,21 +189,20 @@ export function PayUpSheet({
       ? crypto
       : undefined;
 
-  const epcParams = {
+  // An IBAN is an international account number (ISO 13616, ~85 countries), so
+  // a valid one is a usable payment method in *any* currency. What is currency
+  // -locked is the scannable code — hence two separate gates: hasIban shows the
+  // details, and bankQr() decides whether any QR standard covers this debt.
+  const formattedIban = formatIban(profile.iban || "");
+  const hasIban = isValidIban(profile.iban || "");
+  const qr = bankQr({
     name: payeeName,
     iban: profile.iban || "",
     amountCents: transfer.amountCents,
     currency,
     reference,
     bic: profile.bic,
-  };
-  // An IBAN is an international account number (ISO 13616, ~85 countries), so
-  // a valid one is a usable payment method in *any* currency. What is EUR-only
-  // is the EPC069-12 QR, which encodes a SEPA Credit Transfer — hence two
-  // separate gates: hasIban shows the details, epcError hides only the code.
-  const formattedIban = formatIban(profile.iban || "");
-  const hasIban = isValidIban(profile.iban || "");
-  const epcError = validateEpcParams(epcParams);
+  });
   const bankLine = `IBAN ${formattedIban}${payeeName ? ` (${payeeName})` : ""}${
     profile.bic ? `, BIC ${profile.bic}` : ""
   }, ref: ${reference}`;
@@ -351,17 +351,17 @@ export function PayUpSheet({
           <p>
             <strong>Bank transfer</strong>
           </p>
-          {epcError ? (
+          {qr.ok ? (
+            <>
+              <QR payload={qr.payload} />
+              <p>{qr.hint}</p>
+            </>
+          ) : (
             <p className="field-suffix">
-              Bank transfer QR unavailable: {epcError}. Only the scannable code
-              is missing — the details below work for a transfer in{" "}
+              No scannable code for this debt: {qr.reason}. Only the code is
+              missing — the details below work for a transfer in{" "}
               {currency.trim().toUpperCase()}.
             </p>
-          ) : (
-            <>
-              <QR payload={buildEpcPayload(epcParams)} />
-              <p>Scan with your banking app.</p>
-            </>
           )}
           {/* Every one of these is a value the payer has to retype into a
               banking app, so each gets the same shape: full-width, readable,

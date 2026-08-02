@@ -9,7 +9,8 @@ import type { PaymentProfile } from "../state/model";
 import { formatIban, isValidIban } from "../pay/iban";
 import { paymentMethodsFor } from "../pay/links";
 import { configuredProviders } from "../pay/providers";
-import { buildEpcPayload, epcReference, validateEpcParams } from "../pay/epcqr";
+import { epcReference } from "../pay/epcqr";
+import { bankQr } from "../pay/bankqr";
 import { QR } from "./components/QR";
 import { CopyButton } from "./components/CopyButton";
 import { TapButton } from "./components/TapButton";
@@ -67,7 +68,9 @@ export function ProfileForm({ onOpenGroupSettings }: ProfileFormProps) {
     settings.groupCurrency,
     previewReference,
   );
-  const previewEpc = validateEpcParams({
+  // The same decision the payer's sheet makes, from the same function, so the
+  // preview cannot promise a QR the payer will not get.
+  const previewQr = bankQr({
     name: current.accountHolder || "You",
     iban: current.iban || "",
     amountCents: PREVIEW_CENTS,
@@ -274,22 +277,16 @@ export function ProfileForm({ onOpenGroupSettings }: ProfileFormProps) {
             <span className="money">{formatIban(current.iban || "")}</span>
             <CopyButton value={formatIban(current.iban || "")} label="Copy" />
           </div>
-          {previewEpc ? (
-            <p className="field-suffix">
-              No scannable QR in {settings.groupCurrency}: {previewEpc} Payers
-              still get the IBAN, your name and the reference.
-            </p>
+          {previewQr.ok ? (
+            <>
+              <QR payload={previewQr.payload} />
+              <p className="field-suffix">{previewQr.hint}</p>
+            </>
           ) : (
-            <QR
-              payload={buildEpcPayload({
-                name: current.accountHolder || "You",
-                iban: current.iban || "",
-                amountCents: PREVIEW_CENTS,
-                currency: settings.groupCurrency,
-                reference: previewReference,
-                bic: current.bic,
-              })}
-            />
+            <p className="field-suffix">
+              No scannable QR in {settings.groupCurrency}: {previewQr.reason}.
+              Payers still get the IBAN, your name and the reference.
+            </p>
           )}
         </div>
       )}

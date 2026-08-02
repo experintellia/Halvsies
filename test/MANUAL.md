@@ -3,7 +3,7 @@
 Everything a machine can check now **is** checked by a machine:
 
 ```sh
-pnpm test     # 211 tests, incl. multi-peer sync, chat lines, gating, import/export
+pnpm test     # 266 tests, incl. multi-peer sync, chat lines, gating, import/export
 pnpm build    # typecheck, bundle, then scripts/audit-bundle.mjs (size + sandbox)
 ```
 
@@ -67,6 +67,13 @@ the bug.
       this repo can know.)_
 - [ ] **M8 — The UPI QR scans** in a UPI app, with the right VPA, amount and
       note. _(The payload string is asserted; the scan is not.)_
+- [ ] **M8a — The QR Platba code scans.** With group currency `CZK` and a
+      Czech IBAN, scan the bank-transfer QR with a Czech banking app: account,
+      amount and message all pre-fill. The payload is asserted in
+      `test/spd.test.ts`; that a Czech bank accepts it is not something this
+      repo can know. Also confirm no QR appears for a CZK debt in a _non_-Czech
+      banking app's scanner — a code that looks generic but isn't is the
+      failure mode this gate exists to avoid.
 - [ ] **M9 — Crypto links degrade properly.** On a device with **no** wallet
       installed, tap a `bitcoin:` link. It does nothing — and that is fine,
       because the raw address, its Copy button and the QR are right there
