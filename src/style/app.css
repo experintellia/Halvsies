@@ -412,6 +412,37 @@ select {
   font-size: 0.85rem;
 }
 
+/* ---- read-only value + copy button (CopyField) ---- */
+
+/* Reads as "this is a value, not something to fill in", while staying a real
+   input so long-press select-all works — the last fallback when the clipboard
+   API is missing (see CopyButton.tsx). `readonly`, never `disabled`: disabled
+   inputs cannot be selected and are skipped by screen readers. */
+.copy-input {
+  flex: 1 1 8em;
+  width: auto;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  /* An IBAN or a wallet address must never be clipped: it is being copied out
+     by hand when the button fails. */
+  text-overflow: ellipsis;
+}
+
+.copy-input:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* The button keeps its own width whatever the value does. */
+.field-row .copy-btn {
+  flex-shrink: 0;
+}
+
 /* ---- value button that opens a picker sheet ---- */
 
 /* Reads as a field, behaves as a button: same box as .field input so the two

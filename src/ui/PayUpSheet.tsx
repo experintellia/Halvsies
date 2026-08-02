@@ -19,6 +19,7 @@ import { buildEpcPayload, epcReference, validateEpcParams } from "../pay/epcqr";
 import { formatIban, isValidIban } from "../pay/iban";
 import { Sheet } from "./components/Sheet";
 import { CopyButton } from "./components/CopyButton";
+import { CopyField } from "./components/CopyField";
 import { QR } from "./components/QR";
 
 export interface PayUpSheetProps {
@@ -88,10 +89,21 @@ function CryptoAddress({
 }) {
   return (
     <>
-      <div className="field-row">
-        <span className="money">{address}</span>
-        <CopyButton value={address} label="Copy address" />
-      </div>
+      {/* Same shape as the bank details: a value to be transcribed gets a
+          full-width readable field and its own copy button. */}
+      <label className="field">
+        <span className="field-label">Address</span>
+        <span className="field-row">
+          <input
+            className="copy-input"
+            type="text"
+            readOnly
+            value={address}
+            onFocus={(e) => (e.currentTarget as HTMLInputElement).select()}
+          />
+          <CopyButton value={address} label="Copy address" />
+        </span>
+      </label>
       <p className="field-suffix">
         Send the equivalent of <span className="money">{amount}</span> — the
         amount is not embedded in the address; the paying wallet converts it at
@@ -208,6 +220,12 @@ export function PayUpSheet({
   // nothing about, attributed to them in the chat info line.
   const isParty = transfer.fromId === self || transfer.toId === self;
 
+  // "Send to chat" said nothing about what would land in the chat, and the two
+  // directions post opposite things: one announces a payment, the other asks
+  // for one.
+  const sendLabel =
+    direction === "pay" ? "Tell the chat you're paying" : "Ask for the money";
+
   function record(): void {
     if (!isParty) return;
     addSettlement({
@@ -298,7 +316,7 @@ export function PayUpSheet({
                       sendToChat(text);
                     }}
                   >
-                    Send to chat
+                    {sendLabel}
                   </TapButton>
                 )}
               </div>
@@ -345,16 +363,17 @@ export function PayUpSheet({
               <p>Scan with your banking app.</p>
             </>
           )}
-          <div className="field-row">
-            <span className="money">{formattedIban}</span>
-            <CopyButton value={formattedIban} label="Copy IBAN" />
-          </div>
-          <p>{payeeName}</p>
-          {profile.bic && <p className="field-suffix">BIC {profile.bic}</p>}
-          <div className="field-row">
-            <span>{reference}</span>
-            <CopyButton value={reference} label="Copy reference" />
-          </div>
+          {/* Every one of these is a value the payer has to retype into a
+              banking app, so each gets the same shape: full-width, readable,
+              its own copy button. */}
+          <CopyField label="Account holder" value={payeeName} />
+          <CopyField label="IBAN" value={formattedIban} />
+          {profile.bic && <CopyField label="BIC" value={profile.bic} />}
+          <CopyField
+            label="Reference"
+            value={reference}
+            copyName="payment reference"
+          />
           {canSendToChat && (
             <div className="field-row">
               <TapButton
@@ -370,7 +389,7 @@ export function PayUpSheet({
                   sendToChat(text);
                 }}
               >
-                Send to chat
+                {sendLabel}
               </TapButton>
             </div>
           )}

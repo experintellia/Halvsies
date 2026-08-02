@@ -10,6 +10,8 @@ export interface CopyButtonProps {
   label?: string;
   copiedLabel?: string;
   className?: string;
+  /** Set when several Copy buttons share a screen and "Copy" alone is ambiguous. */
+  ariaLabel?: string;
 }
 
 function fallbackCopy(text: string): boolean {
@@ -49,6 +51,7 @@ export function CopyButton({
   label = "Copy",
   copiedLabel = "Copied",
   className,
+  ariaLabel,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | undefined>(undefined);
@@ -68,6 +71,7 @@ export function CopyButton({
       className={
         "btn btn-secondary copy-btn" + (className ? ` ${className}` : "")
       }
+      aria-label={ariaLabel}
       onPointerUp={activate}
       onClick={(e) => {
         if (e.detail === 0) activate();

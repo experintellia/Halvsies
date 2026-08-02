@@ -26,6 +26,12 @@ function tap(el: Element | undefined | null): void {
   el.dispatchEvent(new Event("pointerup", { bubbles: true }));
 }
 
+/** Values live in readOnly inputs now, so textContent cannot see them. */
+const fieldValues = (root: ParentNode = host): string[] =>
+  Array.from(root.querySelectorAll<HTMLInputElement>("input.copy-input")).map(
+    (i) => i.value,
+  );
+
 beforeEach(() => {
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -84,10 +90,14 @@ describe("PayUpSheet bank transfer", () => {
 
     const text = host.textContent ?? "";
     expect(text).toContain("Bank transfer");
-    expect(text).toContain(IBAN_SHOWN);
-    expect(text).toContain("Anna");
-    expect(text).toContain("COBADEFF");
-    expect(text).toContain("Halvsies"); // the remittance reference
+    // Each transcribable value is its own labelled, copyable field.
+    const values = fieldValues();
+    expect(values).toContain(IBAN_SHOWN);
+    expect(values).toContain("Anna");
+    expect(values).toContain("COBADEFF");
+    expect(values.some((v) => v.includes("Halvsies"))).toBe(true); // reference
+    expect(text).toContain("Account holder");
+    expect(text).toContain("Reference");
     expect(text).toContain("£23.50");
 
     // The scannable code is the only casualty, and the copy says exactly that.
@@ -108,7 +118,7 @@ describe("PayUpSheet bank transfer", () => {
     const text = host.textContent ?? "";
     expect(host.querySelector("svg.qr-code")).not.toBeNull();
     expect(text).toContain("Scan with your banking app");
-    expect(text).toContain(IBAN_SHOWN);
+    expect(fieldValues()).toContain(IBAN_SHOWN);
     expect(text).not.toContain("QR unavailable");
   });
 
@@ -119,10 +129,23 @@ describe("PayUpSheet bank transfer", () => {
       render(null, host); // drop the previous button's transient "Copied"
       sheetIn(groupCurrency);
       await flush();
-      expect(buttons("Copy IBAN")).toHaveLength(1);
-      expect(buttons("Copy reference")).toHaveLength(1);
+      // One Copy per transcribable value: holder, IBAN, reference.
+      expect(buttons("Copy").length).toBeGreaterThanOrEqual(3);
+      expect(
+        Array.from(host.querySelectorAll("button"))
+          .map((b) => b.getAttribute("aria-label"))
+          .filter(Boolean),
+      ).toEqual(
+        expect.arrayContaining([
+          "Copy IBAN",
+          "Copy payment reference",
+          "Copy Account holder",
+        ]),
+      );
       // Tap-safe per Row.tsx: pointerup alone activates it, in any currency.
-      const copy = buttons("Copy IBAN")[0];
+      const copy = Array.from(host.querySelectorAll("button")).find(
+        (b) => b.getAttribute("aria-label") === "Copy IBAN",
+      ) as HTMLButtonElement;
       tap(copy);
       await flush();
       expect(copy.textContent).toBe("Copied");
@@ -136,7 +159,7 @@ describe("PayUpSheet bank transfer", () => {
 
       const text = host.textContent ?? "";
       expect(text).not.toContain("Bank transfer");
-      expect(text).not.toContain("Copy IBAN");
+      expect(fieldValues()).toHaveLength(0);
       expect(host.querySelector("svg.qr-code")).toBeNull();
       // Nothing usable was configured, so the empty-profile nudge is correct.
       expect(text).toContain("hasn't added any payment details");

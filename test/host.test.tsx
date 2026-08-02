@@ -195,7 +195,7 @@ describe("send to chat", () => {
       dom,
     );
 
-    tap(buttons("Send to chat")[0]);
+    tap(buttons("Tell the chat you're paying")[0]);
     expect(webxdc.chat).toHaveLength(1);
     expect(webxdc.chat[0].text).toContain("https://paypal.me/anna/23.50EUR");
   });
@@ -214,7 +214,7 @@ describe("send to chat", () => {
       dom,
     );
 
-    expect(buttons("Send to chat")).toHaveLength(0);
+    expect(buttons("Tell the chat you're paying")).toHaveLength(0);
     expect(buttons("Copy link")).toHaveLength(1); // the alternative is there
   });
 });

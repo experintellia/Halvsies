@@ -38,6 +38,12 @@ function tap(el: Element | undefined | null): void {
   el.dispatchEvent(new Event("pointerup", { bubbles: true }));
 }
 
+/** Values live in readOnly inputs now, so textContent cannot see them. */
+const fieldValues = (root: ParentNode = host): string[] =>
+  Array.from(root.querySelectorAll<HTMLInputElement>("input.copy-input")).map(
+    (i) => i.value,
+  );
+
 beforeEach(() => {
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -392,7 +398,7 @@ describe("PayUpSheet", () => {
     sheet();
 
     const text = host.textContent ?? "";
-    expect(text).toContain(BTC); // the link may be a no-op; the address never is
+    expect(fieldValues()).toContain(BTC); // the link may be a no-op; the address never is
     expect(buttons("Copy address")).toHaveLength(1);
     expect(buttons("Copy link")).toHaveLength(1);
     expect(host.querySelector("svg.qr-code")).not.toBeNull();
@@ -416,7 +422,7 @@ describe("PayUpSheet", () => {
     expect(href).toContain("recipient_name=Anna");
     expect(href).toContain("tx_description=");
     expect(href).not.toContain("tx_amount");
-    expect(host.textContent).toContain("4Aexample");
+    expect(fieldValues().some((v) => v.startsWith("4Aexample"))).toBe(true);
   });
 
   it("shows an address-only block when the network has no URI scheme", () => {
@@ -431,7 +437,9 @@ describe("PayUpSheet", () => {
 
     const text = host.textContent ?? "";
     expect(text).toContain("USDC on Base");
-    expect(text).toContain("0xExampleAddress");
+    expect(fieldValues().some((v) => v.startsWith("0xExampleAddress"))).toBe(
+      true,
+    );
     expect(buttons("Copy address")).toHaveLength(1);
     expect(host.querySelector("svg.qr-code")).not.toBeNull();
     // No link exists for this network, and the "no details yet" placeholder
@@ -470,7 +478,7 @@ describe("PayUpSheet", () => {
     setSettings({ groupCurrency: "EUR" });
     sheetFor(TRANSFER);
     expect(host.textContent).toContain("Scan with your banking app");
-    expect(host.textContent).toContain("DE89 3704 0044 0532 0130 00");
+    expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
   });
 
   // MANUAL C6
@@ -602,7 +610,7 @@ describe("the Me tab preview and the payer's sheet", () => {
     expect(previewed).toEqual(offered);
     // …and the bank method, which carries no link, is on both screens too.
     expect(previewedIban).toBe("DE89 3704 0044 0532 0130 00");
-    expect(host.textContent).toContain("DE89 3704 0044 0532 0130 00");
+    expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
   });
 });
 
