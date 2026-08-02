@@ -67,34 +67,34 @@ the bug.
       this repo can know.)_
 - [ ] **M8 — The UPI QR scans** in a UPI app, with the right VPA, amount and
       note. _(The payload string is asserted; the scan is not.)_
-- [ ] **M8a — The QR Platba code scans.** With group currency `CZK` and a
+- [ ] **M9 — The QR Platba code scans.** With group currency `CZK` and a
       Czech IBAN, scan the bank-transfer QR with a Czech banking app: account,
       amount and message all pre-fill. The payload is asserted in
       `test/spd.test.ts`; that a Czech bank accepts it is not something this
       repo can know. Also confirm no QR appears for a CZK debt in a _non_-Czech
       banking app's scanner — a code that looks generic but isn't is the
       failure mode this gate exists to avoid.
-- [ ] **M9 — Crypto links degrade properly.** On a device with **no** wallet
+- [ ] **M10 — Crypto links degrade properly.** On a device with **no** wallet
       installed, tap a `bitcoin:` link. It does nothing — and that is fine,
       because the raw address, its Copy button and the QR are right there
       anyway. This is the whole reason the address is never hidden behind the
       link.
-- [ ] **M10 — Send to chat.** Posts a tappable message containing the link, and
+- [ ] **M11 — Send to chat.** Posts a tappable message containing the link, and
       it opens from the chat. _(That the button is absent on a host lacking
       `sendToChat` is covered by `test/host.test.tsx`; that the posted message is
       usable is not.)_
 
 ## 3. Cross-messenger and release
 
-- [ ] **M11 — Older webviews.** Open the app on Delta Chat iOS and desktop, and
+- [ ] **M12 — Older webviews.** Open the app on Delta Chat iOS and desktop, and
       on the oldest webview you can reach (Ubuntu Touch is the known floor).
       `scripts/audit-bundle.mjs` smoke-checks the emitted syntax against the
       es2020 / chrome87 / safari14.1 / firefox78 target, but it is a grep, not a
       parser, and it says nothing about CSS support or host API level.
-- [ ] **M12 — Fresh install, full loop.** Send the `.xdc` into a brand-new chat
+- [ ] **M13 — Fresh install, full loop.** Send the `.xdc` into a brand-new chat
       and do the whole thing once: add expense → check balance → pay up → mark
       as paid. On a second device, in the same chat.
-- [ ] **M13 — Airplane mode.** Every screen still works with no connectivity.
+- [ ] **M14 — Airplane mode.** Every screen still works with no connectivity.
       Payment links are the _only_ thing that should need the network, and only
       once tapped.
 
@@ -138,5 +138,5 @@ Two known gaps in the automated coverage, for honesty:
   chat-line tests assert `editInfo()` — the function the provider calls — rather
   than an intercepted `sendUpdate`.
 - The provider's ~10 s autosave loop is bypassed; every writer calls `flush()`
-  synchronously and that is what the tests drive. **M12** is what actually
+  synchronously and that is what the tests drive. **M13** is what actually
   exercises the timer.
