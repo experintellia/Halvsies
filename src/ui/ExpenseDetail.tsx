@@ -25,7 +25,7 @@ export interface ExpenseDetailProps {
 
 const MODE_TEXT: Record<Expense["split"]["mode"], string> = {
   even: "Split evenly",
-  weights: "Split by weights",
+  weights: "Split by shares",
   exact: "Split by exact amounts",
 };
 

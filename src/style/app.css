@@ -412,6 +412,66 @@ select {
   font-size: 0.85rem;
 }
 
+/* ---- share stepper (Split → Shares) ----
+
+   A −/+ pair instead of <input type="number">: the real values are 1–4, so a
+   numeric keyboard is pure friction — and on Delta Chat's Android WebView it
+   is exactly the thing that triggers the blur-before-click path the whole app
+   works around. */
+
+.split-member {
+  margin-bottom: 8px;
+}
+
+/* The stepper and its "2 shares · 50% · €22.00" readout, indented under the
+   member row's avatar column. */
+.share-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 0 44px;
+}
+
+/* The readout is prose (it wraps — see .field-suffix), so as a flex child it
+   needs min-width:0 or it refuses to shrink below its text width and pushes
+   the stepper off the sheet. */
+.share-controls .field-suffix {
+  min-width: 0;
+}
+
+.stepper {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 44px square: the tap target is the point of this control. */
+.stepper-btn {
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+/* Fixed width so stepping 9 → 10 doesn't shift the + button under the finger
+   that is tapping it. */
+.stepper-value {
+  min-width: 2.2em;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A member who is in the split but on 0 shares. Dimmed like an unselected row
+   while keeping the selected outline, so "included but paying nothing" can
+   never be mistaken for "included" — the row text says so too. */
+.row-check.selected.row-zero {
+  color: var(--color-text-dim);
+}
+
 /* ---- read-only value + copy button (CopyField) ---- */
 
 /* Reads as "this is a value, not something to fill in", while staying a real
