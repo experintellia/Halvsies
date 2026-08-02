@@ -19,7 +19,8 @@
  *   --radius             standard corner radius
  *   --shadow             standard elevation shadow
  *   --safe-bottom        env() safe-area inset, for bottom-pinned UI
- *   --z-sheet            z-index for Sheet/overlay (50); list rows use 1
+ *   --z-sheet            z-index for Sheet/overlay (50); list rows use 1,
+ *                        sticky chrome (tab bar, sub-page header) 2
  *
  * Money figures: use the `.money` utility (tabular-nums) plus `.money-positive`
  * / `.money-negative` — the two are distinguished by colour AND weight/prefix
@@ -171,6 +172,9 @@ select {
   padding-bottom: var(--safe-bottom);
   position: sticky;
   bottom: 0;
+  /* Sticky alone only makes it positioned with z-index auto, so .row's
+     z-index: 1 painted every scrolled card straight over the tab bar. */
+  z-index: 2;
 }
 
 .tab-btn {
