@@ -98,7 +98,26 @@ Every push and pull request also runs CI (`.github/workflows/ci.yml`): typecheck
 
 ## App store
 
-To list Halvsies on the webxdc app store, open a pull request against [webxdc/hub](https://codeberg.org/webxdc/hub). Note that this is a manual step — it is not automated.
+Submissions go through [webxdc/xdcget](https://codeberg.org/webxdc/xdcget), the config that feeds the `xstore` bot and the default app stores: fork it, add a section to `xdcget.ini`, and open a pull request ([SUBMIT.md](https://codeberg.org/webxdc/xdcget/src/branch/main/SUBMIT.md) has the rules). This is a manual step — it is not automated.
+
+The entry for this app:
+
+```ini
+[app:halvsies]
+category = tool
+source_code_url = https://github.com/experintellia/Halvsies
+description = Split bills, then actually pay
+    Track shared expenses in a chat, see who owes whom, and settle with
+    generated payment links, IBAN details and QR codes.
+```
+
+What the submission requires, and where this repo already stands:
+
+- **Public repo on Codeberg or GitHub** — currently private; make it public first.
+- **A tagged release with an `.xdc` asset** — `.github/workflows/release.yml` does this on every `v*.*.*` tag.
+- **`manifest.toml` and an icon inside the `.xdc`** — `public/manifest.toml` and `public/icon.png`, both verified in the release artifact.
+- **App id lowercase alphanumeric with `-`** — `halvsies`.
+- **Description first line ≤ 30 characters, no trailing period** — the line above is 30.
 
 ## Privacy
 
