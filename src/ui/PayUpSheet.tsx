@@ -14,7 +14,7 @@ import {
   now,
 } from "../state/doc";
 import { newId, formatMoney, type Transfer } from "../state/model";
-import { paymentMethodsFor, type PayMethodKind } from "../pay/links";
+import { paymentMethodsFor } from "../pay/links";
 import { epcReference } from "../pay/epcqr";
 import { bankQr } from "../pay/bankqr";
 import { formatIban, isValidIban } from "../pay/iban";
@@ -70,12 +70,6 @@ function TapButton({
   );
 }
 
-// Scanning is the normal way UPI gets paid, and a crypto entry must show its
-// QR unconditionally (A.3, its link may be a no-op) — both skip the show/hide
-// tap and render the code up front. Everything else keeps the toggle.
-const alwaysShowQr = (kind: PayMethodKind): boolean =>
-  kind === "upi" || kind === "crypto";
-
 // Plan.md §5 M2: many devices have no handler registered for `bitcoin:`/
 // `ethereum:`/`monero:`, so tapping the link can silently do nothing — the
 // raw address is always shown in full with its own copy button, never the
@@ -120,7 +114,6 @@ export function PayUpSheet({
   open,
   onClose,
 }: PayUpSheetProps) {
-  const [shownQr, setShownQr] = useState<string | null>(null);
   const [usedMethod, setUsedMethod] = useState<string | undefined>(undefined);
   const [confirming, setConfirming] = useState(false);
 
@@ -133,7 +126,6 @@ export function PayUpSheet({
   const lastKey = useRef(key);
   if (lastKey.current !== key) {
     lastKey.current = key;
-    setShownQr(null);
     setUsedMethod(undefined);
     setConfirming(false);
   }
@@ -292,16 +284,6 @@ export function PayUpSheet({
                 <CopyButton value={m.url} label="Copy link" />
               </div>
               <div className="field-row">
-                {!alwaysShowQr(m.kind) && (
-                  <TapButton
-                    className="btn btn-secondary"
-                    onActivate={() =>
-                      setShownQr(shownQr === m.id ? null : m.id)
-                    }
-                  >
-                    {shownQr === m.id ? "Hide QR" : "Show QR"}
-                  </TapButton>
-                )}
                 {canSendToChat && (
                   <TapButton
                     className="btn btn-secondary"
@@ -320,9 +302,12 @@ export function PayUpSheet({
                   </TapButton>
                 )}
               </div>
-              {(alwaysShowQr(m.kind) || shownQr === m.id) && (
-                <QR payload={m.url} />
-              )}
+              {/* Every method's code is up front, exactly like the bank
+                  transfer below. A QR behind a "Show QR" tap was one rule for
+                  bank details and another for everything else, and the payer
+                  reaching for a second device has no way to know a code exists
+                  before tapping. */}
+              <QR payload={m.url} />
               {m.caveat && <p className="field-suffix">{m.caveat}</p>}
             </div>
           ))}

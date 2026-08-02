@@ -549,7 +549,24 @@ describe("PayUpSheet", () => {
     expect(href).toContain("pn=Anna");
     // Scanning is the normal UPI flow: the code is there before any tap.
     expect(host.querySelector("svg.qr-code")).not.toBeNull();
-    expect(buttons("Show QR")).toHaveLength(0);
+  });
+
+  // The bank block always rendered its code, while every link method hid one
+  // behind "Show QR" — so bunq looked like it had no code at all, and a payer
+  // reaching for a second device had to tap to find out one existed.
+  it("gives every method a QR up front, with no show/hide tap anywhere", () => {
+    setProfile(CREDITOR, {
+      accountHolder: "Anna Beispiel",
+      bunqMe: "anna",
+      paypalMe: "anna",
+      iban: "DE89370400440532013000",
+    });
+    sheet();
+
+    expect(linkTo("https://bunq.me")).not.toBeNull();
+    // bunq, PayPal, bank transfer — one code each, none of them behind a tap.
+    expect(host.querySelectorAll("svg.qr-code")).toHaveLength(3);
+    expect(buttons("QR")).toHaveLength(0);
   });
 });
 

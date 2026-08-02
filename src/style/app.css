@@ -733,7 +733,7 @@ select {
 }
 
 /* A .field-row holds either "input + unit" or two-to-three buttons (Edit /
-   Remove, Open / Copy, Show QR / Send to chat). At 320px a pair of buttons
+   Remove, Open / Copy / Send to chat). At 320px a pair of buttons
    with a user-supplied label ("Open <custom method name>") does not fit, so
    the row wraps rather than overflowing, and every child may shrink. */
 .field-row {
