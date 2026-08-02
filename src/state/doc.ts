@@ -62,7 +62,7 @@ export interface ChangePayload {
 
 /**
  * Pure formatter for the webxdc chat info line + summary, e.g.
- * `Simon added *Pizza* — €30.00` / `3 open debts · €57.20`.
+ * `Bob added *Pizza* — €30.00` / `3 open debts · €57.20`.
  */
 export function describeChange(
   kind: ChangeKind,
@@ -394,9 +394,10 @@ export function createDoc() {
   let last:
     | {
         kind: ChangeKind;
-        actorId?: MemberId;
         title?: string;
         amountCents?: number;
+        /** settlement parties: "X paid Y" names the debtor, not the recorder. */
+        fromId?: MemberId;
         toId?: MemberId;
       }
     | undefined;
@@ -445,8 +446,12 @@ export function createDoc() {
     // .summary is used below in that case, which (like every kind) never
     // depends on it (see the same trick in Balances.tsx).
     const { text, summary } = describeChange(change?.kind ?? "join", {
-      // The flush only ever carries local edits, so the actor is this peer.
-      actorName: nameOf(selfId ?? change?.actorId),
+      // Every flush carries this peer's own edits, so the actor is self —
+      // except "settle", whose sentence names the debtor. A creditor can mark
+      // a payment received on behalf of whoever owed them (often a virtual
+      // member who never opens the app); reading self there posted the
+      // nonsense "Anna paid Anna".
+      actorName: nameOf(change?.kind === "settle" ? change.fromId : selfId),
       currency: settings.groupCurrency,
       title: change?.title,
       amountCents: change?.amountCents,
@@ -470,7 +475,6 @@ export function createDoc() {
     doc.transact(() => yExpenses.set(e.id, e));
     last = {
       kind: "add",
-      actorId: e.createdBy,
       title: e.title,
       amountCents: e.amountCents,
     };
@@ -489,7 +493,6 @@ export function createDoc() {
     doc.transact(() => yExpenses.set(id, next));
     last = {
       kind: "edit",
-      actorId: next.createdBy,
       title: next.title,
       amountCents: next.amountCents,
     };
@@ -500,7 +503,7 @@ export function createDoc() {
     const prev = yExpenses.get(id);
     if (!prev) return;
     doc.transact(() => yExpenses.delete(id));
-    last = { kind: "delete", actorId: prev.createdBy, title: prev.title };
+    last = { kind: "delete", title: prev.title };
     flush();
   }
 
@@ -508,7 +511,7 @@ export function createDoc() {
     doc.transact(() => ySettlements.set(s.id, s));
     last = {
       kind: "settle",
-      actorId: s.fromId,
+      fromId: s.fromId,
       toId: s.toId,
       amountCents: s.amountCents,
     };
@@ -624,7 +627,7 @@ export function createDoc() {
       addr,
     };
     doc.transact(() => yMembers.set(addr, member));
-    last = { kind: "join", actorId: addr };
+    last = { kind: "join" };
     flush();
     return member;
   }

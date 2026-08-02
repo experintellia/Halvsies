@@ -353,10 +353,10 @@ describe("payment profiles across peers", () => {
 // The chat lines, through the real editInfo() the provider calls on flush —
 // not describeChange() alone, which cannot show where the numbers come from.
 describe("chat info lines", () => {
-  /** Simon's peer, with Anna in the group and an empty ledger. */
+  /** Bob's peer, with Anna in the group and an empty ledger. */
   function group(): { s: Store; annaId: MemberId } {
     const s = createDoc();
-    s.registerSelf("simon@x.de", "Simon");
+    s.registerSelf("bob@example.org", "Bob");
     return { s, annaId: s.addVirtualMember("Anna", 1).id };
   }
 
@@ -364,9 +364,9 @@ describe("chat info lines", () => {
     expense("001", {
       title: "Pizza",
       amountCents: 3000,
-      payerId: "simon@x.de",
-      createdBy: "simon@x.de",
-      split: { mode: "even", entries: { "simon@x.de": 1, [annaId]: 1 } },
+      payerId: "bob@example.org",
+      createdBy: "bob@example.org",
+      split: { mode: "even", entries: { "bob@example.org": 1, [annaId]: 1 } },
     });
 
   // MANUAL B1
@@ -374,7 +374,7 @@ describe("chat info lines", () => {
     const { s, annaId } = group();
     s.addExpense(pizza(annaId));
 
-    expect(s.editInfo().startinfo).toBe(`Simon added *Pizza* — ${eur(3000)}`);
+    expect(s.editInfo().startinfo).toBe(`Bob added *Pizza* — ${eur(3000)}`);
   });
 
   // MANUAL B2 — the summary is derived here, on the flush the write itself
@@ -394,14 +394,31 @@ describe("chat info lines", () => {
     const { s, annaId } = group();
     s.addSettlement({
       id: "s1",
-      fromId: "simon@x.de",
+      fromId: "bob@example.org",
       toId: annaId,
       amountCents: 2350,
       date: "2026-07-30",
-      createdBy: "simon@x.de",
+      createdBy: "bob@example.org",
     });
 
-    expect(s.editInfo().startinfo).toBe(`Simon paid Anna ${eur(2350)}`);
+    expect(s.editInfo().startinfo).toBe(`Bob paid Anna ${eur(2350)}`);
+  });
+
+  // The mirror of B3, and the bug it pins: "Mark as received" is recorded by
+  // the *creditor*, so the peer flushing the change is not the one who paid.
+  // Naming the flushing peer posted "Bob paid Bob".
+  it("B4 — a payment recorded by the creditor names the payer, not the recorder", () => {
+    const { s, annaId } = group();
+    s.addSettlement({
+      id: "s1",
+      fromId: annaId, // Anna, a virtual member, paid
+      toId: "bob@example.org", // Bob records it
+      amountCents: 2350,
+      date: "2026-07-30",
+      createdBy: "bob@example.org",
+    });
+
+    expect(s.editInfo().startinfo).toBe(`Anna paid Bob ${eur(2350)}`);
   });
 
   // The regression this pins: a brand-new doc's very first flush used to
@@ -423,7 +440,7 @@ describe("chat info lines", () => {
     s.addExpense(pizza(annaId));
     s.editInfo(); // consumes the "add" announcement, as the real flush would
 
-    s.setProfile("simon@x.de", { paypalMe: "simon" });
+    s.setProfile("bob@example.org", { paypalMe: "bob" });
 
     expect(s.editInfo().startinfo).toBeUndefined();
   });
@@ -736,7 +753,7 @@ describe("removing members", () => {
 
 describe("describeChange", () => {
   const base = {
-    actorName: "Simon",
+    actorName: "Bob",
     currency: "EUR",
     openDebts: 3,
     openTotalCents: 5720,
@@ -748,7 +765,7 @@ describe("describeChange", () => {
       title: "Pizza",
       amountCents: 3000,
     });
-    expect(text).toBe(`Simon added *Pizza* — ${eur(3000)}`);
+    expect(text).toBe(`Bob added *Pizza* — ${eur(3000)}`);
     expect(summary).toBe(`3 open debts · ${eur(5720)}`);
   });
 
@@ -762,7 +779,7 @@ describe("describeChange", () => {
         openTotalCents: 2350,
       }),
     ).toEqual({
-      text: `Simon paid Anna ${eur(2350)}`,
+      text: `Bob paid Anna ${eur(2350)}`,
       summary: `1 open debt · ${eur(2350)}`,
     });
     expect(
