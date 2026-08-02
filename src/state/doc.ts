@@ -743,30 +743,52 @@ const host = typeof window === "undefined" ? undefined : window.webxdc;
  * Already true with no host (tests/SSR) — there is nothing to wait for.
  */
 export let hydrated = !host;
-let notifyHydrated = (): void => {};
+let notifyHydrated: () => void = () => {};
+/** Single promise, not one per call: every caller shares the same settlement. */
+const hydratedPromise: Promise<void> = host
+  ? new Promise((resolve) => {
+      notifyHydrated = resolve;
+    })
+  : Promise.resolve();
 
 /** Resolves once `hydrated` flips true; already-resolved if it already has. */
 export function whenHydrated(): Promise<void> {
-  if (hydrated) return Promise.resolve();
-  return new Promise((resolve) => {
-    notifyHydrated = resolve;
-  });
+  return hydratedPromise;
 }
 
 // y-webxdc's WebxdcProvider calls webxdc.setUpdateListener() itself and
 // discards the promise it returns — the promise is the only signal the host
 // gives for "caught up", so it is tapped here rather than registering a
-// second listener (the spec only allows one).
+// second listener (the spec only allows one). Built narrow — exactly the
+// three members WebxdcTransport picks — rather than `{ ...host, ... }`: a
+// spread copies `host.sendUpdate` etc. as plain properties, so WebxdcProvider
+// would later call them with `this` bound to the copy, not the host. Harmless
+// for every host implementation on hand (closures, not `this`-using methods),
+// but the host is injected by the messenger, not this codebase, so it isn't
+// this file's call to make.
 const transport = host && {
-  ...host,
+  sendUpdate: (
+    update: Parameters<typeof host.sendUpdate>[0],
+    description: "",
+  ) => host.sendUpdate(update, description),
+  sendUpdateInterval: host.sendUpdateInterval,
   setUpdateListener(
     cb: Parameters<typeof host.setUpdateListener>[0],
     serial?: number,
   ) {
-    return host.setUpdateListener(cb, serial).then(() => {
+    // `setUpdateListener`'s Promise return is a newer addition to the webxdc
+    // spec than most of this file already assumes elsewhere (canSendToChat,
+    // importFiles below) — Promise.resolve() tolerates a host that predates
+    // it and still returns nothing thenable. The .catch treats a rejection
+    // the same as "caught up": a stale flash once beats never rendering the
+    // app again over one bad promise.
+    const settle = (): void => {
       hydrated = true;
       notifyHydrated();
-    });
+    };
+    return Promise.resolve(host.setUpdateListener(cb, serial))
+      .then(settle)
+      .catch(settle);
   },
 };
 
