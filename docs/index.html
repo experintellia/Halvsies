@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Halvsies — split bills, then actually pay</title>
+    <meta
+      name="description"
+      content="A bill-splitting mini-app that lives inside your group chat. Track shared expenses, see who owes whom, and settle with payment links, IBAN details and QR codes. No accounts, no server."
+    />
+    <link rel="icon" href="icon.png" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f5f6;
+        --surface: #ffffff;
+        --text: #1a1d1e;
+        --dim: #5b6367;
+        --border: #dde1e2;
+        --accent: #0f766e;
+        --accent-contrast: #ffffff;
+        --accent-soft: #e2f1ef;
+        --radius: 14px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #101213;
+          --surface: #1b1e1f;
+          --text: #f0f2f2;
+          --dim: #a3abae;
+          --border: #2e3234;
+          --accent: #2bb3a3;
+          --accent-contrast: #062b27;
+          --accent-soft: #15302d;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.55 system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+        margin: 0 0 0.5em;
+      }
+      h2 {
+        font-size: clamp(1.6rem, 4vw, 2.2rem);
+        text-align: center;
+      }
+      .lede {
+        color: var(--dim);
+        text-align: center;
+        max-width: 40em;
+        margin: 0 auto 2.5rem;
+      }
+      section {
+        padding: 4.5rem 0;
+      }
+
+      /* hero */
+      header {
+        padding: 4rem 0 2rem;
+        text-align: center;
+      }
+      .logo {
+        width: 96px;
+        height: 96px;
+        border-radius: 22px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+      }
+      header h1 {
+        font-size: clamp(2.6rem, 8vw, 4rem);
+        margin: 1.25rem 0 0.25rem;
+        letter-spacing: -0.02em;
+      }
+      .tagline {
+        font-size: clamp(1.2rem, 3.2vw, 1.5rem);
+        color: var(--dim);
+        margin: 0 auto 2rem;
+        max-width: 32em;
+      }
+      .cta {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5em;
+        padding: 0.85em 1.5em;
+        border-radius: 999px;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid var(--border);
+        color: var(--text);
+        background: var(--surface);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-contrast);
+      }
+      .btn:hover {
+        filter: brightness(1.06);
+      }
+      .btn svg {
+        width: 1.2em;
+        height: 1.2em;
+      }
+      .fine {
+        font-size: 0.9rem;
+        color: var(--dim);
+        margin-top: 1rem;
+      }
+
+      /* phones */
+      .phones {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+        margin-top: 3.5rem;
+        padding-top: 24px;
+        overflow: hidden;
+      }
+      .phone {
+        flex: 0 1 260px;
+        min-width: 0;
+        margin: 0;
+        border: 8px solid #1a1d1e;
+        border-radius: 34px;
+        overflow: hidden;
+        aspect-ratio: 9 / 19;
+        background: #1a1d1e;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+      }
+      .phone img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top;
+      }
+      .phones .phone:nth-child(2) {
+        transform: translateY(-24px);
+      }
+      @media (max-width: 720px) {
+        .phones .phone:nth-child(n + 2) {
+          display: none;
+        }
+      }
+
+      /* features */
+      .features {
+        background: var(--surface);
+        border-block: 1px solid var(--border);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+      }
+      .card {
+        padding: 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg);
+      }
+      .card h3 {
+        font-size: 1.15rem;
+      }
+      .card p {
+        margin: 0;
+        color: var(--dim);
+      }
+      .icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        background: var(--accent-soft);
+        color: var(--accent);
+        margin-bottom: 1rem;
+      }
+      .icon svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      /* tour */
+      .tour {
+        display: grid;
+        gap: 4rem;
+      }
+      .step {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        gap: 48px;
+        align-items: center;
+      }
+      .step:nth-child(even) {
+        grid-template-columns: 1fr 260px;
+      }
+      .step:nth-child(even) .phone {
+        order: 2;
+      }
+      .step h3 {
+        font-size: 1.5rem;
+      }
+      .step p {
+        color: var(--dim);
+        margin: 0;
+      }
+      @media (max-width: 720px) {
+        .step,
+        .step:nth-child(even) {
+          grid-template-columns: 1fr;
+          gap: 24px;
+          text-align: center;
+        }
+        .step .phone {
+          order: 2 !important;
+          width: 240px;
+          margin: 0 auto;
+        }
+      }
+
+      /* messengers */
+      .apps {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+      }
+      .app {
+        display: block;
+        padding: 1.25rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        text-decoration: none;
+        color: var(--text);
+      }
+      .app:hover {
+        border-color: var(--accent);
+      }
+      .app strong {
+        display: block;
+        font-size: 1.1rem;
+      }
+      .app span {
+        color: var(--dim);
+        font-size: 0.92rem;
+      }
+      .how {
+        max-width: 40em;
+        margin: 3rem auto 0;
+        padding: 0;
+        counter-reset: s;
+        list-style: none;
+      }
+      .how strong {
+        display: block;
+        color: var(--text);
+      }
+      .how li {
+        counter-increment: s;
+        position: relative;
+        padding: 0 0 1.5rem 3rem;
+        color: var(--dim);
+      }
+      .how li::before {
+        content: counter(s);
+        position: absolute;
+        left: 0;
+        top: -0.1em;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--accent-contrast);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+      }
+
+      footer {
+        padding: 2.5rem 0 3rem;
+        text-align: center;
+        color: var(--dim);
+        font-size: 0.92rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="wrap">
+      <img class="logo" src="icon.png" alt="" width="96" height="96" />
+      <h1>Halvsies</h1>
+      <p class="tagline">
+        Split bills in your group chat — then actually pay. Every debt becomes a
+        payment link, an IBAN or a QR code, one tap away.
+      </p>
+      <div class="cta">
+        <a
+          class="btn primary"
+          href="https://github.com/experintellia/Halvsies/releases/latest/download/halvsies.xdc"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+          </svg>
+          Download halvsies.xdc
+        </a>
+        <a class="btn" href="https://github.com/experintellia/Halvsies/releases"
+          >All releases on GitHub</a
+        >
+      </div>
+      <p class="fine">
+        Free and open source (MIT). Runs inside a
+        <a href="#messengers">webxdc messenger</a> — no install, no account.
+      </p>
+
+      <div class="phones">
+        <figure class="phone">
+          <img
+            src="screenshots/expenses.png"
+            alt="A trip's expenses grouped by day, each showing who paid, the total and your share."
+          />
+        </figure>
+        <figure class="phone">
+          <img
+            src="screenshots/balances.png"
+            alt="Each member's net position and the few transfers that settle the group."
+          />
+        </figure>
+        <figure class="phone">
+          <img
+            src="screenshots/payup.png"
+            alt="Paying a debt: a note from the payee, then PayPal and bunq links with QR codes."
+          />
+        </figure>
+      </div>
+    </header>
+
+    <section class="features">
+      <div class="wrap">
+        <h2>Everything a shared trip needs</h2>
+        <p class="lede">
+          Halvsies is a tiny app you drop into a chat. Everyone in that chat
+          shares one ledger, synced end-to-end encrypted through the messenger
+          itself.
+        </p>
+        <div class="grid">
+          <div class="card">
+            <div class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="2" y="6" width="20" height="12" rx="2" />
+                <circle cx="12" cy="12" r="2" />
+                <path d="M6 12h.01M18 12h.01" />
+              </svg>
+            </div>
+            <h3>Pay in one tap</h3>
+            <p>
+              Amount-prefilled links for PayPal, Revolut, Wise, bunq, Monzo,
+              Venmo, Cash App, UPI and more — plus bank-transfer QR codes,
+              copyable IBAN details and crypto addresses.
+            </p>
+          </div>
+          <div class="card">
+            <div class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+              </svg>
+            </div>
+            <h3>Fewest transfers</h3>
+            <p>
+              Balances are simplified so the whole group settles up in as few
+              payments as possible.
+            </p>
+          </div>
+          <div class="card">
+            <div class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 3v18M3 12h18" />
+                <circle cx="12" cy="12" r="9" />
+              </svg>
+            </div>
+            <h3>Split it your way</h3>
+            <p>
+              Evenly, by shares (two people in a double room?), or by exact
+              amounts. Your own share shows on every expense.
+            </p>
+          </div>
+          <div class="card">
+            <div class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="4" y="11" width="16" height="10" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              </svg>
+            </div>
+            <h3>No accounts, no server</h3>
+            <p>
+              Nothing to sign up for and nothing leaves the chat. The ledger
+              travels as encrypted chat messages between the people in it.
+            </p>
+          </div>
+          <div class="card">
+            <div class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 12.55a11 11 0 0 1 14 0M8.5 16a6 6 0 0 1 7 0" />
+                <path d="M2 2l20 20M12 20h.01" />
+              </svg>
+            </div>
+            <h3>Works offline</h3>
+            <p>
+              Add expenses on the plane. Changes merge conflict-free when
+              everyone's back online.
+            </p>
+          </div>
+          <div class="card">
+            <div class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                />
+              </svg>
+            </div>
+            <h3>Lives in the chat</h3>
+            <p>
+              New expenses and settled debts are announced in the conversation,
+              so nobody has to ask "did you pay me yet?"
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>How it looks</h2>
+        <p class="lede">Real screenshots of the app, on a phone.</p>
+        <div class="tour">
+          <div class="step">
+            <figure class="phone">
+              <img
+                src="screenshots/shares.png"
+                alt="The expense editor with the split set to shares; one person has two shares."
+              />
+            </figure>
+            <div>
+              <h3>Add an expense in seconds</h3>
+              <p>
+                Who paid, how much, and who's in. Split evenly, by shares or by
+                exact amounts — Halvsies shows the per-person result as you go.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <figure class="phone">
+              <img
+                src="screenshots/balances.png"
+                alt="Each member's net position, then suggested transfers."
+              />
+            </figure>
+            <div>
+              <h3>See who owes whom</h3>
+              <p>
+                Everyone's net position at a glance, and a short list of
+                transfers that settles the whole group.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <figure class="phone">
+              <img
+                src="screenshots/payup.png"
+                alt="The pay-up sheet for one debt with PayPal and bunq options and QR codes."
+              />
+            </figure>
+            <div>
+              <h3>Settle without typing an IBAN</h3>
+              <p>
+                Tap a debt and pay: open the payee's PayPal or banking app with
+                the amount already filled in, scan a QR code, or copy the
+                details. Mark it paid and the chat hears about it.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <figure class="phone">
+              <img
+                src="screenshots/me.png"
+                alt="Your own payment methods and a preview of what a payer sees."
+              />
+            </figure>
+            <div>
+              <h3>Your details, your preferences</h3>
+              <p>
+                Add the ways you like to get paid, leave a note ("IBAN is
+                easiest for me"), and preview exactly what your friends will
+                see.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="messengers" class="features">
+      <div class="wrap">
+        <h2>Runs in your messenger</h2>
+        <p class="lede">
+          Halvsies is a <a href="https://webxdc.org/">webxdc</a> app: a small
+          <code>.xdc</code> file that any webxdc-capable messenger can run right
+          inside a chat — free, open source, no install. Pick one:
+        </p>
+        <div class="apps">
+          <a class="app" href="https://delta.chat/">
+            <strong>Delta Chat</strong>
+            <span>Android, iOS, Windows, macOS, Linux</span>
+          </a>
+          <a class="app" href="https://arcanechat.me/">
+            <strong>ArcaneChat</strong>
+            <span>Android, desktop</span>
+          </a>
+          <a
+            class="app"
+            href="https://open-store.io/app/deltatouch.lotharketterer"
+          >
+            <strong>DeltaTouch</strong>
+            <span>Ubuntu Touch</span>
+          </a>
+          <a class="app" href="https://cheogram.com/">
+            <strong>Cheogram</strong>
+            <span>Android · XMPP</span>
+          </a>
+          <a class="app" href="https://monocles.eu/">
+            <strong>monocles chat</strong>
+            <span>Android · XMPP</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="wrap">
+        <h2>How to use it</h2>
+        <p class="lede">From download to settled up in five steps.</p>
+        <ol class="how">
+          <li>
+            <strong>Get the app into your chat.</strong>
+            <a
+              href="https://github.com/experintellia/Halvsies/releases/latest/download/halvsies.xdc"
+              >Download <code>halvsies.xdc</code></a
+            >
+            and send it into your group chat like any file attachment.
+          </li>
+          <li>
+            <strong>Set up the group.</strong> The first person to open it names
+            the split ("Rome trip") and picks the currency.
+          </li>
+          <li>
+            <strong>Everyone taps it to join.</strong> Chat members join
+            automatically when they open the app, using their chat name. Friends
+            who aren't in the chat can be added by hand under Members.
+          </li>
+          <li>
+            <strong>Add expenses.</strong> Tap <em>+ Add expense</em>, enter
+            what and how much, who paid and who's in. Split evenly, by shares or
+            by exact amounts. The chat gets a short note for each one.
+          </li>
+          <li>
+            <strong>Settle up.</strong> The Balances tab shows the fewest
+            transfers that clear everything. Tap a debt to pay it with the
+            payee's preferred method, then <em>Mark as paid</em> — the balance
+            updates for everyone. Add your own payment details in the
+            <em>Me</em> tab so others can pay you the same way.
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <footer class="wrap">
+      <p>
+        Halvsies is open source under the MIT license ·
+        <a href="https://github.com/experintellia/Halvsies">Source on GitHub</a>
+        · <a href="https://webxdc.org/">About webxdc</a>
+      </p>
+      <p>
+        Payment details you add are visible to everyone in that chat. Halvsies
+        never moves money itself — it only opens your payment app.
+      </p>
+    </footer>
+  </body>
+</html>
