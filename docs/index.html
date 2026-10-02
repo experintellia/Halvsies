@@ -128,6 +128,10 @@
         width: 1.2em;
         height: 1.2em;
       }
+      .ver {
+        font-weight: 400;
+        opacity: 0.8;
+      }
       .fine {
         font-size: 0.9rem;
         color: var(--dim);
@@ -323,9 +327,10 @@
       <div class="cta">
         <a
           class="btn primary"
-          href="https://github.com/experintellia/Halvsies/releases/latest/download/halvsies.xdc"
+          href="https://github.com/experintellia/Halvsies/releases/download/v0.1.1/halvsies.xdc"
         >
           <svg
+            aria-hidden="true"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -337,6 +342,7 @@
             <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
           </svg>
           Download halvsies.xdc
+          <span class="ver">v0.1.1</span>
         </a>
         <a class="btn" href="https://github.com/experintellia/Halvsies/releases"
           >All releases on GitHub</a
@@ -363,7 +369,7 @@
         <figure class="phone">
           <img
             src="screenshots/payup.png"
-            alt="Paying a debt: a note from the payee, then PayPal and bunq links with QR codes."
+            alt="Paying a debt: a note from the payee, then a PayPal link with its QR code."
           />
         </figure>
       </div>
@@ -374,13 +380,14 @@
         <h2>Everything a shared trip needs</h2>
         <p class="lede">
           Halvsies is a tiny app you drop into a chat. Everyone in that chat
-          shares one ledger, synced end-to-end encrypted through the messenger
-          itself.
+          shares one ledger, synced through the messenger itself — end-to-end
+          encrypted wherever your chat is.
         </p>
         <div class="grid">
           <div class="card">
             <div class="icon">
               <svg
+                aria-hidden="true"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -395,14 +402,16 @@
             </div>
             <h3>Pay in one tap</h3>
             <p>
-              Amount-prefilled links for PayPal, Revolut, Wise, bunq, Monzo,
-              Venmo, Cash App, UPI and more — plus bank-transfer QR codes,
-              copyable IBAN details and crypto addresses.
+              Payment links for PayPal, bunq, Monzo, Cash App, UPI, Revolut,
+              Wise, Venmo and more — most with the amount already filled in.
+              Plus SEPA and Czech bank-transfer QR codes, copyable IBAN details
+              and crypto addresses.
             </p>
           </div>
           <div class="card">
             <div class="icon">
               <svg
+                aria-hidden="true"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -413,15 +422,16 @@
                 <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
               </svg>
             </div>
-            <h3>Fewest transfers</h3>
+            <h3>Few transfers</h3>
             <p>
-              Balances are simplified so the whole group settles up in as few
-              payments as possible.
+              Balances are simplified into a short list of payments that settles
+              the whole group.
             </p>
           </div>
           <div class="card">
             <div class="icon">
               <svg
+                aria-hidden="true"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -442,6 +452,7 @@
           <div class="card">
             <div class="icon">
               <svg
+                aria-hidden="true"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -456,12 +467,13 @@
             <h3>No accounts, no server</h3>
             <p>
               Nothing to sign up for and nothing leaves the chat. The ledger
-              travels as encrypted chat messages between the people in it.
+              travels as chat messages between the people in it.
             </p>
           </div>
           <div class="card">
             <div class="icon">
               <svg
+                aria-hidden="true"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -475,13 +487,14 @@
             </div>
             <h3>Works offline</h3>
             <p>
-              Add expenses on the plane. Changes merge conflict-free when
+              Add expenses on the plane. Changes merge automatically when
               everyone's back online.
             </p>
           </div>
           <div class="card">
             <div class="icon">
               <svg
+                aria-hidden="true"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -517,7 +530,7 @@
               />
             </figure>
             <div>
-              <h3>Add an expense in seconds</h3>
+              <h3>Split it however you like</h3>
               <p>
                 Who paid, how much, and who's in. Split evenly, by shares or by
                 exact amounts — Halvsies shows the per-person result as you go.
@@ -543,14 +556,14 @@
             <figure class="phone">
               <img
                 src="screenshots/payup.png"
-                alt="The pay-up sheet for one debt with PayPal and bunq options and QR codes."
+                alt="The pay-up sheet for one debt with a PayPal link and its QR code."
               />
             </figure>
             <div>
               <h3>Settle without typing an IBAN</h3>
               <p>
                 Tap a debt and pay: open the payee's PayPal or banking app with
-                the amount already filled in, scan a QR code, or copy the
+                the amount already filled in, scan a bank QR code, or copy the
                 details. Mark it paid and the chat hears about it.
               </p>
             </div>
@@ -619,7 +632,7 @@
           <li>
             <strong>Get the app into your chat.</strong>
             <a
-              href="https://github.com/experintellia/Halvsies/releases/latest/download/halvsies.xdc"
+              href="https://github.com/experintellia/Halvsies/releases/download/v0.1.1/halvsies.xdc"
               >Download <code>halvsies.xdc</code></a
             >
             and send it into your group chat like any file attachment.
@@ -631,7 +644,8 @@
           <li>
             <strong>Everyone taps it to join.</strong> Chat members join
             automatically when they open the app, using their chat name. Friends
-            who aren't in the chat can be added by hand under Members.
+            who aren't in the chat can be added by hand under Me → Group
+            settings → Members.
           </li>
           <li>
             <strong>Add expenses.</strong> Tap <em>+ Add expense</em>, enter
@@ -639,9 +653,9 @@
             by exact amounts. The chat gets a short note for each one.
           </li>
           <li>
-            <strong>Settle up.</strong> The Balances tab shows the fewest
-            transfers that clear everything. Tap a debt to pay it with the
-            payee's preferred method, then <em>Mark as paid</em> — the balance
+            <strong>Settle up.</strong> The Balances tab shows a short list of
+            transfers that clears everything. Tap a debt to pay it with the
+            payee's payment methods, then <em>Mark as paid</em> — the balance
             updates for everyone. Add your own payment details in the
             <em>Me</em> tab so others can pay you the same way.
           </li>

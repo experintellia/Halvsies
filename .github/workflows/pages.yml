@@ -1,0 +1,50 @@
+# Publish docs/ (the landing page) to GitHub Pages, with the download button
+# stamped to the newest release's halvsies.xdc. /releases/latest would be
+# simpler, but GitHub skips pre-releases there and ours are all pre-releases.
+#
+# Releases made by release.yml use GITHUB_TOKEN, which never fires a
+# `release` event — so this listens for that workflow finishing instead.
+# One-time setup: Settings → Pages → Source: "GitHub Actions".
+name: Pages
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/pages.yml"]
+  workflow_run:
+    workflows: ["Release .xdc"]
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stamp latest release into the download link
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
+          test -n "$TAG"
+          sed -i -E \
+            -e "s#releases/download/[^/\"]+/halvsies\.xdc#releases/download/$TAG/halvsies.xdc#g" \
+            -e "s#(<span class=\"ver\">)[^<]*#\1$TAG#g" \
+            docs/index.html
+          grep -q "releases/download/$TAG/halvsies.xdc" docs/index.html
+          echo "Download link → $TAG"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deploy
+        uses: actions/deploy-pages@v4
