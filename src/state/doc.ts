@@ -176,6 +176,8 @@ function parseProfileValue(v: unknown, label: string): PaymentProfile {
     cashtag: str(v.cashtag),
     upiVpa: str(v.upiVpa),
     note: str(v.note),
+    // Only ever compared against method ids, never rendered or followed.
+    preferred: str(v.preferred),
   };
 
   // Crypto is an object, so it needs its own shape check. The address is

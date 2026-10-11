@@ -3,8 +3,11 @@
 // the same data (which, per Balances.tsx, is only ever opened this way when
 // the viewer IS the creditor, so "the creditor's methods" and "your own
 // methods" are the same lookup — see the comment above `profile` below).
+//
+// One method at a time: a segmented switcher picks it, and only that method's
+// QR and details are shown, so the sheet stays about a screen tall however
+// many methods the creditor has. It opens on the creditor's preferred method.
 import { useRef, useState } from "preact/hooks";
-import type { ComponentChildren, JSX } from "preact";
 import {
   addSettlement,
   canSendToChat,
@@ -14,7 +17,7 @@ import {
   now,
 } from "../state/doc";
 import { newId, formatMoney, type Transfer } from "../state/model";
-import { paymentMethodsFor } from "../pay/links";
+import { paymentMethodsFor, type PayMethod } from "../pay/links";
 import { epcReference } from "../pay/epcqr";
 import { bankQr } from "../pay/bankqr";
 import { formatIban, isValidIban } from "../pay/iban";
@@ -22,12 +25,20 @@ import { Sheet } from "./components/Sheet";
 import { CopyButton } from "./components/CopyButton";
 import { CopyField } from "./components/CopyField";
 import { QR } from "./components/QR";
+import { Avatar } from "./components/Avatar";
+import { Icon, type IconName } from "./components/Icon";
+import { TapButton } from "./components/TapButton";
 
 export interface PayUpSheetProps {
   transfer: Transfer;
   direction: "pay" | "request";
   open: boolean;
   onClose: () => void;
+  /**
+   * The Me tab's "See what payers see": the payer's view of a sample debt to
+   * the local user. Nothing can be recorded or sent from it.
+   */
+  preview?: boolean;
 }
 
 function selfAddr(): string | undefined {
@@ -42,80 +53,36 @@ function sendToChat(text: string): void {
   });
 }
 
-// Small local tap-handling helper (Row.tsx's armed/drag-cancel dance is for
-// scrollable list rows; a plain action button only needs the simpler
-// onPointerUp + e.detail===0 pair CopyButton.tsx already uses).
-function TapButton({
-  onActivate,
-  children,
-  ...rest
-}: {
-  onActivate: () => void;
-  children: ComponentChildren;
-} & Omit<
-  JSX.HTMLAttributes<HTMLButtonElement>,
-  "onClick" | "onPointerUp" | "children"
->) {
-  return (
-    <button
-      type="button"
-      onPointerUp={onActivate}
-      onClick={(e) => {
-        if (e.detail === 0) onActivate();
-      }}
-      {...rest}
-    >
-      {children}
-    </button>
-  );
-}
+/** One entry in the method switcher. */
+type Option =
+  | {
+      id: string;
+      kind: "link";
+      label: string;
+      icon: IconName;
+      method: PayMethod;
+    }
+  | {
+      id: string;
+      kind: "address";
+      label: string;
+      icon: IconName;
+      address: string;
+    }
+  | { id: string; kind: "bank"; label: string; icon: IconName };
 
-// Plan.md §5 M2: many devices have no handler registered for `bitcoin:`/
-// `ethereum:`/`monero:`, so tapping the link can silently do nothing — the
-// raw address is always shown in full with its own copy button, never the
-// link alone. No crypto amount is ever emitted: the ledger is fiat and this
-// app has no exchange rates, so the fiat debt is shown as text instead.
-function CryptoAddress({
-  address,
-  amount,
-}: {
-  address: string;
-  amount: string;
-}) {
-  return (
-    <>
-      {/* Same shape as the bank details: a value to be transcribed gets a
-          full-width readable field and its own copy button. */}
-      <label className="field">
-        <span className="field-label">Address</span>
-        <span className="field-row">
-          <input
-            className="copy-input"
-            type="text"
-            readOnly
-            value={address}
-            onFocus={(e) => (e.currentTarget as HTMLInputElement).select()}
-          />
-          <CopyButton value={address} label="Copy address" />
-        </span>
-      </label>
-      <p className="field-suffix">
-        Send the equivalent of <span className="money">{amount}</span> — the
-        amount is not embedded in the address; the paying wallet converts it at
-        pay time.
-      </p>
-    </>
-  );
-}
+const QR_SIZE = 136;
 
 export function PayUpSheet({
   transfer,
   direction,
   open,
   onClose,
+  preview = false,
 }: PayUpSheetProps) {
   const [usedMethod, setUsedMethod] = useState<string | undefined>(undefined);
   const [confirming, setConfirming] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 
   const self = selfAddr();
 
@@ -128,6 +95,7 @@ export function PayUpSheet({
     lastKey.current = key;
     setUsedMethod(undefined);
     setConfirming(false);
+    setSelectedId(undefined);
   }
   const settings = getSettings();
   const currency = settings.groupCurrency;
@@ -137,15 +105,17 @@ export function PayUpSheet({
   const creditor = getMember(transfer.toId);
   const debtorName =
     transfer.fromId === self ? "You" : debtor?.name || "Someone";
+  // The preview is the payer's screen, so it names you the way they see you.
   const creditorName =
-    transfer.toId === self ? "You" : creditor?.name || "Someone";
+    transfer.toId === self && !preview ? "You" : creditor?.name || "Someone";
 
-  const headerText =
-    transfer.fromId === self
-      ? `You owe ${creditorName} ${amount}`
+  const title = preview
+    ? "What payers see"
+    : transfer.fromId === self
+      ? `You owe ${creditorName}`
       : transfer.toId === self
-        ? `${debtorName} owes you ${amount}`
-        : `${debtorName} owes ${creditorName} ${amount}`;
+        ? `${debtorName} owes you`
+        : `${debtorName} owes ${creditorName}`;
 
   // ponytail: whoever is owed money (toId) is always the one whose payment
   // details are shown — in the two cases the task actually specifies (you
@@ -174,7 +144,7 @@ export function PayUpSheet({
 
   // network "other" (or none) has no URI scheme, so cryptoLink() deliberately
   // returns null and no crypto method is in the list — the address is still
-  // the whole point of having filled it in, so it gets its own block below.
+  // the whole point of having filled it in, so it gets its own option.
   const crypto = profile.crypto;
   const cryptoAddressOnly =
     crypto?.address.trim() && !methods.some((m) => m.kind === "crypto")
@@ -199,24 +169,42 @@ export function PayUpSheet({
     profile.bic ? `, BIC ${profile.bic}` : ""
   }, ref: ${reference}`;
 
-  const introText =
-    direction === "pay"
-      ? `Pay ${creditorName} using:`
-      : transfer.toId === self
-        ? `Share your payment details with ${debtorName}:`
-        : `${creditorName}'s payment details:`;
+  const options: Option[] = methods.map((m) => ({
+    id: m.id,
+    kind: "link",
+    label: m.label,
+    icon: m.kind === "crypto" ? "wallet" : "link",
+    method: m,
+  }));
+  if (cryptoAddressOnly) {
+    options.push({
+      id: "crypto",
+      kind: "address",
+      label: cryptoAddressOnly.label.trim() || "Crypto",
+      icon: "wallet",
+      address: cryptoAddressOnly.address.trim(),
+    });
+  }
+  if (hasIban) {
+    options.push({ id: "bank", kind: "bank", label: "Bank", icon: "landmark" });
+  }
+  // The payee's pick goes first and is what the sheet opens on; the rest keep
+  // their fixed order, so every peer sees the same switcher.
+  const preferredIdx = options.findIndex((o) => o.id === profile.preferred);
+  if (preferredIdx > 0) options.unshift(...options.splice(preferredIdx, 1));
+  const selected = options.find((o) => o.id === selectedId) ?? options[0];
+  const isPreferred =
+    selected !== undefined && selected.id === profile.preferred;
 
   // Recording a settlement is a money claim every peer sees. Only a party to
   // the transfer may make it: otherwise tapping "Bob owes Carol €20" in a
   // 4-person group would let an uninvolved member clear a debt they know
   // nothing about, attributed to them in the chat info line.
-  const isParty = transfer.fromId === self || transfer.toId === self;
+  const isParty =
+    !preview && (transfer.fromId === self || transfer.toId === self);
 
-  // The two directions post opposite things, and they do not belong in the
-  // same place. Announcing a payment is method-specific — you paid by *one* of
-  // these — so it stays inside the card. Asking for money is not: the debtor
-  // should get every way to pay in one message and pick, so the ask is a single
-  // action beside "Mark as received" rather than one button per card.
+  // Asking for money is not method-specific: the debtor should get every way
+  // to pay in one message and pick.
   const askText = (): string => {
     const ways = methods.map((m) => `${m.label}: ${m.url}`);
     if (cryptoAddressOnly) {
@@ -229,6 +217,27 @@ export function PayUpSheet({
     // No payment details on file is not a reason to withhold the nudge.
     return ways.length ? `${ask}:\n${ways.join("\n")}` : `${ask}.`;
   };
+
+  // Announcing a payment is: you are paying by the method on screen.
+  function tellTheChat(): void {
+    if (!selected) return;
+    if (selected.kind === "link") {
+      setUsedMethod(selected.label);
+      sendToChat(
+        `Paying ${creditorName} ${amount} now — ${selected.method.url}`,
+      );
+    } else if (selected.kind === "address") {
+      setUsedMethod(selected.label);
+      sendToChat(
+        `Paying ${creditorName} ${amount} now — ${selected.label}: ${selected.address}`,
+      );
+    } else {
+      setUsedMethod("Bank transfer");
+      sendToChat(
+        `Paying ${creditorName} ${amount} by bank transfer — ${bankLine}`,
+      );
+    }
+  }
 
   function record(): void {
     if (!isParty) return;
@@ -244,143 +253,181 @@ export function PayUpSheet({
     onClose();
   }
 
+  const nothingOnFile = options.length === 0 && !profile.note;
+
   return (
-    <Sheet open={open} onClose={onClose} title={headerText}>
+    <Sheet open={open} onClose={onClose} title={title}>
+      <p className="sheet-amount money">{amount}</p>
+
       {/* The creditor's own instructions come first — they may override which
           method to use ("IBAN please, PayPal charges me a fee"), so showing
-          them after the buttons would be showing them too late. */}
+          them after the methods would be showing them too late. */}
       {profile.note && (
-        <p className="payee-note">
-          <strong>
-            {direction === "pay" ? `${creditorName} says:` : "Your note:"}
-          </strong>{" "}
-          {profile.note}
-        </p>
-      )}
-
-      {methods.length === 0 &&
-        !hasIban &&
-        !profile.note &&
-        !cryptoAddressOnly && (
-          <p className="placeholder">
-            {direction === "pay"
-              ? `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to fill in their profile in the Me tab.`
-              : "Add your payment details in the Me tab so this is a one-tap payment next time."}
-          </p>
-        )}
-
-      {methods.length > 0 && (
-        <>
-          <p>{introText}</p>
-          {methods.map((m) => (
-            <div className="row row-block" key={m.id}>
-              <p>
-                <strong>{m.label}</strong>
-                {!m.amountPrefilled && (
-                  <span className="field-suffix"> — amount not pre-filled</span>
-                )}
-              </p>
-              {m.rawAddress && (
-                <CryptoAddress address={m.rawAddress} amount={amount} />
-              )}
-              <div className="field-row">
-                <a
-                  className="btn btn-primary"
-                  href={m.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onPointerUp={() => setUsedMethod(m.label)}
-                >
-                  Open {m.label}
-                </a>
-                <CopyButton value={m.url} label="Copy link" />
-              </div>
-              {canSendToChat && direction === "pay" && (
-                <div className="field-row">
-                  <TapButton
-                    className="btn btn-secondary"
-                    onActivate={() => {
-                      setUsedMethod(m.label);
-                      sendToChat(
-                        `Paying ${creditorName} ${amount} now — ${m.url}`,
-                      );
-                    }}
-                  >
-                    I'm paying now
-                  </TapButton>
-                </div>
-              )}
-              {/* Every method's code is up front, exactly like the bank
-                  transfer below. A QR behind a "Show QR" tap was one rule for
-                  bank details and another for everything else, and the payer
-                  reaching for a second device has no way to know a code exists
-                  before tapping. */}
-              <QR payload={m.url} />
-              {m.caveat && <p className="field-suffix">{m.caveat}</p>}
-            </div>
-          ))}
-        </>
-      )}
-
-      {cryptoAddressOnly && (
-        <div className="row row-block">
-          <p>
-            <strong>{cryptoAddressOnly.label.trim() || "Crypto"}</strong>
-            <span className="field-suffix">
-              {" "}
-              — address only, no payment link
-            </span>
-          </p>
-          <CryptoAddress
-            address={cryptoAddressOnly.address.trim()}
-            amount={amount}
+        <div className="payee-note">
+          <Avatar
+            member={creditor ?? { id: transfer.toId, name: creditorName }}
+            size={24}
           />
-          <QR payload={cryptoAddressOnly.address.trim()} />
+          <p>
+            <strong>
+              {direction === "pay" || preview ? creditorName : "Your note"}
+            </strong>
+            {profile.note}
+          </p>
         </div>
       )}
 
-      {hasIban && (
-        <div className="row row-block">
-          <p>
-            <strong>Bank transfer</strong>
-          </p>
-          {qr.ok ? (
-            <>
-              <QR payload={qr.payload} />
-              <p>{qr.hint}</p>
-            </>
-          ) : (
-            <p className="field-suffix">
-              No scannable code for this debt: {qr.reason}. Only the code is
-              missing — the details below work for a transfer in{" "}
-              {currency.trim().toUpperCase()}.
+      {nothingOnFile && (
+        <p className="placeholder">
+          {preview
+            ? "Payers see nothing here yet. Add a payment method first."
+            : direction === "pay"
+              ? `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to fill in their profile in the Me tab.`
+              : "Add your payment details in the Me tab so this is a one-tap payment next time."}
+        </p>
+      )}
+
+      {options.length > 1 && (
+        <div
+          className="method-switch"
+          role="tablist"
+          aria-label="Payment method"
+        >
+          {options.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              role="tab"
+              className="method-tab"
+              aria-selected={o === selected ? "true" : "false"}
+              onPointerUp={() => setSelectedId(o.id)}
+              onClick={(e) => {
+                if (e.detail === 0) setSelectedId(o.id);
+              }}
+            >
+              <Icon name={o.icon} size={16} />
+              <span>{o.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* A lone method gets no switcher, so it needs its name said once. */}
+      {options.length === 1 && selected && (
+        <h3 className="method-heading">
+          <span className="method-icon">
+            <Icon name={selected.icon} size={20} />
+          </span>
+          {selected.kind === "bank" ? "Bank transfer" : selected.label}
+        </h3>
+      )}
+
+      {selected && (
+        <div role={options.length > 1 ? "tabpanel" : undefined}>
+          {isPreferred && (
+            <p className="preferred-line">
+              <Icon name="circle-check" size={16} />
+              {creditorName === "You"
+                ? "Your preferred way to be paid"
+                : `${creditorName}'s preferred way to be paid`}
             </p>
           )}
-          {/* Every one of these is a value the payer has to retype into a
-              banking app, so each gets the same shape: full-width, readable,
-              its own copy button. */}
-          <CopyField label="Account holder" value={payeeName} />
-          <CopyField label="IBAN" value={formattedIban} />
-          {profile.bic && <CopyField label="BIC" value={profile.bic} />}
-          <CopyField
-            label="Reference"
-            value={reference}
-            copyName="payment reference"
-          />
-          {canSendToChat && direction === "pay" && (
-            <div className="field-row">
-              <TapButton
-                className="btn btn-secondary"
-                onActivate={() => {
-                  setUsedMethod("Bank transfer");
-                  sendToChat(
-                    `Paying ${creditorName} ${amount} by bank transfer — ${bankLine}`,
-                  );
-                }}
-              >
-                I'm paying now
-              </TapButton>
-            </div>
+
+          {selected.kind === "link" && (
+            <>
+              <div className="qr-row">
+                <QR payload={selected.method.url} size={QR_SIZE} />
+                <p className="qr-caption">
+                  <strong>
+                    {selected.method.amountPrefilled
+                      ? `${amount} is filled in`
+                      : `Type in ${amount} yourself`}
+                  </strong>
+                  <span>
+                    Scan it from another phone, or open {selected.label} here.
+                  </span>
+                </p>
+              </div>
+              {/* Plan.md §5 M2: many devices have no handler for `bitcoin:`/
+                  `ethereum:`/`monero:`, so the raw address is always shown in
+                  full with its own copy button, never the link alone. */}
+              {selected.method.rawAddress && (
+                <CryptoAddress
+                  address={selected.method.rawAddress}
+                  amount={amount}
+                />
+              )}
+              <div className="open-row">
+                <a
+                  className="btn btn-primary"
+                  href={selected.method.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onPointerUp={() => setUsedMethod(selected.label)}
+                >
+                  Open {selected.label}
+                  <Icon name="arrow-right" size={18} />
+                </a>
+                <CopyButton
+                  value={selected.method.url}
+                  icon
+                  ariaLabel={`Copy ${selected.label} link`}
+                />
+              </div>
+              {selected.method.caveat && (
+                <p className="field-suffix">{selected.method.caveat}</p>
+              )}
+            </>
+          )}
+
+          {selected.kind === "address" && (
+            <>
+              <div className="qr-row">
+                <QR payload={selected.address} size={QR_SIZE} />
+                <p className="qr-caption">
+                  <strong>{selected.label}</strong>
+                  <span>
+                    Address only: there's no payment link for this network.
+                  </span>
+                </p>
+              </div>
+              <CryptoAddress address={selected.address} amount={amount} />
+            </>
+          )}
+
+          {selected.kind === "bank" && (
+            <>
+              {qr.ok ? (
+                <div className="qr-row">
+                  <QR payload={qr.payload} size={QR_SIZE} />
+                  <p className="qr-caption">
+                    <strong>{qr.hint}</strong>
+                    <span>
+                      IBAN, amount and reference fill in by themselves.
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                <p className="field-suffix">
+                  No scannable code for this debt: {qr.reason}. Only the code is
+                  missing — the details below work for a transfer in{" "}
+                  {currency.trim().toUpperCase()}.
+                </p>
+              )}
+              {/* Every one of these is a value the payer has to retype into a
+                  banking app, so each gets the same shape: readable, its own
+                  copy button. */}
+              <div className="copy-list">
+                <CopyField label="Account holder" value={payeeName} />
+                <CopyField label="IBAN" value={formattedIban} />
+                {profile.bic && <CopyField label="BIC" value={profile.bic} />}
+                <CopyField
+                  label="Reference"
+                  value={reference}
+                  copyName="payment reference"
+                />
+              </div>
+            </>
           )}
         </div>
       )}
@@ -389,48 +436,83 @@ export function PayUpSheet({
           webxdc hosts ship a WebView with no JS-dialog handler, where confirm()
           returns false instantly and the settlement would silently never be
           recorded. */}
-      {!isParty ? (
-        <p className="field-suffix">
-          Only {debtorName} or {creditorName} can record this payment.
-        </p>
-      ) : confirming ? (
-        <>
-          <p>
-            {direction === "pay"
-              ? `Record that you paid ${creditorName} ${amount}?`
-              : `Record that ${debtorName} paid you ${amount}?`}{" "}
-            Everyone in this chat will see it.
+      <div className="sheet-actions wrap">
+        {preview ? (
+          <p className="field-suffix">
+            A sample {amount} debt. Nothing here is recorded or sent.
           </p>
-          <div className="field-row">
-            <TapButton className="btn btn-primary" onActivate={record}>
-              Yes, record it
-            </TapButton>
+        ) : !isParty ? (
+          <p className="field-suffix">
+            Only {debtorName} or {creditorName} can record this payment.
+          </p>
+        ) : confirming ? (
+          <>
+            <p>
+              {direction === "pay"
+                ? `Record that you paid ${creditorName} ${amount}?`
+                : `Record that ${debtorName} paid you ${amount}?`}{" "}
+              Everyone in this chat will see it.
+            </p>
             <TapButton
               className="btn btn-secondary"
               onActivate={() => setConfirming(false)}
             >
               Cancel
             </TapButton>
-          </div>
-        </>
-      ) : (
-        <div className="field-row">
-          <TapButton
-            className="btn btn-primary"
-            onActivate={() => setConfirming(true)}
-          >
-            {direction === "pay" ? "Mark as paid" : "Mark as received"}
-          </TapButton>
-          {direction === "request" && canSendToChat && (
-            <TapButton
-              className="btn btn-secondary"
-              onActivate={() => sendToChat(askText())}
-            >
-              Ask for the money
+            <TapButton className="btn btn-primary" onActivate={record}>
+              Yes, record it
             </TapButton>
-          )}
-        </div>
-      )}
+          </>
+        ) : (
+          <>
+            {canSendToChat && direction === "pay" && selected && (
+              <TapButton className="btn btn-secondary" onActivate={tellTheChat}>
+                <Icon name="send" size={18} />
+                Tell the chat
+              </TapButton>
+            )}
+            {canSendToChat && direction === "request" && (
+              <TapButton
+                className="btn btn-secondary"
+                onActivate={() => sendToChat(askText())}
+              >
+                <Icon name="send" size={18} />
+                Ask for the money
+              </TapButton>
+            )}
+            <TapButton
+              className="btn btn-primary"
+              onActivate={() => setConfirming(true)}
+            >
+              <Icon name="check" size={18} />
+              {direction === "pay" ? "Mark as paid" : "Mark as received"}
+            </TapButton>
+          </>
+        )}
+      </div>
     </Sheet>
+  );
+}
+
+// No crypto amount is ever emitted: the ledger is fiat and this app has no
+// exchange rates, so the fiat debt is shown as text instead.
+function CryptoAddress({
+  address,
+  amount,
+}: {
+  address: string;
+  amount: string;
+}) {
+  return (
+    <>
+      <div className="copy-list">
+        <CopyField label="Address" value={address} copyName="address" />
+      </div>
+      <p className="field-suffix">
+        Send the equivalent of <span className="money">{amount}</span> — the
+        amount is not embedded in the address; the paying wallet converts it at
+        pay time.
+      </p>
+    </>
   );
 }

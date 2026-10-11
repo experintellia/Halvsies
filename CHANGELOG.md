@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- A design pass over every screen (#1): a calmer palette with more than two
+  steps, a real type and spacing scale, grouped lists instead of a card per
+  row, icons used as a language rather than only in the tab bar, and designed
+  empty states. Light and dark both.
+- Group settings moved off the Me tab. Tap the group name, or the gear next to
+  it, at the top of any tab.
+- The Me tab is one row per payment method, each saying what a payer gets
+  ("Fills in amount", "QR code"). Remove lives in the method's edit view, so
+  the tab carries no red buttons. The second list of raw URLs is gone: "See
+  what payers see" opens the real pay-up sheet for a sample €10 debt.
+- The pay-up sheet shows one method at a time behind a switcher, with the
+  payee's note on top as a chat bubble and the amount in large type.
+- Balances leads with what you owe (or are owed) and one button to settle it.
+  Everyone's net position is a diverging bar list, so it no longer looks like
+  the tappable transfers below it.
+- Expenses opens with what the group spent and your share, each day shows its
+  total, and every expense carries a bar scaled to its size.
+
+### Added
+
+- A preferred payment method. Tick it in a method's edit view and the pay-up
+  sheet opens on it, lists it first and says so. Stored as an optional
+  `preferred` field on the profile; older peers ignore it.
+
 ## [0.1.1] — 2026-08-02
 
 ### Fixed

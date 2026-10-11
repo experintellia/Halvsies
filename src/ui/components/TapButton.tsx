@@ -8,6 +8,8 @@ export interface TapButtonProps {
   onActivate: () => void;
   className: string;
   disabled?: boolean;
+  /** For icon-only buttons, which have no visible text to name them. */
+  ariaLabel?: string;
   children: ComponentChildren;
 }
 
@@ -15,6 +17,7 @@ export function TapButton({
   onActivate,
   className,
   disabled,
+  ariaLabel,
   children,
 }: TapButtonProps) {
   return (
@@ -22,6 +25,7 @@ export function TapButton({
       type="button"
       className={className}
       disabled={disabled}
+      aria-label={ariaLabel}
       onPointerUp={() => {
         if (!disabled) onActivate();
       }}

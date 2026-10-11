@@ -195,7 +195,7 @@ describe("send to chat", () => {
       dom,
     );
 
-    tap(buttons("I'm paying now")[0]);
+    tap(buttons("Tell the chat")[0]);
     expect(webxdc.chat).toHaveLength(1);
     expect(webxdc.chat[0].text).toContain("https://paypal.me/anna/23.50EUR");
   });
@@ -214,8 +214,11 @@ describe("send to chat", () => {
       dom,
     );
 
-    expect(buttons("I'm paying now")).toHaveLength(0);
-    expect(buttons("Copy link")).toHaveLength(1); // the alternative is there
+    expect(buttons("Tell the chat")).toHaveLength(0);
+    // the alternative is there
+    expect(
+      dom.querySelectorAll('button[aria-label="Copy PayPal link"]'),
+    ).toHaveLength(1);
   });
 
   // Announcing a payment is method-specific; asking for one is not. The debtor
@@ -239,8 +242,8 @@ describe("send to chat", () => {
       dom,
     );
 
-    // One ask, and no per-card send button competing with it.
-    expect(buttons("I'm paying now")).toHaveLength(0);
+    // One ask, and no "I'm paying" announcement competing with it.
+    expect(buttons("Tell the chat")).toHaveLength(0);
     const ask = buttons("Ask for the money");
     expect(ask).toHaveLength(1);
 

@@ -1,11 +1,11 @@
 // Everything about the *group* rather than about you: the currency all money
 // is denominated in, the group's name, who is in the split, and backup/restore.
-// It used to sit on top of the Me tab, mixed in with your own payment details —
-// which is the one thing on that screen nobody else can edit.
+// It used to sit on the Me tab, mixed in with your own payment details — which
+// is the one thing on that screen nobody else can edit.
 //
 // Two screens over the same two settings live here: the sub-page you reach from
-// the Me tab, and the first-run screen that asks for them before the app is
-// usable at all.
+// the group name in the header, and the first-run screen that asks for them
+// before the app is usable at all.
 import { useState } from "preact/hooks";
 import {
   canSendToChat,
@@ -114,8 +114,8 @@ export function FirstRunSetup({ open }: { open: boolean }) {
   return (
     <SubPage open={open} title="Set up this split">
       <p>
-        Two things before you start. Both can be changed later under Group
-        settings on the Me tab.
+        Two things before you start. You can change both later: tap the group
+        name at the top.
       </p>
 
       <CurrencyField

@@ -106,31 +106,31 @@ These were manual items until 2026-08-01. They are automated now; the mapping is
 recorded so that if one of these tests is ever deleted, it is obvious which
 manual check has to come back.
 
-| Was                             | Now covered by                                                   |
-| ------------------------------- | ---------------------------------------------------------------- |
-| A1 late joiner                  | `A1 — a late joiner replays every expense…` (convergence)        |
-| A2 self-registration idempotent | `A2 — registers the local user exactly once…` (host)             |
-| A3 concurrent add               | `A3 — concurrent adds on two peers all survive…` (convergence)   |
-| A4 concurrent edit converges    | `agrees on one value when both peers edit…` (convergence)        |
-| A5 offline merge                | `A5 — a peer that was closed catches up…` (convergence)          |
-| A6 remainder determinism        | `A6 — the extra cent of €10.00 between three…` (convergence)     |
-| A7 settlement zeroes a debt     | `A7 — a settlement covering a suggested transfer…` (convergence) |
-| B1–B3 chat info lines           | `B1` / `B2` / `B3` (convergence + host)                          |
-| C1 profile visibility           | `C1 — a profile filled in on one peer…` (convergence)            |
-| C2 preview matches reality      | `C2 — the "what others see" preview lists exactly…` (render)     |
-| C4 EPC is EUR-only              | `C4 — the bank transfer block is EUR-only…` (render)             |
-| C5 PayPal amount pre-filled     | `C5 — the PayPal link carries the amount…` (render)              |
-| C6 Monzo gating                 | `C6 — Monzo is offered for £23.50 only…` (render)                |
-| C8 send-to-chat feature gate    | `C8 — offers no Send-to-chat button…` (host)                     |
-| C9 request direction            | `C9 — a debt owed to you shows your own details…` (render)       |
-| C10 third-party rows read-only  | `C10 — a debt between two other members is read-only` (render)   |
-| CA1 currency gating             | `describe("currency gates")` (links)                             |
-| CA2 crypto carries no amount    | `never embeds an amount, in any network` (links)                 |
-| CA4 currency warning pill       | `CA4 — pills bunq, Cash App, UPI and Monzo in CHF…` (render)     |
-| CM1–CM4 members                 | `CM1`…`CM4` (convergence + render + host + members)              |
-| E1–E5 import/export             | round trip, E2 negative amount, E4 profile-only, E5 by shape     |
-| F1 size budget                  | `scripts/audit-bundle.mjs` — fails the build                     |
-| F2 no network in the bundle     | `scripts/audit-bundle.mjs` — fails the build                     |
+| Was                             | Now covered by                                                     |
+| ------------------------------- | ------------------------------------------------------------------ |
+| A1 late joiner                  | `A1 — a late joiner replays every expense…` (convergence)          |
+| A2 self-registration idempotent | `A2 — registers the local user exactly once…` (host)               |
+| A3 concurrent add               | `A3 — concurrent adds on two peers all survive…` (convergence)     |
+| A4 concurrent edit converges    | `agrees on one value when both peers edit…` (convergence)          |
+| A5 offline merge                | `A5 — a peer that was closed catches up…` (convergence)            |
+| A6 remainder determinism        | `A6 — the extra cent of €10.00 between three…` (convergence)       |
+| A7 settlement zeroes a debt     | `A7 — a settlement covering a suggested transfer…` (convergence)   |
+| B1–B3 chat info lines           | `B1` / `B2` / `B3` (convergence + host)                            |
+| C1 profile visibility           | `C1 — a profile filled in on one peer…` (convergence)              |
+| C2 preview matches reality      | `C2 — 'See what payers see' opens the payer's own sheet…` (render) |
+| C4 EPC is EUR-only              | `C4 — the bank transfer block is EUR-only…` (render)               |
+| C5 PayPal amount pre-filled     | `C5 — the PayPal link carries the amount…` (render)                |
+| C6 Monzo gating                 | `C6 — Monzo is offered for £23.50 only…` (render)                  |
+| C8 send-to-chat feature gate    | `C8 — offers no Send-to-chat button…` (host)                       |
+| C9 request direction            | `C9 — a debt owed to you shows your own details…` (render)         |
+| C10 third-party rows read-only  | `C10 — a debt between two other members is read-only` (render)     |
+| CA1 currency gating             | `describe("currency gates")` (links)                               |
+| CA2 crypto carries no amount    | `never embeds an amount, in any network` (links)                   |
+| CA4 currency warning pill       | `CA4 — pills bunq, Cash App, UPI and Monzo in CHF…` (render)       |
+| CM1–CM4 members                 | `CM1`…`CM4` (convergence + render + host + members)                |
+| E1–E5 import/export             | round trip, E2 negative amount, E4 profile-only, E5 by shape       |
+| F1 size budget                  | `scripts/audit-bundle.mjs` — fails the build                       |
+| F2 no network in the bundle     | `scripts/audit-bundle.mjs` — fails the build                       |
 
 Two known gaps in the automated coverage, for honesty:
 

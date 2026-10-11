@@ -3,6 +3,10 @@
 // test link at the end so you can prove the handle works before anyone tries
 // to pay you.
 //
+// Opened on a saved method, the same sheet is that method's edit view: the
+// live preview, a "preferred" switch, and Remove as the last, quietest action
+// (the Me tab itself carries no destructive buttons at all).
+//
 // It writes nothing itself: it hands a finished PaymentProfile patch back to
 // ProfileForm, which owns persistence.
 import { useState } from "preact/hooks";
@@ -11,7 +15,7 @@ import type {
   CustomPaymentMethod,
   PaymentProfile,
 } from "../state/model";
-import { newId } from "../state/model";
+import { formatMoney, newId } from "../state/model";
 import { now } from "../state/doc";
 import {
   CRYPTO_NETWORKS,
@@ -36,6 +40,7 @@ import {
 } from "../pay/iban";
 import { Sheet } from "./components/Sheet";
 import { CopyButton } from "./components/CopyButton";
+import { Icon } from "./components/Icon";
 
 /** What the wizard is currently editing. `null` = still on the picker step. */
 export type WizardTarget =
@@ -57,6 +62,29 @@ export interface PaymentMethodWizardProps {
   previewCents: number;
   currency: string;
   reference: string;
+}
+
+/** The id `PaymentProfile.preferred` stores for this method; undefined for a
+ *  custom link that has not been saved yet (it gets its id in save()). */
+function methodIdOf(t: WizardTarget): string | undefined {
+  if (t.kind === "provider") return providerFor(t.field).kind;
+  if (t.kind === "custom") return t.id ? `custom:${t.id}` : undefined;
+  return t.kind; // "bank" | "crypto"
+}
+
+/** `profile` with `id`'s preferred flag set to `on`, leaving any other
+ *  method's flag alone. */
+function withPreferred(
+  profile: PaymentProfile,
+  id: string,
+  on: boolean,
+): PaymentProfile {
+  const preferred = on
+    ? id
+    : profile.preferred === id
+      ? undefined
+      : profile.preferred;
+  return { ...profile, preferred };
 }
 
 function textValue(e: Event): string {
@@ -108,6 +136,7 @@ export function PaymentMethodWizard({
   const [bic, setBic] = useState("");
   const [label, setLabel] = useState("");
   const [network, setNetwork] = useState<CryptoNetwork>("bitcoin");
+  const [preferred, setPreferred] = useState(false);
 
   // Re-seed whenever the sheet is (re)opened, so a previous run's half-typed
   // handle never leaks into the next one. Sheet stays mounted while closed.
@@ -140,6 +169,8 @@ export function PaymentMethodWizard({
           : "",
     );
     setNetwork(profile.crypto?.network ?? "bitcoin");
+    const id = t && methodIdOf(t);
+    setPreferred(id !== undefined && profile.preferred === id);
   }
 
   const spec: ProviderSpec | null =
@@ -220,16 +251,30 @@ export function PaymentMethodWizard({
     if (!valid || !target) return;
     if (target.kind === "provider") {
       const stored = spec!.normalize ? spec!.normalize(value) : value.trim();
-      onSave({ ...profile, [target.field]: stored });
+      onSave(
+        withPreferred(
+          { ...profile, [target.field]: stored },
+          spec!.kind,
+          preferred,
+        ),
+      );
     } else if (target.kind === "crypto") {
-      onSave({ ...profile, crypto: cryptoDraft });
+      onSave(
+        withPreferred({ ...profile, crypto: cryptoDraft }, "crypto", preferred),
+      );
     } else if (target.kind === "bank") {
-      onSave({
-        ...profile,
-        iban: normalizeIban(value),
-        accountHolder: holder.trim() || undefined,
-        bic: bic.trim() ? normalizeIban(bic) : undefined,
-      });
+      onSave(
+        withPreferred(
+          {
+            ...profile,
+            iban: normalizeIban(value),
+            accountHolder: holder.trim() || undefined,
+            bic: bic.trim() ? normalizeIban(bic) : undefined,
+          },
+          "bank",
+          preferred,
+        ),
+      );
     } else {
       const entry: CustomPaymentMethod = {
         id: target.id ?? newId(now()),
@@ -237,10 +282,53 @@ export function PaymentMethodWizard({
         urlTemplate: value.trim(),
       };
       const rest = (profile.customs ?? []).filter((c) => c.id !== entry.id);
-      onSave({ ...profile, customs: [...rest, entry] });
+      onSave(
+        withPreferred(
+          { ...profile, customs: [...rest, entry] },
+          `custom:${entry.id}`,
+          preferred,
+        ),
+      );
     }
     onClose();
   }
+
+  /** Only reachable from an edit view, so `target` is a saved method. */
+  function remove(): void {
+    if (!target) return;
+    const id = methodIdOf(target);
+    const next: PaymentProfile =
+      target.kind === "provider"
+        ? { ...profile, [target.field]: undefined }
+        : target.kind === "bank"
+          ? {
+              ...profile,
+              iban: undefined,
+              accountHolder: undefined,
+              bic: undefined,
+            }
+          : target.kind === "crypto"
+            ? { ...profile, crypto: undefined }
+            : {
+                ...profile,
+                customs: (profile.customs ?? []).filter(
+                  (c) => c.id !== target.id,
+                ),
+              };
+    onSave(id ? withPreferred(next, id, false) : next);
+    onClose();
+  }
+
+  const removeLabel =
+    target === null
+      ? ""
+      : target.kind === "provider"
+        ? spec!.label
+        : target.kind === "bank"
+          ? "bank transfer"
+          : target.kind === "crypto"
+            ? profile.crypto?.label || "crypto address"
+            : profile.customs?.find((c) => c.id === target.id)?.label || "link";
 
   const title =
     target === null
@@ -265,22 +353,24 @@ export function PaymentMethodWizard({
           {PICKER_SECTIONS.map((section) => (
             <div key={section.id}>
               <h3 className="picker-section">{section.title}</h3>
-              {section.entries.map((entry) => {
-                const pill = currencyPill(entry.currencies, currency);
-                return (
-                  <TapButton
-                    key={entry.label}
-                    className="wizard-option"
-                    onActivate={() => setTarget(entry.target)}
-                  >
-                    <span className="wizard-option-title">
-                      <strong>{entry.label}</strong>
-                      {pill && <span className="pill-warn">{pill}</span>}
-                    </span>
-                    <span className="field-suffix">{entry.blurb}</span>
-                  </TapButton>
-                );
-              })}
+              <div className="wizard-options">
+                {section.entries.map((entry) => {
+                  const pill = currencyPill(entry.currencies, currency);
+                  return (
+                    <TapButton
+                      key={entry.label}
+                      className="wizard-option"
+                      onActivate={() => setTarget(entry.target)}
+                    >
+                      <span className="wizard-option-title">
+                        <strong>{entry.label}</strong>
+                        {pill && <span className="pill-warn">{pill}</span>}
+                      </span>
+                      <span className="field-suffix">{entry.blurb}</span>
+                    </TapButton>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </>
@@ -405,7 +495,7 @@ export function PaymentMethodWizard({
             <div className="wizard-test">
               <p>
                 <strong>Try it.</strong> This is exactly what someone paying you{" "}
-                {(previewCents / 100).toFixed(2)} {currency} would open:
+                {formatMoney(previewCents, currency)} would open.
               </p>
               <div className="field-row">
                 <a
@@ -416,9 +506,12 @@ export function PaymentMethodWizard({
                 >
                   Open test link
                 </a>
-                <CopyButton value={testUrl} label="Copy" />
+                <CopyButton
+                  value={testUrl}
+                  label="Copy link"
+                  ariaLabel="Copy test link"
+                />
               </div>
-              <p className="field-suffix">{testUrl}</p>
             </div>
           )}
           {valid && !testUrl && target.kind === "bank" && (
@@ -433,9 +526,22 @@ export function PaymentMethodWizard({
             </p>
           )}
 
-          <div className="field-row">
+          {/* Native checkbox: it never unmounts on blur, so the WebView's
+              blur-before-click quirk (see Row.tsx) cannot eat the tap. */}
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferred}
+              onChange={(e) =>
+                setPreferred((e.currentTarget as HTMLInputElement).checked)
+              }
+            />
+            <span>Preferred way to be paid</span>
+          </label>
+
+          <div className="wizard-actions">
             <TapButton
-              className="btn btn-primary"
+              className="btn btn-primary btn-block"
               disabled={!valid}
               onActivate={save}
             >
@@ -443,10 +549,19 @@ export function PaymentMethodWizard({
             </TapButton>
             {!editing && (
               <TapButton
-                className="btn btn-secondary"
+                className="btn btn-secondary btn-block"
                 onActivate={() => setTarget(null)}
               >
                 Back
+              </TapButton>
+            )}
+            {editing && (
+              <TapButton
+                className="btn btn-quiet btn-block"
+                onActivate={remove}
+              >
+                <Icon name="trash" size={18} />
+                Remove {removeLabel}
               </TapButton>
             )}
           </div>
