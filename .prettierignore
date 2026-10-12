@@ -1,6 +1,8 @@
 node_modules
 dist
 dist-xdc
+test-results
+playwright-report
 pnpm-lock.yaml
 public/icon.png
 
