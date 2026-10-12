@@ -8,6 +8,10 @@ export interface TapButtonProps {
   onActivate: () => void;
   className: string;
   disabled?: boolean;
+  /** For icon-only buttons, which have no visible text to name them. */
+  ariaLabel?: string;
+  /** -1 for a pointer-only duplicate of a control that is already focusable. */
+  tabIndex?: number;
   children: ComponentChildren;
 }
 
@@ -15,6 +19,8 @@ export function TapButton({
   onActivate,
   className,
   disabled,
+  ariaLabel,
+  tabIndex,
   children,
 }: TapButtonProps) {
   return (
@@ -22,6 +28,8 @@ export function TapButton({
       type="button"
       className={className}
       disabled={disabled}
+      aria-label={ariaLabel}
+      tabIndex={tabIndex}
       onPointerUp={() => {
         if (!disabled) onActivate();
       }}

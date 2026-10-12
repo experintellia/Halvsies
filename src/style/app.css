@@ -1,26 +1,43 @@
 /*
  * Halvsies stylesheet — the shared design contract for all screens.
  *
- * Custom properties (defined in :root, overridden for dark mode below):
- *   --color-bg           page background
- *   --color-surface      card/row/sheet background
- *   --color-surface-2    a step darker/lighter than --color-surface
- *                        (pressed states, input backgrounds)
- *   --color-text         primary text
- *   --color-text-dim     secondary/meta text
- *   --color-border       hairline borders
- *   --color-accent       warm teal brand accent (active tab, primary button,
- *                        focus ring)
- *   --color-accent-contrast  text/icon colour on top of --color-accent
- *   --color-positive     "you are owed" / credit amounts
- *   --color-negative     "you owe" / debt amounts
- *   --color-danger       destructive actions
- *   --color-danger-contrast text/icon colour on top of --color-danger
- *   --radius             standard corner radius
- *   --shadow             standard elevation shadow
- *   --safe-bottom        env() safe-area inset, for bottom-pinned UI
- *   --z-sheet            z-index for Sheet/overlay (50); list rows use 1,
- *                        sticky chrome (tab bar, sub-page header) 2
+ * Direction ("quiet bank", issue #1): calm grouped lists on a tinted page,
+ * hairlines instead of shadows, one big number per screen, and teal only on
+ * what you can tap. Cards are a role, not a default: a .list groups rows that
+ * belong together, a .hero holds the one figure the screen is about, and
+ * everything else sits on the page.
+ *
+ * Colour tokens (defined in :root, overridden for dark mode below):
+ *   --color-bg              page background (neutral, biased toward teal)
+ *   --color-surface         lists, hero, sheets
+ *   --color-surface-2       a step off --color-surface: inputs, pressed rows,
+ *                           secondary buttons, the segmented-control track
+ *   --color-text            primary text
+ *   --color-text-dim        secondary/meta text
+ *   --color-border          hairlines between rows
+ *   --color-border-strong   dashed "add" tiles, the bars' zero line
+ *   --color-border-input    outlines of inputs and checkboxes (3:1 against
+ *                           the surface, WCAG 1.4.11)
+ *   --color-accent          teal: primary action, active tab, focus ring
+ *   --color-accent-contrast text/icon on top of --color-accent
+ *   --color-accent-soft     teal tint: method icon tiles, selected rows
+ *   --color-positive        "is owed" / credit amounts, "fills in amount";
+ *                           a true green, kept well apart from the teal so
+ *                           status never reads as something to tap
+ *   --color-positive-soft   tint behind positive tags
+ *   --color-negative        "owes" / debt amounts
+ *   --color-danger          destructive actions (text only, never a fill)
+ *   --color-mint            the light half of the split-circle mark
+ *
+ * Type scale (rem, 16px root): --fs-hero 42px · --fs-title 30px · --fs-h1 22px
+ * · --fs-lead 16px · --fs-body 15px · --fs-meta 13px · --fs-label 12px.
+ * Spacing runs on 4px: 4 · 8 · 12 · 16 · 24 · 32.
+ *
+ *   --radius-s / --radius / --radius-l   10 / 16 / 20px corners
+ *   --shadow-float          only for things that float (the FAB)
+ *   --safe-bottom           env() safe-area inset, for bottom-pinned UI
+ *   --z-sheet               z-index for Sheet/overlay (50); list rows use 1,
+ *                           sticky chrome (tab bar, FAB) 2–3
  *
  * Money figures: use the `.money` utility (tabular-nums) plus `.money-positive`
  * / `.money-negative` — the two are distinguished by colour AND weight/prefix
@@ -31,45 +48,63 @@
 :root {
   color-scheme: light dark;
 
-  --color-bg: #f4f5f6;
+  --color-bg: #f1f4f3;
   --color-surface: #ffffff;
-  --color-surface-2: #eceeef;
-  --color-text: #1a1d1e;
-  --color-text-dim: #6b7377;
-  --color-border: #dde1e2;
+  --color-surface-2: #e7eceb;
+  --color-text: #13201d;
+  --color-text-dim: #5a6a66;
+  --color-border: #e0e6e4;
+  --color-border-strong: #c5d0cd;
+  --color-border-input: #7f8f8b;
 
   --color-accent: #0f766e;
   --color-accent-contrast: #ffffff;
+  --color-accent-soft: #dcf1ec;
 
-  --color-positive: #0f7a4a;
-  --color-negative: #b3261e;
-  --color-danger: #b3261e;
-  --color-danger-contrast: #ffffff;
+  --color-positive: #2b6e2f;
+  --color-positive-soft: #e8f3e6;
+  --color-negative: #b42318;
+  --color-danger: #b42318;
+  --color-mint: #8fe9d6;
 
-  --radius: 14px;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+  --fs-hero: 2.625rem;
+  --fs-title: 1.875rem;
+  --fs-h1: 1.375rem;
+  --fs-lead: 1rem;
+  --fs-body: 0.9375rem;
+  --fs-meta: 0.8125rem;
+  --fs-label: 0.75rem;
+
+  --radius-s: 10px;
+  --radius: 16px;
+  --radius-l: 20px;
+  --shadow-float: 0 10px 22px -8px rgba(0, 0, 0, 0.4);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --z-sheet: 50;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #101213;
-    --color-surface: #1b1e1f;
-    --color-surface-2: #26292b;
-    --color-text: #f0f2f2;
-    --color-text-dim: #9aa2a5;
-    --color-border: #34383a;
+    --color-bg: #0a0f0e;
+    --color-surface: #141b19;
+    --color-surface-2: #1f2826;
+    --color-text: #e8efed;
+    --color-text-dim: #92a29e;
+    --color-border: #24302d;
+    --color-border-strong: #3a4744;
+    --color-border-input: #5b6b67;
 
-    --color-accent: #2dd4bf;
-    --color-accent-contrast: #06231f;
+    --color-accent: #3dd6c3;
+    --color-accent-contrast: #04201c;
+    --color-accent-soft: #11302b;
 
-    --color-positive: #4ade80;
-    --color-negative: #ff6b63;
-    --color-danger: #ff6b63;
-    --color-danger-contrast: #2a0705;
+    --color-positive: #81c784;
+    --color-positive-soft: #15291a;
+    --color-negative: #ff8a80;
+    --color-danger: #ff8a80;
+    --color-mint: #1d6b60;
 
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    --shadow-float: 0 10px 22px -8px rgba(0, 0, 0, 0.8);
   }
 }
 
@@ -89,6 +124,9 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
+  font-size: var(--fs-body);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -98,6 +136,18 @@ textarea,
 select {
   font: inherit;
   color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Sheets and sub-pages take focus programmatically (tabindex="-1") so the
+   screen reader lands inside them; that is not a keyboard focus to draw. */
+.sheet:focus,
+.subpage:focus {
+  outline: none;
 }
 
 /* ---- app shell ---- */
@@ -121,46 +171,153 @@ select {
 
 .app-header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 16px;
-  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 4px;
 }
 
-/* min-width:0 so a long group name wraps instead of pushing the currency
-   code off the right edge (flex items default to min-width:auto). */
+/* min-width:0 so a long group name wraps instead of pushing the gear off the
+   right edge (flex items default to min-width:auto). */
 .app-title {
   min-width: 0;
   margin: 0;
-  font-size: 1.15rem;
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
-.app-currency {
-  flex-shrink: 0;
+.app-heading {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: inherit;
+}
+
+/* The group name is the way into group settings: a button that reads as a
+   title, with a chevron saying it opens something. */
+.group-btn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-btn .app-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.group-btn .app-title .icon {
   color: var(--color-text-dim);
-  font-size: 0.9rem;
+}
+
+.group-meta {
+  color: var(--color-text-dim);
+  font-size: var(--fs-meta);
   font-variant-numeric: tabular-nums;
+}
+
+.icon-btn {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  cursor: pointer;
 }
 
 .app-content {
   flex: 1;
-  padding: 12px 16px calc(16px + var(--safe-bottom));
+  padding: 8px 16px calc(24px + var(--safe-bottom));
   overflow-y: auto;
 }
 
-/* Section headings on the tab screens (Balances, Me). They had no rule at
-   all, so they rendered at the UA default 1.5rem/0.83em — twice the size of
-   .sheet-title and .app-title, with a different rhythm on every screen. */
-.app-content h2 {
-  margin: 20px 0 8px;
-  font-size: 1.05rem;
+/* Section labels on the tab screens. Small, uppercase, dim: they name a
+   group, they are not headlines. A trailing figure (a day's total) sits on
+   the right. */
+.section-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 24px 4px 8px;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+.section-label .money {
+  letter-spacing: 0;
 }
 
 .placeholder {
   color: var(--color-text-dim);
   text-align: center;
   padding: 40px 16px;
+}
+
+/* One quiet line under a list: privacy notes, "3 payments settle the trip". */
+.fine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 4px 0;
+  font-size: var(--fs-meta);
+  color: var(--color-text-dim);
+}
+
+/* ---- empty states ---- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 16px 8px;
+}
+
+.empty-title {
+  margin: 14px 0 4px;
+  font-size: 1.625rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.empty-text {
+  max-width: 19em;
+  margin: 0;
+  color: var(--color-text-dim);
+}
+
+.split-mark .l {
+  fill: var(--color-accent);
+}
+
+.split-mark .r {
+  fill: var(--color-mint);
+}
+
+.split-mark .seam {
+  fill: none;
+  stroke: var(--color-bg);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
 }
 
 /* ---- tab bar ---- */
@@ -183,7 +340,7 @@ select {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 8px 4px 6px;
+  padding: 8px 4px 8px;
   border: none;
   background: none;
   color: var(--color-text-dim);
@@ -211,9 +368,44 @@ select {
 
 .tab-label {
   font-size: 0.72rem;
+  font-weight: 500;
 }
 
-/* ---- list rows ---- */
+/* ---- floating add button ----
+   Fixed rather than sticky: .app-content is its own scroll container, so a
+   sticky child would stick inside a box that never scrolls. The right edge
+   tracks .app-shell's 640px cap on desktop. */
+
+.fab {
+  position: fixed;
+  right: 16px;
+  right: max(16px, calc((100vw - 640px) / 2 + 16px));
+  bottom: calc(76px + var(--safe-bottom));
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 54px;
+  padding: 0 20px 0 16px;
+  border: none;
+  border-radius: 18px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-weight: 600;
+  box-shadow: var(--shadow-float);
+  cursor: pointer;
+}
+
+/* Room under the last row so the FAB never hides it. */
+.has-fab {
+  padding-bottom: 72px;
+}
+
+/* ---- rows and grouped lists ----
+
+   .row on its own is a standalone card (the split-member rows in the expense
+   form). Inside a .list it becomes one row of a grouped list: no corners of
+   its own, no gap, a hairline above it that starts after the avatar column. */
 
 .row {
   position: relative;
@@ -222,12 +414,12 @@ select {
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 12px;
+  min-height: 56px;
+  padding: 12px 14px;
   margin: 0 0 8px;
   border: none;
   border-radius: var(--radius);
   background: var(--color-surface);
-  box-shadow: var(--shadow);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -237,19 +429,46 @@ select {
   background: var(--color-surface-2);
 }
 
-/* Non-tappable <div> variants of .row — a plain card (.row-block) or a
-   still-flex but inert list row (.row-static). Both were inline styles on
-   five call sites that each re-stated half of this. */
-.row-block {
-  display: block;
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow: hidden;
 }
 
-.row-block,
+.list > .row {
+  margin: 0;
+  border-radius: 0;
+}
+
+/* The list clips its rows to its corners, and each row stacks over the one
+   above it, so an outside focus ring would be cut off on every side. Draw it
+   inside, above its neighbours. `:focus` too for the Safari 14 / Firefox 78
+   floor, which has no :focus-visible and draws its own ring. */
+.list > .row:focus,
+.list > .row:focus-visible,
+.wizard-option:focus,
+.wizard-option:focus-visible {
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+.list > .row + .row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 62px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* An inert list row (a member's net position): still flex, never pressable. */
 .row-static {
   cursor: default;
 }
 
-.row-block:active,
 .row-static:active {
   background: var(--color-surface);
 }
@@ -267,21 +486,60 @@ select {
    column lands in the same place on every row of the list. */
 .row-amount {
   flex-shrink: 0;
+  font-weight: 600;
 }
 
-/* ---- expense list card ----
+.chevron {
+  flex-shrink: 0;
+  color: var(--color-text-dim);
+}
+
+/* ---- expense list ----
    Three columns: avatar | title+meta (the only one allowed to shrink) |
    amounts. Everything that must stay readable is flex-shrink:0; everything
    user-typed ellipsizes. min-width:0 is what actually enables the ellipsis —
    flex items default to min-width:auto and would otherwise refuse to shrink
    below their text width and overflow the card instead. */
 
+/* Side by side while both figures fit; a figure too wide for half the row
+   wraps the pair onto two rows instead of breaking. */
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin: 4px 0 0;
+  border-radius: var(--radius);
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.summary > div {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px;
+  background: var(--color-surface);
+}
+
+.summary-label {
+  font-size: var(--fs-meta);
+  color: var(--color-text-dim);
+}
+
+.summary-value {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .expense-main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .expense-title,
@@ -291,22 +549,25 @@ select {
   white-space: nowrap;
 }
 
+.expense-title {
+  font-size: var(--fs-lead);
+  font-weight: 500;
+}
+
 .expense-payer {
-  font-size: 0.85rem;
+  font-size: var(--fs-meta);
   color: var(--color-text-dim);
 }
 
-/* The date lives here rather than on every card. First one sits directly
-   under the Add button, which brings its own bottom margin. */
-.day-heading {
-  margin: 16px 0 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-text-dim);
-}
-
-.day-heading:first-of-type {
-  margin-top: 0;
+/* A bar under each expense, scaled to the biggest one in the ledger, so a
+   €420 apartment and a €14 gelato stop looking the same. */
+.amount-bar {
+  display: block;
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  /* Not the accent: teal is for what you can tap, and this is a measure. */
+  background: var(--color-border-strong);
 }
 
 .expense-amounts {
@@ -314,12 +575,154 @@ select {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
+  gap: 1px;
   text-align: right;
 }
 
+.expense-amount {
+  font-size: var(--fs-lead);
+  font-weight: 600;
+}
+
 .expense-share {
-  font-size: 0.78rem;
+  font-size: var(--fs-meta);
+  color: var(--color-text-dim);
+}
+
+.day-heading:first-of-type {
+  margin-top: 20px;
+}
+
+/* ---- balances ---- */
+
+/* The one figure the screen is about, and the one action it asks for. */
+.hero {
+  /* Clips the edge-to-edge list of your transfers to the hero's corners. */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* stretch, not flex-start: a shrink-wrapped line could not get narrower
+     than its longest word, and a name can be one long email address. */
+  align-items: stretch;
+  margin: 4px 0 0;
+  padding: 18px;
+  border-radius: var(--radius-l);
+  background: var(--color-surface);
+}
+
+.hero-label {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-dim);
+}
+
+.hero-amount {
+  margin: 2px 0;
+  /* min() keeps a nine-digit total on one line on a 320px phone. */
+  font-size: min(var(--fs-hero), 10vw);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+/* A figure can't wrap, and "IDR 71,550,000.00" is 17 characters: past ~12 the
+   big amounts step down a size instead of running out of the card. */
+.hero-amount.long,
+.sheet-amount.long {
+  font-size: min(1.5rem, 7.5vw);
+}
+
+/* The headline when you are square: words, not a 42px zero. */
+.hero-title {
+  margin: 0 0 2px;
+  font-size: var(--fs-h1);
+  font-weight: 700;
+}
+
+.hero-sub {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-dim);
+}
+
+.hero > .btn {
+  align-self: stretch;
+  margin-top: 16px;
+}
+
+/* Several of your own transfers: a list inside the hero, under the total. */
+.hero > .list {
+  align-self: stretch;
+  margin: 14px -18px -18px;
+  border-radius: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.hero > .list > .row {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+/* Net position as a diverging bar: credit grows right of the centre line,
+   debt grows left. Static, so it can never be mistaken for a button. */
+.position-bar {
+  position: relative;
+  flex-shrink: 0;
+  width: 76px;
+  height: 6px;
+}
+
+/* On the narrowest phones the bar gives way to the name: the signed, coloured
+   amount still says which side each person is on. 360px and up keep it. */
+@media (max-width: 359px) {
+  .position-bar {
+    display: none;
+  }
+}
+
+.position-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.position-bar::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  bottom: -5px;
+  border-left: 1px solid var(--color-border-strong);
+}
+
+.position-bar > span {
+  position: absolute;
+  top: 0;
+  height: 6px;
+  border-radius: 3px;
+}
+
+.position-bar > .credit {
+  left: 50%;
+  background: var(--color-positive);
+}
+
+.position-bar > .debt {
+  right: 50%;
+  background: var(--color-negative);
+}
+
+/* .money (later in this file) resets min-width, hence the doubled class. The
+   fixed column is what keeps every row's zero line in the same place. */
+.money.position-amount {
+  flex-shrink: 0;
+  min-width: 5.5em;
+  text-align: right;
+  font-weight: 600;
+}
+
+.arrow {
   color: var(--color-text-dim);
 }
 
@@ -327,8 +730,9 @@ select {
 
 .detail-amount {
   margin: 0;
-  font-size: 1.9rem;
+  font-size: var(--fs-title);
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .detail-sub {
@@ -337,8 +741,10 @@ select {
 }
 
 .detail-heading {
-  font-size: 0.85rem;
+  font-size: var(--fs-label);
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--color-text-dim);
   margin: 0 0 6px;
 }
@@ -386,7 +792,7 @@ select {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid var(--color-border);
+  border: 2px solid var(--color-border-input);
   background: var(--color-surface-2);
   color: var(--color-accent-contrast);
   font-size: 0.8rem;
@@ -398,9 +804,7 @@ select {
    filled box, and the outline. box-shadow rather than a border, so selecting
    a row doesn't shift the layout by a pixel. */
 .row-check.selected {
-  box-shadow:
-    inset 0 0 0 2px var(--color-accent),
-    var(--shadow);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
 }
 
 .row-check.selected .check-box {
@@ -408,8 +812,15 @@ select {
   border-color: var(--color-accent);
 }
 
+/* Unselected rows sit on the sheet's own colour, so they need an outline to
+   read as rows at all; "not included" is a note, not a figure. */
 .row-check:not(.selected) {
   color: var(--color-text-dim);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.row-check:not(.selected) .row-amount {
+  font-weight: 400;
 }
 
 .row-check:not(.selected) .money {
@@ -476,35 +887,83 @@ select {
   color: var(--color-text-dim);
 }
 
-/* ---- read-only value + copy button (CopyField) ---- */
+/* ---- copyable values (CopyField) ----
 
-/* Reads as "this is a value, not something to fill in", while staying a real
-   input so long-press select-all works — the last fallback when the clipboard
-   API is missing (see CopyButton.tsx). `readonly`, never `disabled`: disabled
-   inputs cannot be selected and are skipped by screen readers. */
-.copy-input {
-  flex: 1 1 8em;
-  width: auto;
+   A list of label-over-value rows, each with an icon copy button: the bank
+   details on the pay-up sheet. The value stays a real readonly input so
+   long-press select-all works — the last fallback when the clipboard API is
+   missing (see CopyButton.tsx). `readonly`, never `disabled`: disabled inputs
+   cannot be selected and are skipped by screen readers. */
+
+.copy-list {
+  margin: 0 0 14px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.copy-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px 8px 14px;
+}
+
+.copy-field + .copy-field {
+  border-top: 1px solid var(--color-border);
+}
+
+.copy-field-main {
+  flex: 1;
   min-width: 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px dashed var(--color-border);
-  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.copy-field .field-label {
+  margin: 0;
+  font-size: var(--fs-label);
+}
+
+.copy-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--color-text);
+  font-size: var(--fs-body);
   font-variant-numeric: tabular-nums;
-  /* An IBAN or a wallet address must never be clipped: it is being copied out
-     by hand when the button fails. */
+  /* An IBAN or a wallet address must never be clipped silently: it is being
+     copied out by hand when the button fails. */
   text-overflow: ellipsis;
 }
 
+/* The field's own ring (.copy-field:focus-within) replaces this one; a
+   transparent outline rather than none, so forced-colours mode still has
+   something to draw. */
 .copy-input:focus {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+  outline: 2px solid transparent;
+}
+
+.copy-field:focus-within {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+  border-radius: 14px;
 }
 
 /* The button keeps its own width whatever the value does. */
-.field-row .copy-btn {
+.copy-btn {
   flex-shrink: 0;
+}
+
+.copy-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-s);
+  background: none;
+  color: var(--color-accent);
 }
 
 /* ---- value button that opens a picker sheet ---- */
@@ -516,17 +975,17 @@ select {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-input);
+  background: var(--color-surface);
   color: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .picker-value:active {
-  background: var(--color-border);
+  background: var(--color-surface-2);
 }
 
 .currency-code {
@@ -536,14 +995,14 @@ select {
   min-width: 3.2em;
 }
 
-/* Section heading inside a picker list. */
+/* Group headings inside a picker list. */
 .picker-section {
-  margin: 12px 0 6px;
-  font-size: 0.8rem;
+  margin: 16px 0 6px;
+  font-size: var(--fs-label);
   font-weight: 600;
   color: var(--color-text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .currency-search {
@@ -559,8 +1018,8 @@ select {
 .currency-list .currency-row {
   margin-bottom: 2px;
   padding: 10px 12px;
+  min-height: 0;
   border-radius: 8px;
-  box-shadow: none;
   background: none;
 }
 
@@ -582,7 +1041,7 @@ select {
   left: 0;
   inset: 0;
   z-index: var(--z-sheet);
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(4, 12, 10, 0.5);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -591,11 +1050,10 @@ select {
 .sheet {
   width: 100%;
   max-width: 640px;
-  max-height: 85vh;
+  max-height: 90vh;
   overflow-y: auto;
   background: var(--color-surface);
-  border-radius: var(--radius) var(--radius) 0 0;
-  box-shadow: var(--shadow);
+  border-radius: 24px 24px 0 0;
   padding: 0 16px calc(16px + var(--safe-bottom));
   transform: translateY(0);
   transition: transform 0.2s ease-out;
@@ -605,8 +1063,8 @@ select {
   width: 36px;
   height: 4px;
   border-radius: 2px;
-  background: var(--color-border);
-  margin: 10px auto;
+  background: var(--color-border-strong);
+  margin: 8px auto 6px;
 }
 
 .sheet-header {
@@ -614,19 +1072,17 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 /* The title is user content on three of the five sheets (an expense title,
-   "<name> owes <name> <amount>", a custom method's label), so it has to be
-   allowed to wrap under the close button rather than shove it off-screen. */
-/* Two classes deep on purpose: a Sheet is rendered inside .app-content's
-   subtree, so the `.app-content h2` section rule above would otherwise win
-   on specificity and give the sheet title that rule's 20px top margin. */
+   "<name> owes <name>", a custom method's label), so it has to be allowed to
+   wrap under the close button rather than shove it off-screen. */
 .sheet-header .sheet-title {
   min-width: 0;
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.1875rem;
+  font-weight: 700;
 }
 
 .sheet-close,
@@ -636,21 +1092,23 @@ select {
   border: none;
   background: var(--color-surface-2);
   color: var(--color-text);
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   cursor: pointer;
 }
 
 /* Pads the hit area out to 44px without growing the visible circle. */
 .sheet-close::after,
-.subpage-back::after {
+.subpage-back::after,
+.icon-btn::after,
+.copy-icon::after {
   content: "";
   position: absolute;
-  top: -6px;
-  right: -6px;
-  bottom: -6px;
-  left: -6px;
+  top: -4px;
+  right: -4px;
+  bottom: -4px;
+  left: -4px;
 }
 
 /* ---- full-screen sub-page (group settings, first-run setup) ----
@@ -675,16 +1133,14 @@ select {
   max-width: 640px; /* matches .app-shell, so it lands over it on desktop */
   margin: 0 auto;
   background: var(--color-bg);
+  overflow-y: auto;
   /* Same reason as .app-shell: every string in here is user-supplied. */
   overflow-wrap: break-word;
   overflow-wrap: anywhere;
 }
 
-/* The shell's header pairs a title with a currency code on the baseline; this
-   one pairs a back button with a title, so it centres and packs left. */
 .subpage > .app-header {
-  justify-content: flex-start;
-  align-items: center;
+  padding-bottom: 8px;
 }
 
 /* ---- buttons ---- */
@@ -693,11 +1149,13 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 16px;
-  border-radius: var(--radius);
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 14px;
   border: 1px solid transparent;
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -709,16 +1167,42 @@ select {
 .btn-secondary {
   background: var(--color-surface-2);
   color: var(--color-text);
-  border-color: var(--color-border);
 }
 
+/* Outlined, teal text: an action that matters but is not the screen's job. */
+.btn-ghost {
+  background: var(--color-surface);
+  color: var(--color-accent);
+  border-color: var(--color-border-strong);
+}
+
+/* Destructive actions are words, never a red slab: they should be findable,
+   not the loudest thing on the screen. */
 .btn-danger {
-  background: var(--color-danger);
-  color: var(--color-danger-contrast);
+  background: none;
+  color: var(--color-danger);
+  border-color: var(--color-border-strong);
+}
+
+.btn-quiet {
+  background: none;
+  color: var(--color-danger);
+  border-color: transparent;
+}
+
+/* A label that may hold a member's name: let it wrap inside the button rather
+   than overflow it (a bare text node in a flex box can't shrink). */
+.btn-label {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.btn-block {
+  width: 100%;
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -726,20 +1210,20 @@ select {
 
 .field {
   display: block;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .field-label {
   display: block;
-  font-size: 0.85rem;
+  font-size: var(--fs-meta);
   color: var(--color-text-dim);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-/* A .field-row holds either "input + unit" or two-to-three buttons (Edit /
-   Remove, Open / Copy / Send to chat). At 320px a pair of buttons
-   with a user-supplied label ("Open <custom method name>") does not fit, so
-   the row wraps rather than overflowing, and every child may shrink. */
+/* A .field-row holds either "input + unit" or two-to-three buttons. At 320px
+   a pair of buttons with a user-supplied label ("Open <custom method name>")
+   does not fit, so the row wraps rather than overflowing, and every child may
+   shrink. */
 .field-row {
   display: flex;
   align-items: center;
@@ -751,21 +1235,24 @@ select {
   min-width: 0;
 }
 
-/* Paragraph children (the "what others see" preview lines) would otherwise
-   bring the UA's 1em block margins into a centred flex row and sit visibly
-   off the button next to them. */
-.field-row > p {
-  margin: 4px 0;
-}
-
 .field input,
 .field textarea,
-.field select {
+.field select,
+.note-input {
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-input);
+  background: var(--color-surface);
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus,
+.note-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
 }
 
 /* Inside a row an input flexes instead of claiming width:100% (which, now
@@ -779,15 +1266,29 @@ select {
   width: auto;
 }
 
-/* Prose, not a value: this carries multi-sentence help text in the wizard, the
-   profile screen and the pay-up sheet, so it must wrap. (It used to be
-   white-space:nowrap with per-screen `normal` overrides bolted on, which meant
-   every new caveat overflowed the screen sideways until someone noticed.)
-   `.method-main .field-suffix` below is the one place that opts back in, and
-   it pairs the nowrap with an ellipsis so it clips instead of overflowing. */
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-surface-2);
+  cursor: pointer;
+}
+
+.check-field input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+/* Prose, not a value: this carries help text in the wizard, group settings
+   and the pay-up sheet, so it must wrap. */
 .field-suffix {
   color: var(--color-text-dim);
-  font-size: 0.9rem;
+  font-size: var(--fs-meta);
   /* long URLs and IBANs have nothing to break at; see .app-shell for why
      this is stated twice */
   overflow-wrap: break-word;
@@ -795,12 +1296,10 @@ select {
 }
 
 /* As a direct child of a .field it is help text under the control, not a
-   unit beside it (that one lives inside .field-row) — give it the same 4px
-   gap the label has above the control, and the same 14px rhythm .field uses
-   between fields when it stands alone as a paragraph. */
+   unit beside it (that one lives inside .field-row). */
 .field > .field-suffix {
   display: block;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 p.field-suffix {
@@ -821,14 +1320,12 @@ p.field-suffix {
 
 /* ---- money figures ---- */
 
+/* A figure never breaks inside itself: "€51,695." over "40" reads as a
+   different, valid amount. It may still wrap at a space ("IDR" / "12,891.00").
+   Addresses, which have nothing to break at, live in CopyField inputs. */
 .money {
   font-variant-numeric: tabular-nums;
-  /* Not every `.money` is a short figure: PayUpSheet renders crypto addresses
-     here (a Monero one is ~95 characters with nothing to break at), and in a
-     flex row that would push the copy button off-screen. Stated twice — see
-     .app-shell. */
-  overflow-wrap: break-word;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   min-width: 0;
 }
 
@@ -855,6 +1352,38 @@ p.field-suffix {
   line-height: 1;
 }
 
+/* ---- tags ---- */
+
+.tag {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-text-dim);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tag-ok {
+  background: var(--color-positive-soft);
+  color: var(--color-positive);
+}
+
+/* Kept for the wizard's picker: "EUR only" on a method this group's currency
+   won't offer. A warning, never a block. */
+.pill-warn {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-text-dim);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* ---- QR ---- */
 
 .qr-code {
@@ -865,7 +1394,34 @@ p.field-suffix {
 
 .qr-fallback {
   color: var(--color-text-dim);
-  font-size: 0.9rem;
+  font-size: var(--fs-meta);
+}
+
+/* A QR beside its caption, not a full-width block per method. */
+.qr-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.qr-row .qr-code {
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  border-radius: 12px;
+}
+
+.qr-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--color-text-dim);
+}
+
+.qr-caption strong {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 /* ---- misc ---- */
@@ -878,12 +1434,124 @@ p.field-suffix {
   }
 }
 
-/* ---- payment methods list + add wizard ---- */
+/* ---- Me tab ---- */
 
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 4px 0;
+}
+
+.profile-head > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.profile-sub {
+  color: var(--color-text-dim);
+}
+
+/* The coloured tile behind a payment method's icon. */
+.method-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-s);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.method-main {
+  flex: 1;
+  min-width: 4.5em;
+  display: flex;
+  flex-direction: column;
+}
+
+/* On a narrow row the tag ellipsizes rather than squeezing the name. */
+.row > .tag {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.method-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: var(--fs-lead);
+  font-weight: 500;
+}
+
+.method-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-meta);
+  color: var(--color-text-dim);
+}
+
+.preferred-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--color-positive);
+}
+
+/* A settings row's explanation: wraps, unlike a method's one-line detail. */
+.setting-detail {
+  font-size: var(--fs-meta);
+  color: var(--color-text-dim);
+}
+
+.danger-row .method-icon {
+  background: none;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-danger);
+}
+
+.danger-row .method-name {
+  color: var(--color-danger);
+}
+
+.add-row .method-icon {
+  background: none;
+  border: 1.5px dashed var(--color-border-strong);
+}
+
+.add-row .method-name {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.note-input {
+  display: block;
+  min-height: 3.2em;
+  margin-bottom: 16px;
+  resize: vertical;
+}
+
+/* The members sheet's roster: one bordered list, a row per member. */
 .method-list {
-  list-style: none;
   margin: 0 0 12px;
   padding: 0;
+  list-style: none;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
 .method-row {
@@ -893,26 +1561,13 @@ p.field-suffix {
   flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px;
-  margin-bottom: 6px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
 }
 
-/* min-width:0 lets a long IBAN/template ellipsize instead of forcing the row
-   wider than the viewport (flex items default to min-width:auto). */
-.method-main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1 1 60%;
+.method-row + .method-row {
+  border-top: 1px solid var(--color-border);
 }
 
-.method-main .field-suffix {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* ---- payment method wizard ---- */
 
 /* Provider picker entries: full-width tap targets, stacked title + blurb. */
 .wizard-option {
@@ -922,18 +1577,28 @@ p.field-suffix {
   gap: 2px;
   width: 100%;
   text-align: left;
-  padding: 12px;
-  margin-bottom: 6px;
+  padding: 12px 14px;
+  border: none;
   background: var(--color-surface);
   color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
   font: inherit;
   cursor: pointer;
 }
 
+.wizard-option + .wizard-option {
+  border-top: 1px solid var(--color-border);
+}
+
 .wizard-option:active {
   background: var(--color-surface-2);
+}
+
+/* A real border, not an inset shadow: each option's own background would
+   paint over a shadow and leave the group with no edge at all. */
+.wizard-options {
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
 }
 
 .wizard-option-title {
@@ -943,41 +1608,166 @@ p.field-suffix {
   gap: 6px;
 }
 
-/* Group headings in the provider picker. */
-.picker-section {
-  margin: 16px 0 6px;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+/* "What a payer sees": the live preview inside the method's edit view. */
+.wizard-test {
+  margin: 4px 0 16px;
+  padding: 14px;
+  background: var(--color-bg);
+  border-radius: 14px;
+}
+
+.wizard-test > p {
+  margin: 0 0 10px;
+}
+
+.wizard-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ---- pay-up sheet ---- */
+
+.sheet-amount {
+  margin: -8px 0 14px;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* The payee's own words, as a chat bubble from them: it may override which
+   method to use, so it comes before the methods. */
+.payee-note {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.payee-note > p {
+  margin: 0;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 16px 16px 16px 4px;
+  background: var(--color-surface-2);
+}
+
+.payee-note strong {
+  display: block;
+  margin-bottom: 1px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
   color: var(--color-text-dim);
 }
 
-/* "EUR only" — this method won't be offered for the current group currency.
-   A warning, never a block: the group currency can change after setup. */
-.pill-warn {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
+/* Segmented control: one method at a time. Three fill the width; more scroll
+   sideways inside the track instead of wrapping into a second row. */
+/* Segmented control: one method at a time. More methods than fit wrap onto
+   a second row: a sideways-scrolling strip hid them with no hint, and a
+   mouse wheel can't scroll it in Delta Chat Desktop. */
+.method-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0 0 14px;
+  padding: 3px;
+  border-radius: 12px;
   background: var(--color-surface-2);
+}
+
+.method-tab {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: none;
   color: var(--color-text-dim);
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.method-tab > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Raised in light, outlined in dark: there the surface is darker than the
+   track, so a fill alone would read as pressed in. The transparent outline
+   is what forced-colours mode draws once it strips fills and shadows. */
+.method-tab[aria-pressed="true"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow:
+    inset 0 0 0 1px var(--color-border-strong),
+    0 1px 3px rgba(0, 0, 0, 0.14);
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.method-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-size: var(--fs-lead);
+  font-weight: 600;
+}
+
+.preferred-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  color: var(--color-positive);
+}
+
+.open-row {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.open-row > .btn-primary {
+  flex: 1;
+  min-width: 0;
+}
+
+.open-row > .copy-icon {
+  width: 48px;
+  height: auto;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border-radius: 14px;
+}
+
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px -16px 0;
+  padding: 14px 16px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Side by side when both labels fit on one line each; otherwise each takes
+   its own row rather than wrapping its label onto three lines. */
+.sheet-actions > .btn {
+  flex: 1 1 auto;
+  min-height: 48px;
   white-space: nowrap;
 }
 
-.wizard-test {
-  margin: 12px 0;
-  padding: 12px;
-  background: var(--color-surface-2);
-  border-radius: var(--radius);
-}
-
-/* The payee's own instructions, shown above the payment buttons. */
-.payee-note {
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  background: var(--color-surface-2);
-  border-left: 3px solid var(--color-accent);
-  border-radius: var(--radius);
+.sheet-actions > p {
+  flex: 1 1 100%;
+  margin: 0;
 }

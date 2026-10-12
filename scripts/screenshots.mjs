@@ -158,6 +158,7 @@ if (doc.listExpenses().length === 0) {
     paypalMe: "denizy",
     bunqMe: "deniz",
     note: "IBAN is easiest for me — PayPal charges a fee on the receiving end.",
+    preferred: "bank",
   });
   doc.setProfile(me, {
     accountHolder: "Anna Beispiel",
@@ -206,10 +207,11 @@ const SHOTS = [
   {
     name: "payup",
     caption: "One tap from a debt to actually paying it",
-    height: 1180,
-    // "You owe …", not "Deniz" — the first .row mentioning Deniz is his
-    // net-position card, which is static by design.
-    steps: [`esc(); tab("Balances")`, `tap(byText(".row", "You owe"))`],
+    // Phone height, so the landing page's 9:19 frame shows the whole sheet.
+    height: 844,
+    // The hero's own button: rows mentioning Deniz below it are his static
+    // net-position line, not something to tap.
+    steps: [`esc(); tab("Balances")`, `tap(byText("button", "Pay Deniz"))`],
   },
   {
     name: "expense",
@@ -228,8 +230,8 @@ const SHOTS = [
   },
   {
     name: "me",
-    caption: "Your payment details, exactly as the payer will see them",
-    height: 1180,
+    caption: "How the group pays you back, one row per method",
+    height: 844,
     steps: [`esc(); tab("Me"); window.scrollTo(0, 0)`],
   },
 ];

@@ -3,6 +3,7 @@
 // first-class path (not a best-effort fallback) — it must actually work in
 // older/non-secure-context webviews too, hence the textarea+execCommand path.
 import { useRef, useState } from "preact/hooks";
+import { Icon } from "./Icon";
 
 export interface CopyButtonProps {
   /** the text copied to the clipboard */
@@ -12,6 +13,9 @@ export interface CopyButtonProps {
   className?: string;
   /** Set when several Copy buttons share a screen and "Copy" alone is ambiguous. */
   ariaLabel?: string;
+  /** Render a copy glyph (a tick once copied) instead of the text label.
+   *  Needs `ariaLabel`, since there is no visible text left to name it. */
+  icon?: boolean;
 }
 
 function fallbackCopy(text: string): boolean {
@@ -52,6 +56,7 @@ export function CopyButton({
   copiedLabel = "Copied",
   className,
   ariaLabel,
+  icon,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | undefined>(undefined);
@@ -69,15 +74,22 @@ export function CopyButton({
     <button
       type="button"
       className={
-        "btn btn-secondary copy-btn" + (className ? ` ${className}` : "")
+        (icon ? "copy-icon copy-btn" : "btn btn-secondary copy-btn") +
+        (className ? ` ${className}` : "")
       }
-      aria-label={ariaLabel}
+      aria-label={icon && copied ? copiedLabel : ariaLabel}
       onPointerUp={activate}
       onClick={(e) => {
         if (e.detail === 0) activate();
       }}
     >
-      {copied ? copiedLabel : label}
+      {icon ? (
+        <Icon name={copied ? "check" : "copy"} size={18} />
+      ) : copied ? (
+        copiedLabel
+      ) : (
+        label
+      )}
     </button>
   );
 }

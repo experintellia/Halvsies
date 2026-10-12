@@ -592,6 +592,8 @@ describe("payment-details-only export", () => {
           urlTemplate: "https://paynow.example/{ref}",
         },
       ],
+      // Survives the round trip too, so the other group opens on it as well.
+      preferred: "custom:c2",
     });
     return a;
   };

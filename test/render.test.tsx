@@ -10,6 +10,7 @@ import { ExpenseList, dayHeading } from "../src/ui/ExpenseList";
 import { ProfileForm } from "../src/ui/ProfileForm";
 import { addExpense, deleteExpense } from "../src/state/doc";
 import { PayUpSheet } from "../src/ui/PayUpSheet";
+import { Balances } from "../src/ui/Balances";
 import { MembersSheet } from "../src/ui/MembersSheet";
 import {
   addVirtualMember,
@@ -160,13 +161,17 @@ describe("ExpenseList", () => {
     try {
       render(<ExpenseList />, host);
 
-      const headings = Array.from(host.querySelectorAll("h2")).map((h) =>
-        (h.textContent ?? "").trim(),
-      );
+      const headings = Array.from(
+        host.querySelectorAll(".day-heading > span:first-child"),
+      ).map((h) => (h.textContent ?? "").trim());
       expect(headings).toEqual([
         dayHeading("2026-08-01"),
         dayHeading("2026-07-30"),
       ]);
+      // Each day header carries that day's total.
+      expect(host.querySelector(".day-heading")?.textContent).toContain(
+        "€88.00",
+      );
 
       // Newest day first, newest-added first inside it.
       const titles = Array.from(host.querySelectorAll(".expense-title")).map(
@@ -184,24 +189,22 @@ describe("ExpenseList", () => {
 
 describe("ProfileForm", () => {
   it("starts collapsed: no method rows, an add button, and the note field", () => {
-    render(<ProfileForm onOpenGroupSettings={() => {}} />, host);
+    render(<ProfileForm />, host);
     const text = host.textContent ?? "";
 
     // The whole point of the redesign: methods are not all splayed out.
-    expect(host.querySelectorAll(".method-row")).toHaveLength(0);
+    expect(host.querySelectorAll(".list .row:not(.add-row)")).toHaveLength(0);
     expect(text).toContain("Add payment method");
+    expect(text).toContain("No payment methods yet");
 
     // The note is always visible, with or without any configured method.
     expect(host.querySelector("textarea")).not.toBeNull();
-    expect(text).toContain("paying you");
-
-    // Privacy notice stays up top.
-    expect(text).toContain("can see your payment profile");
+    expect(text).toContain("Note to payers");
   });
 
   /** Opens the wizard picker. */
   const openPicker = async (): Promise<void> => {
-    render(<ProfileForm onOpenGroupSettings={() => {}} />, host);
+    render(<ProfileForm />, host);
     tap(
       Array.from(host.querySelectorAll("button")).find((b) =>
         (b.textContent ?? "").includes("Add payment method"),
@@ -340,7 +343,7 @@ describe("ProfileForm", () => {
       (l) => (l.textContent ?? "").trim(),
     );
     expect(labels).toEqual(["Name", "Wallet address", "Network"]);
-    expect(sheet().querySelectorAll("input")).toHaveLength(2);
+    expect(sheet().querySelectorAll('input[type="text"]')).toHaveLength(2);
 
     const select = sheet().querySelector("select") as HTMLSelectElement;
     expect(Array.from(select.options).map((o) => o.value)).toEqual([
@@ -355,7 +358,7 @@ describe("ProfileForm", () => {
   });
 
   it("walks to a provider step and shows where to find the handle", async () => {
-    render(<ProfileForm onOpenGroupSettings={() => {}} />, host);
+    render(<ProfileForm />, host);
     tap(
       Array.from(host.querySelectorAll("button")).find((b) =>
         (b.textContent ?? "").includes("Add payment method"),
@@ -428,10 +431,22 @@ describe("PayUpSheet", () => {
   const linkTo = (prefix: string): HTMLAnchorElement | null =>
     host.querySelector<HTMLAnchorElement>(`a[href^="${prefix}"]`);
 
+  /** By visible text, or by aria-label for the icon-only copy buttons. */
   const buttons = (text: string): HTMLButtonElement[] =>
-    Array.from(host.querySelectorAll("button")).filter((b) =>
-      (b.textContent ?? "").includes(text),
+    Array.from(host.querySelectorAll("button")).filter(
+      (b) =>
+        (b.textContent ?? "").includes(text) ||
+        (b.getAttribute("aria-label") ?? "").includes(text),
     ) as HTMLButtonElement[];
+
+  /** Switches the sheet to another method, as a tap on its tab would. */
+  const pick = (label: string): void => {
+    const tab = Array.from(host.querySelectorAll(".method-tab")).find(
+      (t) => (t.textContent ?? "").trim() === label,
+    );
+    tap(tab);
+    return undefined;
+  };
 
   // MANUAL CA2 (the sheet half: the fiat figure is text beside the address)
   it("always shows a crypto address in full, with copy buttons for both the address and the URI", () => {
@@ -444,7 +459,7 @@ describe("PayUpSheet", () => {
     const text = host.textContent ?? "";
     expect(fieldValues()).toContain(BTC); // the link may be a no-op; the address never is
     expect(buttons("Copy address")).toHaveLength(1);
-    expect(buttons("Copy link")).toHaveLength(1);
+    expect(buttons("Copy Bitcoin link")).toHaveLength(1);
     expect(host.querySelector("svg.qr-code")).not.toBeNull();
     // The fiat amount is shown; no crypto amount is ever embedded.
     expect(text).toContain("€23.50");
@@ -505,7 +520,7 @@ describe("PayUpSheet", () => {
 
   // MANUAL C4 — the EPC standard is EUR-only, so the block has to disappear
   // with a reason rather than emit a QR no bank will accept.
-  it("C4 — the bank transfer block is EUR-only and explains its absence", () => {
+  it("C4 — the bank transfer block is EUR-only and explains its absence", async () => {
     setProfile(CREDITOR, {
       paypalMe: "anna",
       iban: "DE89370400440532013000",
@@ -514,6 +529,8 @@ describe("PayUpSheet", () => {
 
     setSettings({ groupCurrency: "USD" });
     sheetFor(TRANSFER);
+    pick("Bank transfer");
+    await flush();
     expect(host.textContent).toContain(
       "No scannable code for this debt: EPC QR only supports EUR",
     );
@@ -521,6 +538,8 @@ describe("PayUpSheet", () => {
 
     setSettings({ groupCurrency: "EUR" });
     sheetFor(TRANSFER);
+    pick("Bank transfer");
+    await flush();
     expect(host.textContent).toContain("Scan with your banking app");
     expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
   });
@@ -552,9 +571,15 @@ describe("PayUpSheet", () => {
     sheetFor(TRANSFER, "request");
 
     const text = host.textContent ?? "";
-    expect(text).toContain("owes you €23.50");
-    expect(text).toContain("Share your payment details with");
-    expect(text).toContain("Your note:"); // yours, not "<someone> says:"
+    expect(host.querySelector(".sheet-title")?.textContent).toContain(
+      "owes you",
+    );
+    expect(host.querySelector(".sheet-amount")?.textContent).toBe("€23.50");
+    // Yours, not a bubble from "<someone>".
+    expect(host.querySelector(".payee-note strong")?.textContent).toBe(
+      "Your note",
+    );
+    expect(text).toContain("IBAN please");
     expect(linkTo("https://paypal.me")).not.toBeNull();
     expect(buttons("Mark as received")).toHaveLength(1);
   });
@@ -566,11 +591,23 @@ describe("PayUpSheet", () => {
     const carol = addVirtualMember("Carol", 2);
     installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
     try {
-      setProfile(carol.id, { paypalMe: "carol" });
-      sheetFor({ fromId: bob.id, toId: carol.id, amountCents: 2000 });
+      setProfile(carol.id, { paypalMe: "carol", note: "PayPal is fine" });
+      // "request", as Balances opens any transfer that isn't yours to pay.
+      sheetFor(
+        { fromId: bob.id, toId: carol.id, amountCents: 2000 },
+        "request",
+      );
 
       const text = host.textContent ?? "";
-      expect(text).toContain("Bob owes Carol €20.00");
+      expect(host.querySelector(".sheet-title")?.textContent).toBe(
+        "Bob owes Carol",
+      );
+      // Balances opens a stranger's debt in "request" mode; the note is still
+      // Carol's, not "yours".
+      expect(host.querySelector(".payee-note strong")?.textContent).toBe(
+        "Carol",
+      );
+      expect(text).toContain("€20.00");
       expect(text).toContain("Only Bob or Carol can record this payment.");
       expect(buttons("Mark as")).toHaveLength(0);
       // The methods themselves are still shown — it is read-only, not blank.
@@ -598,7 +635,7 @@ describe("PayUpSheet", () => {
   // The bank block always rendered its code, while every link method hid one
   // behind "Show QR" — so bunq looked like it had no code at all, and a payer
   // reaching for a second device had to tap to find out one existed.
-  it("gives every method a QR up front, with no show/hide tap anywhere", () => {
+  it("gives every method a QR up front, with no show/hide tap anywhere", async () => {
     setProfile(CREDITOR, {
       accountHolder: "Anna Beispiel",
       bunqMe: "anna",
@@ -607,10 +644,97 @@ describe("PayUpSheet", () => {
     });
     sheet();
 
-    expect(linkTo("https://bunq.me")).not.toBeNull();
-    // bunq, PayPal, bank transfer — one code each, none of them behind a tap.
-    expect(host.querySelectorAll("svg.qr-code")).toHaveLength(3);
+    // One method on screen at a time, and each one's code comes with it.
+    for (const [label, href] of [
+      ["PayPal", "https://paypal.me"],
+      ["bunq", "https://bunq.me"],
+      ["Bank transfer", null],
+    ] as const) {
+      pick(label);
+      await flush();
+      expect(host.querySelectorAll("svg.qr-code")).toHaveLength(1);
+      if (href) expect(linkTo(href)).not.toBeNull();
+      else expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
+    }
     expect(buttons("QR")).toHaveLength(0);
+  });
+
+  it("opens on the payee's preferred method, listed first", () => {
+    setProfile(CREDITOR, {
+      accountHolder: "Anna Beispiel",
+      paypalMe: "anna",
+      bunqMe: "anna",
+      iban: "DE89370400440532013000",
+      preferred: "bank",
+    });
+    sheet();
+
+    const tabs = Array.from(host.querySelectorAll(".method-tab"));
+    expect(tabs.map((t) => (t.textContent ?? "").trim())).toEqual([
+      "Bank transfer",
+      "PayPal",
+      "bunq",
+    ]);
+    expect(tabs[0].getAttribute("aria-pressed")).toBe("true");
+    expect(host.textContent).toContain("preferred way to be paid");
+    expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
+  });
+
+  it("says when a custom link leaves the amount to the payer", () => {
+    setProfile(CREDITOR, {
+      customs: [
+        { id: "t", label: "Twint", urlTemplate: "https://twint.example/anna" },
+      ],
+    });
+    sheet();
+    expect(host.textContent).toContain("Type in €23.50 yourself");
+    expect(host.textContent).not.toContain("is filled in");
+  });
+
+  it("keeps one primary action: Open until the payer has opened it, then Mark as paid", async () => {
+    installWebxdc({ selfAddr: TRANSFER.fromId, selfName: "Payer" });
+    setProfile(CREDITOR, {
+      paypalMe: "anna",
+      iban: "DE89370400440532013000",
+      accountHolder: "Anna",
+    });
+    sheet();
+    const mark = () => buttons("Mark as paid")[0];
+    const open = linkTo("https://paypal.me")!;
+    expect(open.className).toContain("btn-primary");
+    expect(mark().className).toContain("btn-secondary");
+
+    open.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await flush();
+    expect(mark().className).toContain("btn-primary");
+
+    // No link to open on the bank tab: recording is the only action.
+    sheet();
+    pick("Bank transfer");
+    await flush();
+    expect(mark().className).toContain("btn-primary");
+  });
+
+  it("never makes the creditor's link the primary action for anyone but the payer", () => {
+    installWebxdc({ selfAddr: CREDITOR, selfName: "Anna" });
+    setProfile(CREDITOR, { paypalMe: "anna" });
+    sheetFor(TRANSFER, "request");
+    expect(linkTo("https://paypal.me")!.className).toContain("btn-secondary");
+    expect(buttons("Mark as received")[0].className).toContain("btn-primary");
+  });
+
+  it("ignores a preferred method the payee no longer has", () => {
+    setProfile(CREDITOR, {
+      paypalMe: "anna",
+      bunqMe: "anna",
+      preferred: "bank",
+    });
+    sheet();
+
+    const tabs = Array.from(host.querySelectorAll(".method-tab"));
+    expect(tabs[0].textContent).toBe("PayPal");
+    expect(tabs[0].getAttribute("aria-pressed")).toBe("true");
+    expect(host.textContent).not.toContain("preferred way to be paid");
   });
 });
 
@@ -638,22 +762,31 @@ describe("the Me tab preview and the payer's sheet", () => {
 
   afterEach(() => setProfile(ME, {}));
 
-  // MANUAL C2 — the preview is a second call site of paymentMethodsFor(); if
-  // it ever drifts from the sheet's, the Me tab is lying about what people get.
-  it("C2 — the 'what others see' preview lists exactly what PayUpSheet offers", () => {
+  const tabLabels = (): string[] =>
+    Array.from(host.querySelectorAll(".method-tab")).map((t) =>
+      (t.textContent ?? "").trim(),
+    );
+
+  // MANUAL C2 — the preview used to be a second call site of
+  // paymentMethodsFor() that drifted from the sheet's. Now it IS the sheet:
+  // "See what payers see" opens PayUpSheet itself, for a sample debt.
+  it("C2 — 'See what payers see' opens the payer's own sheet, nothing to record", async () => {
     installWebxdc({ selfAddr: ME, selfName: "Anna" });
     setProfile(ME, PROFILE);
 
-    render(<ProfileForm onOpenGroupSettings={() => {}} />, host);
-    const previewed = Array.from(host.querySelectorAll(".field-row p"))
-      .map((p) => (p.textContent ?? "").match(/https:\/\/\S+/)?.[0])
-      .filter((url): url is string => !!url);
-    const previewedIban = Array.from(host.querySelectorAll(".money"))
-      .map((el) => (el.textContent ?? "").trim())
-      .find((t) => t.startsWith("DE89"));
+    render(<ProfileForm />, host);
+    // Every saved method is one row on the Me tab…
+    expect(host.querySelectorAll(".list .row:not(.add-row)")).toHaveLength(4);
+    tap(
+      Array.from(host.querySelectorAll("button")).find((b) =>
+        (b.textContent ?? "").includes("See what payers see"),
+      ),
+    );
+    await flush();
+    const previewTabs = tabLabels();
     render(null, host);
 
-    // The preview's sample debt is 10.00 of the group currency.
+    // …and the preview offers exactly what a real payer's sheet does.
     render(
       <PayUpSheet
         transfer={{ fromId: "payer@example.org", toId: ME, amountCents: 1000 }}
@@ -663,15 +796,64 @@ describe("the Me tab preview and the payer's sheet", () => {
       />,
       host,
     );
-    const offered = Array.from(
-      host.querySelectorAll<HTMLAnchorElement>("a.btn-primary"),
-    ).map((a) => a.getAttribute("href"));
+    expect(previewTabs).toEqual(["PayPal", "bunq", "Twint", "Bank transfer"]);
+    expect(previewTabs).toEqual(tabLabels());
+  });
 
-    expect(previewed).toHaveLength(3);
-    expect(previewed).toEqual(offered);
-    // …and the bank method, which carries no link, is on both screens too.
-    expect(previewedIban).toBe("DE89 3704 0044 0532 0130 00");
-    expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
+  it("the preview can neither record nor send anything", async () => {
+    installWebxdc({ selfAddr: ME, selfName: "Anna" });
+    setProfile(ME, PROFILE);
+
+    render(<ProfileForm />, host);
+    tap(
+      Array.from(host.querySelectorAll("button")).find((b) =>
+        (b.textContent ?? "").includes("See what payers see"),
+      ),
+    );
+    await flush();
+
+    const sheet = host.querySelector(".sheet");
+    expect(sheet?.querySelector(".sheet-title")?.textContent).toBe(
+      "What payers see",
+    );
+    expect(sheet?.textContent).toContain("Nothing here is recorded or sent");
+    const labels = Array.from(sheet?.querySelectorAll("button") ?? []).map(
+      (b) => b.textContent ?? "",
+    );
+    expect(labels.some((l) => l.includes("Mark as"))).toBe(false);
+    expect(labels.some((l) => l.includes("Tell the chat"))).toBe(false);
+  });
+});
+
+describe("Balances", () => {
+  it("is all square in words, not a 42px zero, while others still owe", async () => {
+    const bob = addVirtualMember("Bob", 1);
+    const carol = addVirtualMember("Carol", 2);
+    installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
+    const id = "square-test";
+    addExpense({
+      id,
+      title: "Cab",
+      amountCents: 2000,
+      payerId: bob.id,
+      split: { mode: "even", entries: { [bob.id]: 1, [carol.id]: 1 } },
+      date: "2026-08-01",
+      createdBy: bob.id,
+      editedAt: 0,
+    });
+    try {
+      render(<Balances />, host);
+      expect(host.querySelector(".hero-title")?.textContent).toBe(
+        "You're all square",
+      );
+      expect(host.querySelector(".hero-amount")).toBeNull();
+      expect(host.textContent).toContain("Carol → Bob");
+    } finally {
+      render(null, host);
+      deleteExpense(id);
+      removeMember(bob.id);
+      removeMember(carol.id);
+    }
   });
 });
 

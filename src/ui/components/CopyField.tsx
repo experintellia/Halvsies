@@ -1,4 +1,4 @@
-// A labelled, read-only value with a Copy button — an IBAN, a payment
+// A labelled, read-only value with a copy button — an IBAN, a payment
 // reference, an account holder, a wallet address.
 //
 // A real <input readOnly> rather than a <span>, on purpose: it gives long-press
@@ -18,10 +18,12 @@ export interface CopyFieldProps {
 }
 
 export function CopyField({ label, value, copyName }: CopyFieldProps) {
+  // Several of these stack into a .copy-list: label over value, copy glyph on
+  // the right.
   return (
-    <label className="field">
-      <span className="field-label">{label}</span>
-      <span className="field-row">
+    <div className="copy-field">
+      <label className="copy-field-main">
+        <span className="field-label">{label}</span>
         <input
           className="copy-input"
           type="text"
@@ -30,12 +32,8 @@ export function CopyField({ label, value, copyName }: CopyFieldProps) {
           // Desktop convenience; on a phone the long-press menu does this.
           onFocus={(e) => (e.currentTarget as HTMLInputElement).select()}
         />
-        <CopyButton
-          value={value}
-          label="Copy"
-          ariaLabel={`Copy ${copyName ?? label}`}
-        />
-      </span>
-    </label>
+      </label>
+      <CopyButton value={value} icon ariaLabel={`Copy ${copyName ?? label}`} />
+    </div>
   );
 }

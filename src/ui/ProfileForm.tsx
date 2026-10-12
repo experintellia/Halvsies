@@ -1,9 +1,11 @@
-// The "Me" tab: your payment methods (added one at a time via a wizard, so the
-// screen stays short) and a free-text note that is always visible. Nothing here
-// is shared: everything the whole group owns — currency, name, members, backup
-// — lives behind the Group settings button at the top (see GroupSettings.tsx).
-import { useState } from "preact/hooks";
-import { getProfile, getSettings, setProfile } from "../state/doc";
+// The "Me" tab: how the group pays you back. Each saved method is one row that
+// says what a payer gets ("Fills in amount", "QR code"); tapping it opens its
+// edit view, which is also where Remove lives. "See what payers see" opens the
+// real pay-up sheet on a sample debt, so the preview is the payer's screen
+// itself rather than a second, drifting copy of it. Everything the whole group
+// owns (currency, name, members, backup) lives behind the header instead.
+import { useId, useState } from "preact/hooks";
+import { getMember, getProfile, getSettings, setProfile } from "../state/doc";
 import { useDocValue } from "./useDoc";
 import type { PaymentProfile } from "../state/model";
 import { formatIban, isValidIban } from "../pay/iban";
@@ -11,238 +13,244 @@ import { paymentMethodsFor } from "../pay/links";
 import { configuredProviders, notOfferedReason } from "../pay/providers";
 import { epcReference } from "../pay/epcqr";
 import { bankQr } from "../pay/bankqr";
-import { QR } from "./components/QR";
-import { CopyButton } from "./components/CopyButton";
+import { Avatar } from "./components/Avatar";
+import { Icon, type IconName } from "./components/Icon";
+import { Row } from "./components/Row";
 import { TapButton } from "./components/TapButton";
 import { PaymentMethodWizard, type WizardTarget } from "./PaymentMethodWizard";
+import { PayUpSheet } from "./PayUpSheet";
 
 function selfAddr(): string | undefined {
   return typeof window === "undefined" ? undefined : window.webxdc?.selfAddr;
 }
 
-/** Fixed sample amount for the "what others see" preview — not a real debt. */
+/** Fixed sample amount for the payer preview — not a real debt. */
 const PREVIEW_CENTS = 1000;
 
 function textValue(e: Event): string {
   return (e.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
 }
 
-export interface ProfileFormProps {
-  /** Opens the group-settings sub-page; the route itself lives in App. */
-  onOpenGroupSettings: () => void;
+interface MethodRow {
+  /** The PayMethod id (or "bank"), which is also what `preferred` stores. */
+  id: string;
+  icon: IconName;
+  name: string;
+  detail: string;
+  tag?: { text: string; ok: boolean };
+  target: WizardTarget;
 }
 
-export function ProfileForm({ onOpenGroupSettings }: ProfileFormProps) {
+const host = (url: string): string =>
+  /^https?:\/\/([^/?#]+)/i.exec(url)?.[1] ?? url;
+
+export function ProfileForm() {
   const self = selfAddr();
   const settings = useDocValue(getSettings);
   const profile = useDocValue(() => (self ? getProfile(self) : undefined));
+  const me = useDocValue(() => (self ? getMember(self) : undefined));
   // Lazily seeded once: this component unmounts/remounts with the tab, so a
   // fresh visit always starts from the current doc state without needing a
   // continuous sync effect that could clobber an in-progress edit.
   const [note, setNote] = useState(profile?.note ?? "");
   const [wizard, setWizard] = useState<WizardTarget | "new" | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const noteId = useId();
 
   const current: PaymentProfile = profile ?? {};
+  const currency = settings.groupCurrency;
 
   function save(next: PaymentProfile): void {
     if (!self) return;
     setProfile(self, next);
   }
 
-  // What is actually configured, in the order the pay-up sheet shows it.
-  const providers = configuredProviders(current);
-  const customs = current.customs ?? [];
+  const reference = epcReference(settings.title);
+  // What a payer would get for a sample debt, from the same function the
+  // pay-up sheet uses — so a row's "Fills in amount" can't promise more than
+  // the payer's screen delivers.
+  const offered = paymentMethodsFor(
+    current,
+    PREVIEW_CENTS,
+    currency,
+    reference,
+  );
+  const capability = (id: string): MethodRow["tag"] => {
+    const m = offered.find((x) => x.id === id);
+    if (!m) return undefined;
+    return m.amountPrefilled
+      ? { text: "Fills in amount", ok: true }
+      : { text: "Payer types amount", ok: false };
+  };
+
+  const rows: MethodRow[] = [];
+  for (const spec of configuredProviders(current)) {
+    // A method the currency gate excludes vanishes from what the payer sees.
+    // Silently, until it said so here: someone who had just added a bunq
+    // handle to a SEK group could not tell that from a broken app.
+    const notOffered = notOfferedReason(spec, currency);
+    rows.push({
+      id: spec.kind,
+      icon: "link",
+      name: spec.label,
+      detail: notOffered ?? current[spec.field] ?? "",
+      tag: notOffered ? undefined : capability(spec.kind),
+      target: { kind: "provider", field: spec.field },
+    });
+  }
   // The same check PayUpSheet gates the payer's bank block on. A truthiness
   // test would count a typo'd IBAN as configured here while the pay-up sheet
   // silently dropped it — the two screens have to agree on what "configured"
-  // means, or the preview is lying about what others see.
+  // means.
   const hasBank = isValidIban(current.iban ?? "");
-  const crypto = current.crypto;
-  const methodCount =
-    providers.length + customs.length + (hasBank ? 1 : 0) + (crypto ? 1 : 0);
+  if (hasBank) {
+    // The same decision the payer's sheet makes, from the same function, so
+    // the row cannot promise a QR the payer will not get.
+    const qr = bankQr({
+      name: current.accountHolder || me?.name || "",
+      iban: current.iban || "",
+      amountCents: PREVIEW_CENTS,
+      currency,
+      reference,
+      bic: current.bic,
+    });
+    rows.push({
+      id: "bank",
+      icon: "landmark",
+      name: "Bank transfer",
+      detail: formatIban(current.iban!),
+      // Same question as every other row: does the amount come pre-filled?
+      // For a bank transfer, only the QR code can carry it.
+      tag: qr.ok
+        ? { text: "Fills in amount", ok: true }
+        : { text: "Payer types amount", ok: false },
+      target: { kind: "bank" },
+    });
+  }
+  if (current.crypto) {
+    rows.push({
+      id: "crypto",
+      icon: "wallet",
+      name: current.crypto.label || "Crypto",
+      detail: current.crypto.address,
+      tag: offered.some((m) => m.id === "crypto")
+        ? { text: "Wallet link", ok: true }
+        : { text: "Address only", ok: false },
+      target: { kind: "crypto" },
+    });
+  }
+  for (const c of current.customs ?? []) {
+    rows.push({
+      id: `custom:${c.id}`,
+      icon: "link",
+      name: c.label,
+      detail: host(c.urlTemplate),
+      tag: capability(`custom:${c.id}`),
+      target: { kind: "custom", id: c.id },
+    });
+  }
 
-  const previewReference = epcReference(settings.title);
-  const previewMethods = paymentMethodsFor(
-    current,
-    PREVIEW_CENTS,
-    settings.groupCurrency,
-    previewReference,
-  );
-  // The same decision the payer's sheet makes, from the same function, so the
-  // preview cannot promise a QR the payer will not get.
-  const previewQr = bankQr({
-    name: current.accountHolder || "You",
-    iban: current.iban || "",
-    amountCents: PREVIEW_CENTS,
-    currency: settings.groupCurrency,
-    reference: previewReference,
-    bic: current.bic,
-  });
+  // `hasBank`, not a QR: an IBAN is an international account number and a
+  // transfer to it works in any currency — only the QR is currency-locked.
+  // An address-only crypto method (no URI scheme) is offered too, just
+  // without a link, so it counts.
+  const nothingOffered =
+    rows.length > 0 &&
+    offered.length === 0 &&
+    !hasBank &&
+    !current.crypto?.address.trim();
 
   return (
     <div>
-      <p>
-        <strong>Everyone in this chat can see your payment profile.</strong>
-      </p>
+      <section className="profile-head">
+        {self && (
+          <Avatar member={{ id: self, name: me?.name ?? "" }} size={56} />
+        )}
+        <div>
+          <span className="profile-name">{me?.name || "You"}</span>
+          <span className="profile-sub">How the group pays you back</span>
+        </div>
+      </section>
 
-      <TapButton className="btn btn-secondary" onActivate={onOpenGroupSettings}>
-        Group settings
-      </TapButton>
-      <p className="field-suffix">
-        The group's currency and name, who is in the split, and backup — the
-        things everyone here shares.
-      </p>
-
-      <h2>Your payment details</h2>
-      {methodCount === 0 ? (
-        <p className="placeholder">
+      <h2 className="section-label">Payment methods</h2>
+      {rows.length === 0 && (
+        <p className="fine">
           No payment methods yet. Add one so people can pay you back in a couple
           of taps instead of asking for your details.
         </p>
-      ) : (
-        <ul className="method-list">
-          {providers.map((spec) => {
-            // A method the currency gate excludes vanishes from what the payer
-            // sees. Silently, until now: someone who had just added a bunq
-            // handle to a SEK group could not tell that from a broken app.
-            const notOffered = notOfferedReason(spec, settings.groupCurrency);
-            return (
-              <li key={spec.field} className="method-row">
-                <span className="method-main">
-                  <strong>{spec.label}</strong>{" "}
-                  {notOffered && (
-                    <span className="pill-warn">{notOffered}</span>
-                  )}
-                  <span className="field-suffix">{current[spec.field]}</span>
-                </span>
-                <span className="field-row">
-                  <TapButton
-                    className="btn btn-secondary"
-                    onActivate={() =>
-                      setWizard({ kind: "provider", field: spec.field })
-                    }
-                  >
-                    Edit
-                  </TapButton>
-                  <TapButton
-                    className="btn btn-danger"
-                    onActivate={() =>
-                      save({ ...current, [spec.field]: undefined })
-                    }
-                  >
-                    Remove
-                  </TapButton>
-                </span>
-              </li>
-            );
-          })}
-
-          {hasBank && (
-            <li className="method-row">
-              <span className="method-main">
-                <strong>Bank transfer</strong>
-                <span className="field-suffix">
-                  {formatIban(current.iban!)}
-                  {current.accountHolder ? ` · ${current.accountHolder}` : ""}
-                </span>
-              </span>
-              <span className="field-row">
-                <TapButton
-                  className="btn btn-secondary"
-                  onActivate={() => setWizard({ kind: "bank" })}
-                >
-                  Edit
-                </TapButton>
-                <TapButton
-                  className="btn btn-danger"
-                  onActivate={() =>
-                    save({
-                      ...current,
-                      iban: undefined,
-                      accountHolder: undefined,
-                      bic: undefined,
-                    })
-                  }
-                >
-                  Remove
-                </TapButton>
-              </span>
-            </li>
-          )}
-
-          {crypto && (
-            <li className="method-row">
-              <span className="method-main">
-                <strong>{crypto.label || "Crypto"}</strong>
-                <span className="field-suffix">{crypto.address}</span>
-              </span>
-              <span className="field-row">
-                <TapButton
-                  className="btn btn-secondary"
-                  onActivate={() => setWizard({ kind: "crypto" })}
-                >
-                  Edit
-                </TapButton>
-                <TapButton
-                  className="btn btn-danger"
-                  onActivate={() => save({ ...current, crypto: undefined })}
-                >
-                  Remove
-                </TapButton>
-              </span>
-            </li>
-          )}
-
-          {customs.map((c) => (
-            <li key={c.id} className="method-row">
-              <span className="method-main">
-                <strong>{c.label}</strong>
-                <span className="field-suffix">{c.urlTemplate}</span>
-              </span>
-              <span className="field-row">
-                <TapButton
-                  className="btn btn-secondary"
-                  onActivate={() => setWizard({ kind: "custom", id: c.id })}
-                >
-                  Edit
-                </TapButton>
-                <TapButton
-                  className="btn btn-danger"
-                  onActivate={() =>
-                    save({
-                      ...current,
-                      customs: customs.filter((x) => x.id !== c.id),
-                    })
-                  }
-                >
-                  Remove
-                </TapButton>
-              </span>
-            </li>
-          ))}
-        </ul>
       )}
-
-      <TapButton
-        className="btn btn-primary"
-        onActivate={() => setWizard("new")}
-      >
-        + Add payment method
-      </TapButton>
+      <div className="list">
+        {rows.map((r) => (
+          <Row key={r.id} onActivate={() => setWizard(r.target)}>
+            <span className="method-icon">
+              <Icon name={r.icon} size={20} />
+            </span>
+            <span className="method-main">
+              <span className="method-name">
+                {r.name}
+                {current.preferred === r.id && (
+                  <span className="preferred-mark">
+                    <Icon name="circle-check" size={14} />
+                    Preferred
+                  </span>
+                )}
+              </span>
+              <span className="method-detail">{r.detail}</span>
+            </span>
+            {r.tag && (
+              <span className={"tag" + (r.tag.ok ? " tag-ok" : "")}>
+                {r.tag.text}
+              </span>
+            )}
+            <span className="chevron">
+              <Icon name="chevron-right" size={18} />
+            </span>
+          </Row>
+        ))}
+        <Row className="add-row" onActivate={() => setWizard("new")}>
+          <span className="method-icon">
+            <Icon name="plus" size={20} />
+          </span>
+          <span className="method-name">Add payment method</span>
+        </Row>
+      </div>
+      {nothingOffered && (
+        <p className="fine">
+          None of your saved methods work for {currency} debts. Add one that
+          does, or change the group currency.
+        </p>
+      )}
+      {/* Payers see a note on its own too, so it counts as something shown. */}
+      {(rows.length > 0 || current.note) && (
+        <p className="fine">
+          <Icon name="eye" size={15} />
+          Everyone in this chat can see your payment details and note.
+        </p>
+      )}
 
       {/* Always visible, whether or not any method is configured: this is
           where "bank transfer only after the 1st" or "round it up" lives. */}
-      <label className="field">
-        <span className="field-label">
-          Note — anything people should know about paying you
-        </span>
-        <textarea
-          value={note}
-          placeholder="e.g. IBAN please, PayPal charges me a fee"
-          onInput={(e) => setNote(textValue(e))}
-          onBlur={() => save({ ...current, note: note.trim() || undefined })}
-        />
-      </label>
+      <h2 className="section-label" id={noteId}>
+        Note to payers
+      </h2>
+      <textarea
+        className="note-input"
+        aria-labelledby={noteId}
+        value={note}
+        placeholder="e.g. IBAN please, PayPal charges me a fee"
+        onInput={(e) => setNote(textValue(e))}
+        onBlur={() => save({ ...current, note: note.trim() || undefined })}
+      />
+
+      {self && (rows.length > 0 || current.note) && (
+        <TapButton
+          className="btn btn-ghost btn-block"
+          onActivate={() => setPreviewing(true)}
+        >
+          <Icon name="eye" size={18} />
+          See what payers see
+        </TapButton>
+      )}
 
       <PaymentMethodWizard
         open={wizard !== null}
@@ -251,57 +259,18 @@ export function ProfileForm({ onOpenGroupSettings }: ProfileFormProps) {
         onSave={save}
         editing={wizard && wizard !== "new" ? wizard : undefined}
         previewCents={PREVIEW_CENTS}
-        currency={settings.groupCurrency}
-        reference={previewReference}
+        currency={currency}
+        reference={reference}
       />
 
-      <h2>What others see</h2>
-      <p className="field-suffix">
-        Preview for a sample {PREVIEW_CENTS / 100}.00 {settings.groupCurrency}{" "}
-        debt.
-      </p>
-      {/* `hasBank`, not `previewEpc`: an IBAN is an international account
-          number and a transfer to it works in any currency — only the EPC QR
-          is EUR-only. Gating this on the QR told a GBP user whose one method
-          was a perfectly good IBAN that they had nothing at all. */}
-      {previewMethods.length === 0 && !hasBank && (
-        <p className="placeholder">
-          {methodCount === 0
-            ? "Nothing yet — fill in at least one method above."
-            : // The lie this replaces: someone who had just added a bunq
-              // handle to a SEK group was told they had added nothing.
-              `None of your saved methods work for ${settings.groupCurrency} debts — see the notes above. Add one that does, or change the group currency.`}
-        </p>
-      )}
-      {previewMethods.map((m) => (
-        <div className="field-row" key={m.id}>
-          <p>
-            <strong>{m.label}:</strong> {m.url}
-          </p>
-          <CopyButton value={m.url} label="Copy" />
-        </div>
-      ))}
-      {hasBank && (
-        <div className="row row-block">
-          <p>
-            <strong>Bank transfer</strong>
-          </p>
-          <div className="field-row">
-            <span className="money">{formatIban(current.iban || "")}</span>
-            <CopyButton value={formatIban(current.iban || "")} label="Copy" />
-          </div>
-          {previewQr.ok ? (
-            <>
-              <QR payload={previewQr.payload} />
-              <p className="field-suffix">{previewQr.hint}</p>
-            </>
-          ) : (
-            <p className="field-suffix">
-              No scannable QR in {settings.groupCurrency}: {previewQr.reason}.
-              Payers still get the IBAN, your name and the reference.
-            </p>
-          )}
-        </div>
+      {self && (
+        <PayUpSheet
+          transfer={{ fromId: "", toId: self, amountCents: PREVIEW_CENTS }}
+          direction="pay"
+          preview
+          open={previewing}
+          onClose={() => setPreviewing(false)}
+        />
       )}
     </div>
   );

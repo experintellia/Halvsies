@@ -1,5 +1,5 @@
-// The Expenses tab: a newest-first list grouped by day, plus the add/edit
-// sheet.
+// The Expenses tab: what the group spent and your share of it, then a
+// newest-first list grouped by day, plus the add/edit sheet.
 import { Fragment } from "preact";
 import { useState } from "preact/hooks";
 import { getSettings, listExpenses, listMembers } from "../state/doc";
@@ -13,6 +13,8 @@ import {
 import { useDocValue, useSelfId } from "./useDoc";
 import { Row } from "./components/Row";
 import { Avatar } from "./components/Avatar";
+import { Icon } from "./components/Icon";
+import { SplitMark } from "./components/SplitMark";
 import { ExpenseForm } from "./ExpenseForm";
 import { ExpenseDetail } from "./ExpenseDetail";
 
@@ -23,7 +25,7 @@ const DATE = new Intl.DateTimeFormat(undefined, {
   year: "numeric",
 });
 
-/** "Wednesday - 6 May 2026", the day header for an ISO `yyyy-mm-dd` date. */
+/** "Wednesday, 6 May 2026", the day header for an ISO `yyyy-mm-dd` date. */
 export function dayHeading(iso: string): string {
   const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!parts) return iso; // an imported ledger can carry anything
@@ -31,7 +33,7 @@ export function dayHeading(iso: string): string {
   // UTC midnight, which formats as the *previous* day everywhere west of
   // Greenwich — the one place a date is allowed to move by a timezone.
   const d = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
-  return `${WEEKDAY.format(d)} - ${DATE.format(d)}`;
+  return `${WEEKDAY.format(d)}, ${DATE.format(d)}`;
 }
 
 /**
@@ -78,22 +80,41 @@ export function ExpenseList() {
 
   const addBtn = () => setEditId("new");
 
+  const myShareOf = (expense: Expense): number | undefined =>
+    selfId ? (splitShares(expense, memberIds)[selfId] ?? 0) : undefined;
+  const totalCents = expenses.reduce((sum, e) => sum + e.amountCents, 0);
+  const myTotalCents = selfId
+    ? expenses.reduce((sum, e) => sum + (myShareOf(e) ?? 0), 0)
+    : undefined;
+  // Each row's bar is scaled to the biggest expense, so size reads at a glance.
+  const largest = Math.max(1, ...expenses.map((e) => e.amountCents));
+
   const card = (expense: Expense) => {
     const payer = members.find((m) => m.id === expense.payerId);
-    const shares = splitShares(expense, memberIds);
-    const myShare = selfId ? (shares[selfId] ?? 0) : undefined;
+    const myShare = myShareOf(expense);
+    const barWidth = `${Math.max(3, (expense.amountCents / largest) * 100)}%`;
     return (
       <Row key={expense.id} onActivate={() => setViewId(expense.id)}>
-        <Avatar member={payer ?? { id: expense.payerId, name: "?" }} />
+        <Avatar
+          member={payer ?? { id: expense.payerId, name: "?" }}
+          size={36}
+        />
         {/* The day header carries the date now, so the card's middle column
             is title over payer — both user-typed, both ellipsizing, neither
             able to push the amounts out of their column. */}
         <span className="expense-main">
           <span className="expense-title">{expense.title || "Untitled"}</span>
-          <span className="expense-payer">{nameOf(expense.payerId)} paid</span>
+          <span className="expense-payer">
+            {expense.payerId === selfId ? "You" : nameOf(expense.payerId)} paid
+          </span>
+          <span
+            className="amount-bar"
+            style={{ width: barWidth }}
+            aria-hidden="true"
+          />
         </span>
         <span className="expense-amounts">
-          <span className="money">
+          <span className="money expense-amount">
             {formatMoney(expense.amountCents, currency)}
           </span>
           {myShare !== undefined && (
@@ -107,30 +128,62 @@ export function ExpenseList() {
   };
 
   return (
-    <section aria-label="Expenses">
+    <section aria-label="Expenses" className="has-fab">
+      {/* First in the DOM so keyboard and screen-reader users reach it before
+          every row; it floats (position: fixed), so it still looks last. */}
       <button
         type="button"
-        className="btn btn-primary"
-        style={{ width: "100%", marginBottom: 12 }}
+        className="fab"
         onPointerUp={addBtn}
         onClick={(e) => {
           if (e.detail === 0) addBtn();
         }}
       >
-        + Add expense
+        <Icon name="plus" size={20} />
+        Add expense
       </button>
-
       {days.length === 0 ? (
-        <p className="placeholder">
-          No expenses yet — add the first one to start splitting.
-        </p>
+        <div className="empty">
+          <SplitMark />
+          <h2 className="empty-title">No expenses yet</h2>
+          <p className="empty-text">
+            Add the first one and Halvsies keeps a running balance for everyone
+            in this chat.
+          </p>
+        </div>
       ) : (
-        days.map((day) => (
-          <Fragment key={day.date}>
-            <h2 className="day-heading">{dayHeading(day.date)}</h2>
-            {day.items.map(card)}
-          </Fragment>
-        ))
+        <>
+          <div className="summary">
+            <div>
+              <span className="summary-label">Group spend</span>
+              <span className="money summary-value">
+                {formatMoney(totalCents, currency)}
+              </span>
+            </div>
+            {myTotalCents !== undefined && (
+              <div>
+                <span className="summary-label">Your share</span>
+                <span className="money summary-value">
+                  {formatMoney(myTotalCents, currency)}
+                </span>
+              </div>
+            )}
+          </div>
+          {days.map((day) => (
+            <Fragment key={day.date}>
+              <h2 className="section-label day-heading">
+                <span>{dayHeading(day.date)}</span>
+                <span className="money">
+                  {formatMoney(
+                    day.items.reduce((sum, e) => sum + e.amountCents, 0),
+                    currency,
+                  )}
+                </span>
+              </h2>
+              <div className="list">{day.items.map(card)}</div>
+            </Fragment>
+          ))}
+        </>
       )}
 
       <ExpenseDetail

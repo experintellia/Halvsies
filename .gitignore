@@ -11,6 +11,8 @@ node_modules
 dist
 dist-xdc
 *.local
+test-results
+playwright-report
 
 # Editor directories and files
 .vscode/*

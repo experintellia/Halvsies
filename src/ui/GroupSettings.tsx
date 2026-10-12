@@ -1,11 +1,11 @@
 // Everything about the *group* rather than about you: the currency all money
 // is denominated in, the group's name, who is in the split, and backup/restore.
-// It used to sit on top of the Me tab, mixed in with your own payment details —
-// which is the one thing on that screen nobody else can edit.
+// It used to sit on the Me tab, mixed in with your own payment details — which
+// is the one thing on that screen nobody else can edit.
 //
 // Two screens over the same two settings live here: the sub-page you reach from
-// the Me tab, and the first-run screen that asks for them before the app is
-// usable at all.
+// the group name in the header, and the first-run screen that asks for them
+// before the app is usable at all.
 import { useState } from "preact/hooks";
 import {
   canSendToChat,
@@ -30,6 +30,8 @@ import { MembersSheet } from "./MembersSheet";
 import { CurrencyField } from "./components/CurrencyField";
 import { SubPage } from "./components/SubPage";
 import { TapButton } from "./components/TapButton";
+import { Row } from "./components/Row";
+import { Icon, type IconName } from "./components/Icon";
 
 /**
  * `importFiles` is a newer webxdc API level, like sendToChat: feature-detect
@@ -114,8 +116,8 @@ export function FirstRunSetup({ open }: { open: boolean }) {
   return (
     <SubPage open={open} title="Set up this split">
       <p>
-        Two things before you start. Both can be changed later under Group
-        settings on the Me tab.
+        Two things before you start. You can change both later: tap the group
+        name at the top.
       </p>
 
       <CurrencyField
@@ -161,6 +163,33 @@ export function FirstRunSetup({ open }: { open: boolean }) {
 
 // --- the sub-page ------------------------------------------------------------
 
+/** One entry in a settings list: icon tile, name, one line of detail. */
+function SettingRow(props: {
+  icon: IconName;
+  name: string;
+  detail: string;
+  danger?: boolean;
+  onActivate: () => void;
+}) {
+  return (
+    <Row
+      className={props.danger ? "danger-row" : undefined}
+      onActivate={props.onActivate}
+    >
+      <span className="method-icon">
+        <Icon name={props.icon} size={20} />
+      </span>
+      <span className="method-main">
+        <span className="method-name">{props.name}</span>
+        <span className="setting-detail">{props.detail}</span>
+      </span>
+      <span className="chevron">
+        <Icon name="chevron-right" size={18} />
+      </span>
+    </Row>
+  );
+}
+
 export interface GroupSettingsProps {
   open: boolean;
   onClose: () => void;
@@ -174,8 +203,6 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
   const [showMembers, setShowMembers] = useState(false);
   const [importError, setImportError] = useState<string | undefined>(undefined);
 
-  // Nothing configured means an empty file — offer the button only once it
-  // would carry something.
   const hasOwnDetails = Object.values(profile ?? {}).some(
     (v) => v !== undefined && (!Array.isArray(v) || v.length > 0),
   );
@@ -228,65 +255,62 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
         <NameHint title={settings.title} />
       </label>
 
-      <TapButton
-        className="btn btn-secondary"
-        onActivate={() => setShowMembers(true)}
-      >
-        Members ({memberCount})
-      </TapButton>
-      <p className="field-suffix">
-        Add someone who doesn't use this app, rename anyone, or remove a member
-        no expense mentions.
-      </p>
+      <h2 className="section-label">People</h2>
+      <div className="list">
+        <SettingRow
+          icon="users"
+          name={`Members (${memberCount})`}
+          detail="Add someone who doesn't use this app, rename or remove"
+          onActivate={() => setShowMembers(true)}
+        />
+      </div>
 
       <MembersSheet open={showMembers} onClose={() => setShowMembers(false)} />
 
-      <h2>Backup</h2>
-      {canSendToChat && (
-        <>
-          <TapButton
-            className="btn btn-secondary"
-            onActivate={sendSnapshotToChat}
-          >
-            Export everything
-          </TapButton>
-          <p className="field-suffix">
-            The whole ledger and everyone's payment details — sent to this chat
-            as one file, to restore this group later.
-          </p>
-
-          {hasOwnDetails && (
-            <>
-              <TapButton
-                className="btn btn-secondary"
-                onActivate={sendOwnProfileToChat}
-              >
-                Export just your payment details
-              </TapButton>
-              <p className="field-suffix">
-                Only your own payment links, nobody else's data. Send it to
-                yourself so that when you join another Halvsies group you can
-                import it there instead of typing your details in again.
-              </p>
-            </>
+      <h2 className="section-label">Backup</h2>
+      {(canSendToChat || canImportFiles) && (
+        <div className="list">
+          {canSendToChat && (
+            <SettingRow
+              icon="send"
+              name="Export everything"
+              detail="The whole ledger and everyone's payment details, sent to this chat as one file"
+              onActivate={sendSnapshotToChat}
+            />
           )}
-        </>
-      )}
-      {canImportFiles && (
-        <TapButton className="btn btn-secondary" onActivate={handleImport}>
-          Restore from file
-        </TapButton>
+          {/* Nothing configured means an empty file — offered only once it
+            would carry something. */}
+          {canSendToChat && hasOwnDetails && (
+            <SettingRow
+              icon="send"
+              name="Export just your payment details"
+              detail="Reuse them in another group instead of typing them again"
+              onActivate={sendOwnProfileToChat}
+            />
+          )}
+          {/* The one destructive entry here, and it looks it. */}
+          {canImportFiles && (
+            <SettingRow
+              icon="folder-open"
+              name="Restore from file"
+              detail="A full backup replaces this group's ledger; a payment-details file only fills in yours"
+              danger
+              onActivate={handleImport}
+            />
+          )}
+        </div>
       )}
       {importError && (
         <p role="alert" className="money-negative">
           {importError}
         </p>
       )}
-      <p className="field-suffix">
-        {canImportFiles
-          ? "Either file works here. Restoring everything is destructive: it replaces this group's ledger with the contents of the backup. Restoring only your payment details just fills in your own links and changes nothing else."
-          : "This messenger cannot open files from inside the app, so a backup can only be restored on a device that can."}
-      </p>
+      {!canImportFiles && (
+        <p className="fine">
+          This messenger cannot open files from inside the app, so a backup can
+          only be restored on a device that can.
+        </p>
+      )}
     </SubPage>
   );
 }

@@ -35,6 +35,10 @@ const button = (text: string): HTMLButtonElement | undefined =>
 
 const subpage = (): HTMLElement | null => host.querySelector(".subpage");
 
+/** The header's way into group settings: the gear (the group name is the other). */
+const gear = (): HTMLButtonElement | null =>
+  host.querySelector('.app-header button[aria-label="Group settings"]');
+
 beforeEach(() => {
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -178,15 +182,13 @@ describe("the group settings sub-page", () => {
   beforeEach(() => setSettings({ title: "Trip", groupCurrency: "EUR" }));
 
   /**
-   * Me tab → Group settings. The final wait is longer than flush() on purpose:
+   * Header → Group settings. The final wait is longer than flush() on purpose:
    * Escape is wired in a useEffect, which preact defers to after paint.
    */
   const open = async (): Promise<void> => {
     render(<App />, host);
     await flush();
-    tap(button("Me"));
-    await flush();
-    tap(button("Group settings"));
+    tap(gear());
     await new Promise((resolve) => setTimeout(resolve, 50));
   };
 
@@ -196,12 +198,15 @@ describe("the group settings sub-page", () => {
     tap(button("Me"));
     await flush();
 
-    // The Me tab keeps only what is yours.
+    // The Me tab keeps only what is yours — not even a way in to the group's.
     expect(host.textContent).toContain("Add payment method");
     expect(host.textContent).not.toContain("Group currency");
     expect(host.textContent).not.toContain("Backup");
+    expect(host.querySelector(".app-content")?.textContent).not.toContain(
+      "Group settings",
+    );
 
-    tap(button("Group settings"));
+    tap(gear());
     await flush();
 
     const page = subpage();
@@ -213,6 +218,16 @@ describe("the group settings sub-page", () => {
     expect(text).toContain("Backup");
     // Its own title in its own header, not the group's.
     expect(page?.querySelector(".app-title")?.textContent).toBe(
+      "Group settings",
+    );
+  });
+
+  it("opens from the group name too", async () => {
+    render(<App />, host);
+    await flush();
+    tap(host.querySelector(".app-header .group-btn"));
+    await flush();
+    expect(subpage()?.querySelector(".app-title")?.textContent).toBe(
       "Group settings",
     );
   });

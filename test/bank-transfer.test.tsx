@@ -77,7 +77,9 @@ describe("PayUpSheet bank transfer", () => {
 
   const buttons = (text: string): HTMLButtonElement[] =>
     Array.from(host.querySelectorAll("button")).filter((b) =>
-      (b.textContent ?? "").includes(text),
+      ((b.textContent ?? "") + (b.getAttribute("aria-label") ?? "")).includes(
+        text,
+      ),
     ) as HTMLButtonElement[];
 
   it("GBP: shows the IBAN, holder and reference, but no QR — and says why", () => {
@@ -148,7 +150,8 @@ describe("PayUpSheet bank transfer", () => {
       ) as HTMLButtonElement;
       tap(copy);
       await flush();
-      expect(copy.textContent).toBe("Copied");
+      // An icon button: the tick and its label say it worked.
+      expect(copy.getAttribute("aria-label")).toBe("Copied");
     }
   });
 

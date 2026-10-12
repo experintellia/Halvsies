@@ -11,6 +11,7 @@ import {
   getSettings,
   hydrated,
   listExpenses,
+  listMembers,
   listSettlements,
   whenHydrated,
 } from "../state/doc";
@@ -20,6 +21,7 @@ import { FirstRunSetup, GroupSettings, needsSetup } from "./GroupSettings";
 import { ProfileForm } from "./ProfileForm";
 import { useDocValue } from "./useDoc";
 import { Icon, type IconName } from "./components/Icon";
+import { TapButton } from "./components/TapButton";
 
 type Tab = "expenses" | "balances" | "me";
 type Route = "group" | null;
@@ -37,6 +39,7 @@ export function App() {
   // this flips once webxdc has replayed the chat history into the doc.
   const [ready, setReady] = useState(hydrated);
   const settings = useDocValue(getSettings);
+  const memberCount = useDocValue(() => listMembers().length);
   const firstRun = useDocValue(() =>
     needsSetup(getSettings(), listExpenses().length, listSettlements().length),
   );
@@ -73,6 +76,7 @@ export function App() {
   if (firstRun) return <FirstRunSetup open />;
 
   const activate = (id: Tab) => setTab(id);
+  const openGroup = () => setRoute("group");
   // A sub-page covers the shell completely; hide what it covers from assistive
   // tech rather than leaving two screens' worth of content readable at once.
   const covered = route !== null;
@@ -80,17 +84,37 @@ export function App() {
   return (
     <>
       <div className="app-shell" aria-hidden={covered ? "true" : undefined}>
+        {/* The group name is the way into group settings: they belong to
+            everyone, so they live up here rather than under "Me". */}
         <header className="app-header">
-          <h1 className="app-title">{settings.title || "Halvsies"}</h1>
-          <span className="app-currency">{settings.groupCurrency}</span>
+          <h1 className="app-heading">
+            {/* A big tap target for fingers; keyboard and screen-reader users
+                get the one control that says what it does, the gear. */}
+            <TapButton
+              className="group-btn"
+              tabIndex={-1}
+              onActivate={openGroup}
+            >
+              <span className="app-title">{settings.title || "Halvsies"}</span>
+              <span className="group-meta">
+                {memberCount === 1 ? "1 person" : `${memberCount} people`} ·{" "}
+                {settings.groupCurrency}
+              </span>
+            </TapButton>
+          </h1>
+          <TapButton
+            className="icon-btn"
+            ariaLabel="Group settings"
+            onActivate={openGroup}
+          >
+            <Icon name="settings" size={20} strokeWidth={1.75} />
+          </TapButton>
         </header>
 
         <main className="app-content">
           {tab === "expenses" && <ExpenseList />}
           {tab === "balances" && <Balances />}
-          {tab === "me" && (
-            <ProfileForm onOpenGroupSettings={() => setRoute("group")} />
-          )}
+          {tab === "me" && <ProfileForm />}
         </main>
 
         <nav className="tab-bar" aria-label="Main">

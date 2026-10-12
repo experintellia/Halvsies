@@ -14,24 +14,24 @@ Members attach payment coordinates (PayPal.Me, IBAN, Revolut, Wise, Venmo, Monzo
 
 <table>
   <tr>
-    <td width="33%"><img src="docs/screenshots/expenses.png" alt="Eight expenses from a trip under three day headings, each card showing who paid, the total and your own share." width="240"></td>
+    <td width="33%"><img src="docs/screenshots/expenses.png" alt="What the group spent and your share of it, then eight expenses under three day headings, each with who paid, the total, your share and a bar scaled to its size." width="240"></td>
     <td width="33%"><img src="docs/screenshots/expense.png" alt="A read-only summary of one expense, listing what each person owes, with an Edit button." width="240"></td>
     <td width="33%"><img src="docs/screenshots/shares.png" alt="The expense editor with the split set to Shares: each person has a stepper, and one person has two shares, which reads as 50 percent." width="240"></td>
   </tr>
   <tr>
-    <td>Grouped by day, newest first — with your share on each.</td>
+    <td>Grouped by day, newest first, with day totals and your share on each.</td>
     <td>Tapping an expense opens a read-only summary. Editing is a deliberate second tap.</td>
     <td>Split evenly, by shares, or by exact amounts.</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/balances.png" alt="Each member's net position, then a short list of suggested transfers that settle the whole group." width="240"></td>
-    <td><img src="docs/screenshots/payup.png" alt="The pay-up sheet for one debt: a note from the payee, then PayPal and bunq, each with an open link, a copy button and a QR code." width="240"></td>
-    <td><img src="docs/screenshots/me.png" alt="Your own payment methods, and below them a preview of exactly what a payer will be shown." width="240"></td>
+    <td><img src="docs/screenshots/balances.png" alt="What you owe and to whom, with one button to pay it, then everyone's net position as a bar and the transfers left between the others." width="240"></td>
+    <td><img src="docs/screenshots/payup.png" alt="The pay-up sheet for one debt: the amount, a note from the payee, a switcher between bank transfer, PayPal and bunq, and the bank details with a QR code and copy buttons." width="240"></td>
+    <td><img src="docs/screenshots/me.png" alt="Your payment methods, one row each saying what a payer gets, then your note to payers and a button to see the payer's screen." width="240"></td>
   </tr>
   <tr>
-    <td>Who owes whom, in as few transfers as possible.</td>
-    <td>One tap from a debt to actually paying it — link, copy, QR, or straight into the chat.</td>
-    <td>Your payment details, previewed exactly as the payer will see them.</td>
+    <td>What you owe first, then who owes whom, in as few transfers as possible.</td>
+    <td>One tap from a debt to actually paying it, opening on the payee's preferred method.</td>
+    <td>Your payment methods, and the payer's own screen one tap away.</td>
   </tr>
 </table>
 

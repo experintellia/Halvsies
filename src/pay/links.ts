@@ -411,7 +411,9 @@ export function customLink(
     kind: "custom",
     label: label || "Custom",
     url,
-    amountPrefilled: true,
+    // Only where the template asks for it: "https://twint.example/anna" is a
+    // valid template that carries no amount, and the UI says "filled in".
+    amountPrefilled: template.includes("{amount}"),
   };
 }
 

@@ -64,6 +64,12 @@ export interface PaymentProfile {
   customs?: CustomPaymentMethod[];
   /** Free text: "IBAN transfers only please", "no PayPal after the 3rd", … */
   note?: string;
+  /**
+   * The method the payee would rather be paid with: a PayMethod id from
+   * links.ts ("paypal", "crypto", "custom:<id>", …) or "bank" for the IBAN.
+   * The pay-up sheet opens on it. An id that matches nothing is ignored.
+   */
+  preferred?: string;
 }
 
 export type SplitMode = "even" | "weights" | "exact";
