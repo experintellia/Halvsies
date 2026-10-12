@@ -106,19 +106,29 @@ test("an exact split must add up before it can be saved", async ({ page }) => {
   );
 });
 
-test("keyboard activation works where taps ride pointerup", async ({
-  page,
-}) => {
-  // Every tap target activates on pointerup (Delta Chat's WebView fires blur
-  // before click); Enter has to keep working through the e.detail === 0 path.
-  await page.getByRole("button", { name: "Add expense" }).focus();
+// Every tap target activates on pointerup (Delta Chat's WebView fires blur
+// before click); Enter has to keep working through the e.detail === 0 path.
+//
+// Each starts from a fresh load: closing a sheet or sub-page hands focus back
+// to its opener in an effect that can land ~100ms later on a busy machine, so
+// the members sheet and group settings beforeEach used could otherwise pull
+// focus away from under the keypress.
+test("Enter on the add button opens the form", async ({ page }) => {
+  await page.reload();
+  const add = page.getByRole("button", { name: "Add expense" });
+  await add.focus();
+  await expect(add).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(
     sheet(page).getByRole("heading", { name: "Add expense" }),
   ).toBeVisible();
-  await page.keyboard.press("Escape");
+});
 
-  await page.locator(".tab-btn", { hasText: "Me" }).focus();
+test("Enter on a tab switches to it", async ({ page }) => {
+  await page.reload();
+  const me = page.locator(".tab-btn", { hasText: "Me" });
+  await me.focus();
+  await expect(me).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByText("How the group pays you back")).toBeVisible();
 });

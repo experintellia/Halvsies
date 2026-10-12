@@ -101,7 +101,10 @@ export async function openNewExpense(page: Page): Promise<Locator> {
   await expect(
     form.getByRole("heading", { name: "Add expense" }),
   ).toBeVisible();
+  // The form stays mounted between opens, so a date can be left over from
+  // the last expense: a blank title is what says the reset has run.
   await expect(form.getByLabel("Date")).not.toHaveValue("");
+  await expect(form.getByLabel("Title")).toHaveValue("");
   return form;
 }
 
