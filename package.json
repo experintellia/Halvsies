@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.10.0",
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "scripts": {
     "dev": "vite --host --port 3000",
     "build": "tsc --noEmit && vite build && node scripts/audit-bundle.mjs",
