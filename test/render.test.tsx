@@ -12,6 +12,7 @@ import { addExpense, deleteExpense } from "../src/state/doc";
 import { PayUpSheet } from "../src/ui/PayUpSheet";
 import { Balances } from "../src/ui/Balances";
 import { MembersSheet } from "../src/ui/MembersSheet";
+import { initials } from "../src/ui/components/Avatar";
 import {
   addVirtualMember,
   getSettings,
@@ -899,5 +900,27 @@ describe("MembersSheet", () => {
       deleteExpense(EXPENSE_ID);
       removeMember(gran.id);
     }
+  });
+});
+
+describe("Avatar initials", () => {
+  it("keeps emoji whole instead of splitting surrogate pairs", () => {
+    expect(initials("🌻 Sunny")).toBe("🌻S");
+    expect(initials("ada 👨‍👩‍👧")).toBe("A👨‍👩‍👧");
+    expect(initials("🇩🇪")).toBe("🇩🇪");
+    expect(initials("👍🏽 Fan")).toBe("👍🏽F");
+    expect(initials("❤️ love")).toBe("❤️L");
+    expect(initials("1️⃣ one")).toBe("1️⃣O");
+    expect(initials("🐱 🐶")).toBe("🐱🐶");
+    expect(initials("👩🏽‍💻 dev")).toBe("👩🏽‍💻D");
+    expect(initials("🏳️‍🌈 pride")).toBe("🏳️‍🌈P");
+    expect(initials("👩‍❤️‍💋‍👨")).toBe("👩‍❤️‍💋‍👨");
+    expect(initials("🧑🏿‍🤝‍🧑🏻 pals")).toBe("🧑🏿‍🤝‍🧑🏻P");
+    expect(initials("🏴󠁧󠁢󠁳󠁣󠁴󠁿 Scotland")).toBe("🏴󠁧󠁢󠁳󠁣󠁴󠁿S");
+    expect(initials("e\u0301mile durand")).toBe("E\u0301D");
+    expect(initials("山田 太郎")).toBe("山太");
+    expect(initials("Ada King Lovelace")).toBe("AL");
+    expect(initials("ada")).toBe("A");
+    expect(initials("  ")).toBe("?");
   });
 });
