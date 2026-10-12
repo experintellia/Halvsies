@@ -71,8 +71,20 @@ pnpm fix          # auto-fix formatting
 
 ### Test
 
+Unit and component tests (vitest + happy-dom):
+
 ```sh
 pnpm test
+```
+
+End-to-end tests (Playwright) drive the real app in Chromium (Android's
+WebView engine) and WebKit (iOS's) against the dev server and its mock webxdc
+host. Two pages in one browser context act as two people in one chat:
+
+```sh
+pnpm exec playwright install chromium webkit   # once
+pnpm test:e2e
+pnpm test:e2e --project=android                # Chromium only
 ```
 
 ### Build
@@ -94,7 +106,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Every push and pull request also runs CI (`.github/workflows/ci.yml`): typecheck, lint and build. PRs automatically get a downloadable preview build linked in the PR comments.
+Every push and pull request also runs CI (`.github/workflows/ci.yml`): typecheck, lint, unit tests, build, and the end-to-end suite in Chromium and WebKit. PRs automatically get a downloadable preview build linked in the PR comments.
 
 ## App store
 

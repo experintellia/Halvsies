@@ -1,4 +1,5 @@
-# Format-check, test and build on every push and pull request.
+# Format-check, test and build on every push and pull request, plus the
+# end-to-end suite in the two engines Halvsies ships in.
 # (Typecheck runs inside `pnpm build`, which is `tsc --noEmit && vite build`.)
 name: CI
 on:
@@ -46,3 +47,27 @@ jobs:
             ## 📦 Preview build ready
 
             [Download halvsies.xdc](${{ steps.upload_xdc.outputs.artifact-url }}) and drop it into a Delta Chat chat to test this PR.
+
+  # Chromium is Delta Chat's WebView on Android, WebKit its WKWebView on iOS.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Install browsers
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: End-to-end tests
+        run: pnpm test:e2e
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 14

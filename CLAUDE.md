@@ -8,6 +8,9 @@ Plan.md for full spec/scope.
 - `pnpm dev` — vite dev server on :3000
 - `pnpm build` — `tsc --noEmit && vite build` → `dist-xdc/halvsies.xdc`
 - `pnpm test` — vitest run
+- `pnpm test:e2e` — Playwright end-to-end suite in `e2e/` (Chromium + WebKit,
+  against the dev server's mock webxdc host; `--project=android` for Chromium
+  only)
 - `pnpm test:peers` — dev server + `webxdc-dev` multi-peer simulator
 - `pnpm make-icon` — regenerate `public/icon.png`
 - `pnpm check` / `pnpm fix` — prettier
