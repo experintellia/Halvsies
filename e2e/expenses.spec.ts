@@ -3,6 +3,7 @@ import {
   addExpense,
   addVirtualMember,
   openAs,
+  openNewExpense,
   setUpGroup,
   sheet,
 } from "./helpers";
@@ -85,8 +86,7 @@ test("a row opens a read-only summary; editing by shares and deleting both work"
 });
 
 test("an exact split must add up before it can be saved", async ({ page }) => {
-  await page.getByRole("button", { name: "Add expense" }).click();
-  const form = sheet(page);
+  const form = await openNewExpense(page);
   await form.getByLabel("Amount").first().fill("50");
   await form.getByLabel("Title").fill("Tickets");
   await form.getByRole("button", { name: "Exact" }).click();

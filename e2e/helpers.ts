@@ -88,13 +88,25 @@ export interface NewExpense {
   exclude?: string[];
 }
 
-export async function addExpense(page: Page, e: NewExpense): Promise<void> {
+/**
+ * Opens a blank expense form, ready to type into. The form fills in its
+ * defaults (today's date, the payer, amount 0) in an effect that runs after
+ * the sheet paints — up to ~100ms later on a busy machine — and anything
+ * typed before that would be reset. A person can't type that fast; a test can.
+ */
+export async function openNewExpense(page: Page): Promise<Locator> {
   await tab(page, "Expenses");
   await page.getByRole("button", { name: "Add expense" }).click();
   const form = sheet(page);
   await expect(
     form.getByRole("heading", { name: "Add expense" }),
   ).toBeVisible();
+  await expect(form.getByLabel("Date")).not.toHaveValue("");
+  return form;
+}
+
+export async function addExpense(page: Page, e: NewExpense): Promise<void> {
+  const form = await openNewExpense(page);
   await form.getByLabel("Amount").first().fill(e.amount);
   await form.getByLabel("Title").fill(e.title);
   if (e.payer)
