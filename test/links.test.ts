@@ -350,6 +350,14 @@ describe("custom template", () => {
     expect(m?.label).toBe("Twint");
   });
 
+  it("claims a pre-filled amount only when the template has {amount}", () => {
+    const link = (urlTemplate: string) =>
+      customLink({ id: "c", label: "Twint", urlTemplate }, 2350, "CHF", "r");
+    expect(link("https://pay.example/{amount}")?.amountPrefilled).toBe(true);
+    // A plain profile link is a valid template, but the payer types the sum.
+    expect(link("https://twint.example/anna")?.amountPrefilled).toBe(false);
+  });
+
   it("validateCustomTemplate rejects non-https and over-length templates", () => {
     expect(validateCustomTemplate("javascript:alert(1)")).not.toBeNull();
     expect(

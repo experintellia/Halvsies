@@ -195,7 +195,7 @@ describe("send to chat", () => {
       dom,
     );
 
-    tap(buttons("Tell the chat")[0]);
+    tap(buttons("I'm paying now")[0]);
     expect(webxdc.chat).toHaveLength(1);
     expect(webxdc.chat[0].text).toContain("https://paypal.me/anna/23.50EUR");
   });
@@ -214,7 +214,7 @@ describe("send to chat", () => {
       dom,
     );
 
-    expect(buttons("Tell the chat")).toHaveLength(0);
+    expect(buttons("I'm paying now")).toHaveLength(0);
     // the alternative is there
     expect(
       dom.querySelectorAll('button[aria-label="Copy PayPal link"]'),
@@ -243,7 +243,7 @@ describe("send to chat", () => {
     );
 
     // One ask, and no "I'm paying" announcement competing with it.
-    expect(buttons("Tell the chat")).toHaveLength(0);
+    expect(buttons("I'm paying now")).toHaveLength(0);
     const ask = buttons("Ask for the money");
     expect(ask).toHaveLength(1);
 
@@ -253,6 +253,28 @@ describe("send to chat", () => {
     expect(text).toContain("https://bunq.me/anna/23.50");
     expect(text).toContain("DE89 3704 0044 0532 0130 00");
     expect(text).toContain("€23.50");
+  });
+
+  // The Me tab's preview is the payer's sheet on a sample debt. On a host that
+  // can send, it still must not offer to — nor to record anything.
+  it("the payer preview offers nothing to send or record, even where it could", async () => {
+    const { doc, PayUpSheet } = await boot({ selfAddr: "b@x.de" });
+    doc.setProfile("b@x.de", { paypalMe: "anna", note: "IBAN please" });
+    render(
+      <PayUpSheet
+        transfer={{ fromId: "", toId: "b@x.de", amountCents: 1000 }}
+        direction="pay"
+        preview
+        open
+        onClose={() => {}}
+      />,
+      dom,
+    );
+
+    expect(dom.textContent).toContain("Nothing here is recorded or sent");
+    for (const label of ["I'm paying now", "Ask for the money", "Mark as"]) {
+      expect(buttons(label)).toHaveLength(0);
+    }
   });
 
   // Nothing on file is no reason to swallow the nudge.

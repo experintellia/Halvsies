@@ -44,7 +44,12 @@ function clear(m: {
 // --- chat info lines ----------------------------------------------------------
 
 export type ChangeKind =
-  "add" | "edit" | "delete" | "settle" | "import" | "join";
+  | "add"
+  | "edit"
+  | "delete"
+  | "settle"
+  | "import"
+  | "join";
 
 export interface ChangePayload {
   /** display name of whoever made the change */

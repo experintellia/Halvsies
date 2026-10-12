@@ -126,6 +126,14 @@ describe("the method rows", () => {
     expect(show()).not.toContain("None of your saved methods");
   });
 
+  it("counts an address-only crypto method as offered", () => {
+    mount("EUR", {
+      crypto: { label: "USDC on Base", address: "0xabc", network: "other" },
+    });
+    expect(row("USDC on Base")?.tag).toBe("Address only");
+    expect(show()).not.toContain("None of your saved methods");
+  });
+
   it("says when the payer has to type the amount, and marks the preferred one", () => {
     mount("EUR", {
       revolutTag: "anna",
@@ -137,7 +145,7 @@ describe("the method rows", () => {
     expect(row("Bank transfer")).toEqual({
       name: "Bank transferPreferred",
       detail: "DE89 3704 0044 0532 0130 00",
-      tag: "QR code",
+      tag: "Fills in amount",
     });
     // No destructive buttons on the tab itself: Remove lives in the edit view.
     expect(show()).not.toContain("Remove");
@@ -196,6 +204,22 @@ describe("a method's edit view", () => {
     tap(buttonWith("Save"));
     await flush();
     expect(getProfile(ME)?.preferred).toBe("bank");
+  });
+
+  it("re-adding the preferred method through the picker keeps the mark", async () => {
+    mount("EUR", { paypalMe: "anna", bunqMe: "anna", preferred: "paypal" });
+    tap(buttonWith("Add payment method"));
+    await flush();
+    tap(
+      Array.from(host.querySelectorAll(".wizard-option")).find(
+        (o) => o.querySelector("strong")?.textContent === "PayPal",
+      ),
+    );
+    await flush();
+    const box = host.querySelector<HTMLInputElement>(
+      '.sheet input[type="checkbox"]',
+    )!;
+    expect(box.checked).toBe(true);
   });
 
   it("removing the preferred method clears the mark", async () => {
