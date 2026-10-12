@@ -97,12 +97,12 @@ describe("first run", () => {
     tap(host.querySelector(".subpage .picker-value"));
     await flush();
     const search = document.querySelector(
-      ".sheet input",
+      ".subpage .subpage input",
     ) as HTMLInputElement | null;
     search!.value = "british";
     search!.dispatchEvent(new Event("input", { bubbles: true }));
     await flush();
-    tap(document.querySelector(".sheet .currency-row"));
+    tap(document.querySelector(".subpage .subpage .currency-row"));
     await flush();
 
     // The name is optional, so there is always a way through this screen.
@@ -131,7 +131,7 @@ describe("first run", () => {
     await flush();
 
     const codes = Array.from(
-      document.querySelectorAll(".sheet .currency-code"),
+      document.querySelectorAll(".subpage .subpage .currency-code"),
     ).map((el) => (el.textContent ?? "").trim());
     expect(codes.length).toBeGreaterThan(40);
     expect(codes.every((c) => isCurrencyCode(c))).toBe(true);
@@ -151,13 +151,15 @@ describe("first run", () => {
     tap(host.querySelector(".subpage .picker-value"));
     await flush();
 
-    const search = document.querySelector(".sheet input") as HTMLInputElement;
+    const search = document.querySelector(
+      ".subpage .subpage input",
+    ) as HTMLInputElement;
     search.focus();
     search.value = "swedish";
     search.dispatchEvent(new Event("input", { bubbles: true }));
     await flush();
 
-    const first = document.querySelector(".sheet .currency-row");
+    const first = document.querySelector(".subpage .subpage .currency-row");
     expect((first?.textContent ?? "").trim()).toMatch(/^SEK/);
 
     // The event order a real device produces: blur lands before the tap ends.
@@ -166,7 +168,7 @@ describe("first run", () => {
     first!.dispatchEvent(new Event("pointerup", { bubbles: true }));
     await flush();
 
-    expect(document.querySelector(".sheet")).toBeNull();
+    expect(document.querySelector(".subpage .subpage")).toBeNull();
     // This is the first-run screen, so the pick lives in local state until
     // Start — what matters is that the tap was not swallowed.
     expect(

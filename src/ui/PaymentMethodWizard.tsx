@@ -3,7 +3,7 @@
 // test link at the end so you can prove the handle works before anyone tries
 // to pay you.
 //
-// Opened on a saved method, the same sheet is that method's edit view: the
+// Opened on a saved method, the same page is that method's edit view: the
 // live preview, a "preferred" switch, and Remove as the last, quietest action
 // (the Me tab itself carries no destructive buttons at all).
 //
@@ -38,7 +38,7 @@ import {
   isValidIban,
   normalizeIban,
 } from "../pay/iban";
-import { Sheet } from "./components/Sheet";
+import { SubPage } from "./components/SubPage";
 import { CopyButton } from "./components/CopyButton";
 import { Icon } from "./components/Icon";
 
@@ -138,8 +138,8 @@ export function PaymentMethodWizard({
   const [network, setNetwork] = useState<CryptoNetwork>("bitcoin");
   const [preferred, setPreferred] = useState(false);
 
-  // Re-seed whenever the sheet is (re)opened, so a previous run's half-typed
-  // handle never leaks into the next one. Sheet stays mounted while closed.
+  // Re-seed whenever the page is (re)opened, so a previous run's half-typed
+  // handle never leaks into the next one. This stays mounted while closed.
   const key = `${open}|${editing ? JSON.stringify(editing) : ""}`;
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
@@ -344,7 +344,13 @@ export function PaymentMethodWizard({
               : "Custom link";
 
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
+    <SubPage
+      open={open}
+      // Back steps out of a method to the list first, like the button it
+      // replaced; editing an existing method has no list to go back to.
+      onBack={target !== null && !editing ? () => setTarget(null) : onClose}
+      title={title}
+    >
       {target === null ? (
         <>
           <p className="field-suffix">
@@ -562,14 +568,6 @@ export function PaymentMethodWizard({
             >
               Save
             </TapButton>
-            {!editing && (
-              <TapButton
-                className="btn btn-secondary btn-block"
-                onActivate={() => setTarget(null)}
-              >
-                Back
-              </TapButton>
-            )}
             {editing && (
               <TapButton
                 className="btn btn-quiet btn-block"
@@ -582,6 +580,6 @@ export function PaymentMethodWizard({
           </div>
         </>
       )}
-    </Sheet>
+    </SubPage>
   );
 }

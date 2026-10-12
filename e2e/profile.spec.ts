@@ -8,6 +8,7 @@ import {
   pickCurrency,
   setUpGroup,
   sheet,
+  subpage,
   tab,
 } from "./helpers";
 
@@ -55,22 +56,26 @@ test("the wizard refuses a bad IBAN and offers a test link for a good handle", a
   page,
 }) => {
   await page.locator(".row", { hasText: "Add payment method" }).click();
-  await sheet(page)
+  await subpage(page)
     .locator(".wizard-option", { hasText: "Bank transfer" })
     .click();
-  await sheet(page).getByLabel("IBAN", { exact: true }).fill("DE00 1234 5678");
-  await expect(sheet(page).getByRole("alert")).toHaveText(
+  await subpage(page)
+    .getByLabel("IBAN", { exact: true })
+    .fill("DE00 1234 5678");
+  await expect(subpage(page).getByRole("alert")).toHaveText(
     "That doesn't look like a valid IBAN.",
   );
   await expect(
-    sheet(page).getByRole("button", { name: "Save" }),
+    subpage(page).getByRole("button", { name: "Save" }),
   ).toBeDisabled();
-  await sheet(page).getByRole("button", { name: "Back", exact: true }).click();
+  await subpage(page)
+    .getByRole("button", { name: "Back", exact: true })
+    .click();
 
-  await sheet(page).locator(".wizard-option", { hasText: "PayPal" }).click();
-  await sheet(page).getByLabel("PayPal handle").fill("annab");
+  await subpage(page).locator(".wizard-option", { hasText: "PayPal" }).click();
+  await subpage(page).getByLabel("PayPal handle").fill("annab");
   await expect(
-    sheet(page).getByRole("link", { name: "Open test link" }),
+    subpage(page).getByRole("link", { name: "Open test link" }),
   ).toHaveAttribute("href", "https://paypal.me/annab/10.00EUR");
 });
 
@@ -88,7 +93,7 @@ test("a method can be marked preferred, and removed from its edit view", async (
   await expect(methodRow(page, "PayPal")).not.toContainText("Preferred");
 
   await methodRow(page, "PayPal").click();
-  await sheet(page).getByRole("button", { name: "Remove PayPal" }).click();
+  await subpage(page).getByRole("button", { name: "Remove PayPal" }).click();
   await expect(methodRow(page, "PayPal")).toHaveCount(0);
   await expect(methodRow(page, "Bank transfer")).toContainText("Preferred");
 });

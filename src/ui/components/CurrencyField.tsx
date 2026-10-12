@@ -1,4 +1,4 @@
-// The group-currency picker: a value button that opens a searchable sheet.
+// The group-currency picker: a value button that opens a searchable page.
 //
 // Not a <select>: 162 options is a long native picker with no way to type
 // "krona". Not a <datalist> either — CLAUDE.md rules it out on Delta Chat
@@ -8,8 +8,8 @@
 // reach for a result, and Delta Chat's Android WebView fires `blur` before
 // `click` — so a list that closed itself on blur would swallow every tap. This
 // one has no onBlur at all: rows are <Row>s, which arm on pointerdown and fire
-// on pointerup, and the sheet is closed only by picking something, by the
-// backdrop, or by Escape.
+// on pointerup, and the page is closed only by picking something, by its
+// Back button, or by Escape.
 import { useState } from "preact/hooks";
 import {
   COMMON_CURRENCIES,
@@ -17,7 +17,7 @@ import {
   currencyName,
   searchCurrencies,
 } from "../../state/currency";
-import { Sheet } from "./Sheet";
+import { SubPage } from "./SubPage";
 import { Row } from "./Row";
 import { Icon } from "./Icon";
 import { TapButton } from "./TapButton";
@@ -67,7 +67,7 @@ function CurrencyPicker({
 }) {
   const [query, setQuery] = useState("");
 
-  // Sheet renders null when closed but this stays mounted, so a previous
+  // SubPage renders null when closed but this stays mounted, so a previous
   // visit's query would still be filtering the list on the next open.
   const [lastOpen, setLastOpen] = useState(open);
   if (lastOpen !== open) {
@@ -83,7 +83,7 @@ function CurrencyPicker({
   const rest = query ? matches : all.filter((c) => !common.includes(c));
 
   return (
-    <Sheet open={open} onClose={onClose} title="Choose a currency">
+    <SubPage open={open} onBack={onClose} title="Choose a currency">
       <label className="field currency-search">
         <span className="field-label">Search</span>
         <span className="field-row">
@@ -138,7 +138,7 @@ function CurrencyPicker({
           </p>
         )}
       </div>
-    </Sheet>
+    </SubPage>
   );
 }
 

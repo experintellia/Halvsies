@@ -39,6 +39,10 @@ export function SubPage({ open, title, onBack, children }: SubPageProps) {
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape" || !backRef.current) return;
+      // Pages and sheets nest (a currency picker inside group settings): only
+      // the top one — the last in the DOM — answers, or one Escape closes all.
+      const layers = document.querySelectorAll(".sheet, .subpage");
+      if (layers[layers.length - 1] !== panelRef.current) return;
       e.preventDefault();
       backRef.current();
     }

@@ -1,4 +1,4 @@
-// The add/edit expense sheet — amount-first, the highest-traffic screen.
+// The add/edit expense page — amount-first, the highest-traffic screen.
 // Every amount here is integer cents; the only float-adjacent code is
 // Amount.tsx's own text parser, which this file never touches directly.
 import type { ComponentChildren, JSX } from "preact";
@@ -21,7 +21,7 @@ import {
   type SplitMode,
 } from "../state/model";
 import { useDocValue, useSelfId } from "./useDoc";
-import { Sheet } from "./components/Sheet";
+import { SubPage } from "./components/SubPage";
 import { Amount } from "./components/Amount";
 import { Avatar } from "./components/Avatar";
 import { Row } from "./components/Row";
@@ -139,7 +139,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
   const selfId = useSelfId();
 
   // listMembers() returns a fresh array every render; the init effect below
-  // must not re-run just because the doc changed elsewhere while the sheet
+  // must not re-run just because the doc changed elsewhere while the page
   // is open (that would wipe in-progress edits), so it reads members through
   // a ref instead of depending on the array itself.
   const membersRef = useRef(members);
@@ -155,7 +155,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
   const [weights, setWeights] = useState<Record<MemberId, number>>({});
   const [exact, setExact] = useState<Record<MemberId, number>>({});
 
-  // A layout effect, not a passive one: it runs before the sheet paints. A
+  // A layout effect, not a passive one: it runs before the page paints. A
   // passive effect could land up to ~100ms later on a busy device, briefly
   // showing the previous expense's values on reopen and resetting anything
   // tapped or typed in that window (a split mode, an armed Delete, an amount).
@@ -277,9 +277,9 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
   }
 
   return (
-    <Sheet
+    <SubPage
       open={open}
-      onClose={onClose}
+      onBack={onClose}
       title={expense ? "Edit expense" : "Add expense"}
     >
       <Amount
@@ -474,6 +474,6 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
           Save
         </button>
       </div>
-    </Sheet>
+    </SubPage>
   );
 }

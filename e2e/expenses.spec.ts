@@ -6,6 +6,7 @@ import {
   openNewExpense,
   setUpGroup,
   sheet,
+  subpage,
 } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
@@ -61,7 +62,7 @@ test("a row opens a read-only summary; editing by shares and deleting both work"
   );
 
   await sheet(page).getByRole("button", { name: "Edit" }).click();
-  const form = sheet(page);
+  const form = subpage(page);
   await form.getByRole("button", { name: "Shares" }).click();
   await form
     .getByRole("group", { name: "Shares for Ben" })
@@ -78,8 +79,8 @@ test("a row opens a read-only summary; editing by shares and deleting both work"
 
   await sheet(page).getByRole("button", { name: "Edit" }).click();
   // Two taps: the first one only arms it.
-  await sheet(page).getByRole("button", { name: "Delete" }).click();
-  await sheet(page).getByRole("button", { name: "Really delete?" }).click();
+  await subpage(page).getByRole("button", { name: "Delete" }).click();
+  await subpage(page).getByRole("button", { name: "Really delete?" }).click();
   await expect(
     page.getByRole("heading", { name: "No expenses yet" }),
   ).toBeVisible();
@@ -120,7 +121,7 @@ test("Enter on the add button opens the form", async ({ page }) => {
   await expect(add).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(
-    sheet(page).getByRole("heading", { name: "Add expense" }),
+    subpage(page).getByRole("heading", { name: "Add expense" }),
   ).toBeVisible();
 });
 

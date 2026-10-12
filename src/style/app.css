@@ -1057,6 +1057,8 @@ select {
   max-width: 640px;
   max-height: 90vh;
   overflow-y: auto;
+  /* A swipe down at the top drags the sheet; don't also pull the page. */
+  overscroll-behavior: contain;
   background: var(--color-surface);
   border-radius: 24px 24px 0 0;
   padding: 0 16px calc(16px + var(--safe-bottom));

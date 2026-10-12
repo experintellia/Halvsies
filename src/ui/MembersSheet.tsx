@@ -98,7 +98,12 @@ export function MembersSheet({ open, onClose }: MembersSheetProps) {
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Members">
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Members"
+      dirty={newName.trim() !== ""}
+    >
       <ul className="method-list">
         {members.map((m) => {
           const blocked = m.isVirtual

@@ -1,6 +1,8 @@
 // Bottom sheet / modal. Renders nothing when closed; while open it traps
-// focus, closes on backdrop tap (onPointerUp — see Row.tsx) and Escape, and
-// restores focus to whatever opened it when it closes.
+// focus, closes on backdrop tap (onPointerUp — see Row.tsx), a downward swipe
+// and Escape, and restores focus to whatever opened it when it closes.
+//
+// For short, glanceable content. Anything tall or form-like is a SubPage.
 import type { ComponentChildren } from "preact";
 import { useEffect, useId, useRef } from "preact/hooks";
 import { Icon } from "./Icon";
@@ -9,13 +11,16 @@ export interface SheetProps {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Holds input that closing would throw away: the backdrop and a swipe
+   *  then leave it open. Close and Escape still close — those are asked for. */
+  dirty?: boolean;
   children: ComponentChildren;
 }
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function Sheet({ open, onClose, title, children }: SheetProps) {
+export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<Element | null>(null);
   const titleId = useId();
@@ -27,6 +32,18 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
   // soft keyboard. Keep it in a ref and depend only on `open`.
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+
+  // Blur first: a rename field commits on blur, and an input that unmounts
+  // while focused never blurs (and on iOS leaves the keyboard's scroll behind).
+  function close() {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && panelRef.current?.contains(active)) {
+      active.blur();
+    }
+    closeRef.current();
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -39,9 +56,12 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
     }
 
     function onKeyDown(e: KeyboardEvent) {
+      // Only the top layer answers; see SubPage.
+      const layers = document.querySelectorAll(".sheet, .subpage");
+      if (layers[layers.length - 1] !== panelRef.current) return;
       if (e.key === "Escape") {
         e.preventDefault();
-        closeRef.current();
+        close();
         return;
       }
       const panel = panelRef.current;
@@ -64,8 +84,70 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
       }
     }
     document.addEventListener("keydown", onKeyDown);
+
+    // Swipe down to close. Touch events, not pointer events: the sheet body
+    // scrolls, and only a touchmove listener can claim the gesture from the
+    // browser (preventDefault) — and only on its first move, before a scroll
+    // starts. So the call is made on that first move: downward, mostly
+    // vertical, and the body already scrolled to the top. Anything else is
+    // left to scroll as normal.
+    const panel = panelRef.current;
+    let startX = 0;
+    let startY = 0;
+    let dy = 0;
+    let state: "idle" | "deciding" | "dragging" = "idle";
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length !== 1 || !panel || panel.scrollTop > 0) {
+        state = "idle";
+        return;
+      }
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      dy = 0;
+      state = "deciding";
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (state === "idle" || !panel) return;
+      const t = e.touches[0];
+      dy = t.clientY - startY;
+      if (state === "deciding") {
+        if (dy <= 0 || dy < Math.abs(t.clientX - startX)) {
+          state = "idle";
+          return;
+        }
+        state = "dragging";
+        panel.style.transition = "none";
+      }
+      e.preventDefault();
+      // Holding input: let it give a little, then spring back.
+      const shown = dirtyRef.current ? dy / 4 : Math.max(0, dy);
+      panel.style.transform = `translateY(${shown}px)`;
+    }
+    function onTouchEnd() {
+      if (state !== "dragging" || !panel) {
+        state = "idle";
+        return;
+      }
+      state = "idle";
+      panel.style.transition = "";
+      if (!dirtyRef.current && dy > Math.min(120, panel.offsetHeight / 3)) {
+        panel.style.transform = "translateY(100%)";
+        setTimeout(close, 200); // .sheet's transform transition
+      } else {
+        panel.style.transform = "";
+      }
+    }
+    panel?.addEventListener("touchstart", onTouchStart, { passive: true });
+    panel?.addEventListener("touchmove", onTouchMove, { passive: false });
+    panel?.addEventListener("touchend", onTouchEnd);
+    panel?.addEventListener("touchcancel", onTouchEnd);
+
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      panel?.removeEventListener("touchstart", onTouchStart);
+      panel?.removeEventListener("touchmove", onTouchMove);
+      panel?.removeEventListener("touchend", onTouchEnd);
+      panel?.removeEventListener("touchcancel", onTouchEnd);
       const opener = openerRef.current;
       if (opener instanceof HTMLElement) opener.focus();
     };
@@ -77,10 +159,10 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
     <div
       className="sheet-backdrop"
       onPointerUp={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !dirty) close();
       }}
       onClick={(e) => {
-        if (e.detail === 0 && e.target === e.currentTarget) onClose();
+        if (e.detail === 0 && e.target === e.currentTarget && !dirty) close();
       }}
     >
       <div
@@ -100,9 +182,9 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
             type="button"
             className="sheet-close"
             aria-label="Close"
-            onPointerUp={onClose}
+            onPointerUp={close}
             onClick={(e) => {
-              if (e.detail === 0) onClose();
+              if (e.detail === 0) close();
             }}
           >
             <Icon name="close" size={18} />
