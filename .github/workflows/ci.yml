@@ -51,6 +51,10 @@ jobs:
   # Chromium is Delta Chat's WebView on Android, WebKit its WKWebView on iOS.
   e2e:
     runs-on: ubuntu-latest
+    # Reads the repo and uploads a report; it never comments on the PR.
+    permissions:
+      contents: read
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -61,7 +65,8 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Install browsers
-        run: pnpm exec playwright install --with-deps chromium webkit
+        # Headless runs only need Chromium's headless shell, not full Chrome.
+        run: pnpm exec playwright install --with-deps --only-shell chromium webkit
       - name: End-to-end tests
         run: pnpm test:e2e
       - name: Upload report

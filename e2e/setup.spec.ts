@@ -1,5 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { openAs, openGroupSettings, pickCurrency, setUpGroup } from "./helpers";
+
+/** The mock host's update log: what this "chat" has been sent so far. */
+const chatLog = (page: Page): Promise<unknown[]> =>
+  page.evaluate(
+    () =>
+      JSON.parse(
+        window.localStorage.getItem("__xdcUpdatesKey__") ?? "[]",
+      ) as unknown[],
+  );
 
 test("first run asks for currency and name, then never again", async ({
   page,
@@ -11,6 +20,12 @@ test("first run asks for currency and name, then never again", async ({
   await expect(header).toContainText("Rome trip");
   await expect(header).toContainText("1 person · SEK");
 
+  // Finishing setup is what may write to the chat (and does): this also
+  // proves chatLog reads the right key, so the empty check below means it.
+  await expect
+    .poll(async () => (await chatLog(page)).length)
+    .toBeGreaterThan(0);
+
   // The answer lives in the shared doc, so a reload goes straight to the app.
   await page.reload();
   await expect(page.locator(".tab-bar")).toBeVisible();
@@ -20,13 +35,13 @@ test("first run asks for currency and name, then never again", async ({
 test("opening the app without finishing setup posts nothing to the chat", async ({
   page,
 }) => {
+  // A fake clock, so the provider's periodic autosave (10s) and any delayed
+  // write get their chance to fire before the log is read.
+  await page.clock.install();
   await openAs(page, "Anna");
   await expect(page.getByText("Set up this split")).toBeVisible();
-  // The mock host's update log is the chat: still empty.
-  const updates = await page.evaluate(() =>
-    window.localStorage.getItem("__xdcUpdatesKey__"),
-  );
-  expect(updates === null || updates === "[]").toBe(true);
+  await page.clock.runFor(15_000);
+  expect(await chatLog(page)).toEqual([]);
 });
 
 test("group settings open from the name and from the gear, and edit the group", async ({

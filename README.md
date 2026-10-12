@@ -82,7 +82,7 @@ WebView engine) and WebKit (iOS's) against the dev server and its mock webxdc
 host. Two pages in one browser context act as two people in one chat:
 
 ```sh
-pnpm exec playwright install chromium webkit   # once
+pnpm exec playwright install --with-deps chromium webkit   # once
 pnpm test:e2e
 pnpm test:e2e --project=android                # Chromium only
 ```
@@ -106,7 +106,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Every push and pull request also runs CI (`.github/workflows/ci.yml`): typecheck, lint, unit tests, build, and the end-to-end suite in Chromium and WebKit. PRs automatically get a downloadable preview build linked in the PR comments.
+Every pull request, and every push to `main`, also runs CI (`.github/workflows/ci.yml`): Prettier, unit tests, typecheck and build, and the end-to-end suite in Chromium and WebKit. PRs automatically get a downloadable preview build linked in the PR comments.
 
 ## App store
 

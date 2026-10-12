@@ -18,9 +18,17 @@ async function expectNoSidewaysScroll(
   page: Page,
   where: string,
 ): Promise<void> {
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth,
-  );
+  // The page, and every box that scrolls on its own: .app-content, a sheet and
+  // a sub-page can each scroll sideways while the page itself stays put.
+  const overflow = await page.evaluate(() => {
+    const boxes = Array.from(
+      document.querySelectorAll<HTMLElement>(".app-content, .sheet, .subpage"),
+    );
+    return Math.max(
+      document.documentElement.scrollWidth - window.innerWidth,
+      ...boxes.map((el) => el.scrollWidth - el.clientWidth),
+    );
+  });
   expect(
     overflow,
     `${where} scrolls sideways by ${overflow}px`,
@@ -76,6 +84,8 @@ test("big figures stay whole on a 360px phone", async ({ page }) => {
 
   const figures = [".summary-value", ".day-heading .money", ".expense-amount"];
   for (const selector of figures) {
+    // A renamed class must fail here, not pass by checking nothing.
+    expect(await page.locator(selector).count(), selector).toBeGreaterThan(0);
     for (const el of await page.locator(selector).all()) {
       const lines = await el.evaluate((node) => node.getClientRects().length);
       expect(lines, `${selector} wraps inside a figure`).toBe(1);
