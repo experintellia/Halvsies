@@ -15,7 +15,9 @@
  *   --color-text            primary text
  *   --color-text-dim        secondary/meta text
  *   --color-border          hairlines between rows
- *   --color-border-strong   input outlines, dashed "add" tiles
+ *   --color-border-strong   dashed "add" tiles, the bars' zero line
+ *   --color-border-input    outlines of inputs and checkboxes (3:1 against
+ *                           the surface, WCAG 1.4.11)
  *   --color-accent          teal: primary action, active tab, focus ring
  *   --color-accent-contrast text/icon on top of --color-accent
  *   --color-accent-soft     teal tint: method icon tiles, selected rows
@@ -53,6 +55,7 @@
   --color-text-dim: #5a6a66;
   --color-border: #e0e6e4;
   --color-border-strong: #c5d0cd;
+  --color-border-input: #7f8f8b;
 
   --color-accent: #0f766e;
   --color-accent-contrast: #ffffff;
@@ -89,6 +92,7 @@
     --color-text-dim: #92a29e;
     --color-border: #24302d;
     --color-border-strong: #3a4744;
+    --color-border-input: #5b6b67;
 
     --color-accent: #3dd6c3;
     --color-accent-contrast: #04201c;
@@ -439,6 +443,18 @@ select {
   border-radius: 0;
 }
 
+/* The list clips its rows to its corners, and each row stacks over the one
+   above it, so an outside focus ring would be cut off on every side. Draw it
+   inside, above its neighbours. `:focus` too for the Safari 14 / Firefox 78
+   floor, which has no :focus-visible and draws its own ring. */
+.list > .row:focus,
+.list > .row:focus-visible,
+.wizard-option:focus,
+.wizard-option:focus-visible {
+  outline-offset: -2px;
+  z-index: 2;
+}
+
 .list > .row + .row::before {
   content: "";
   position: absolute;
@@ -485,9 +501,11 @@ select {
    flex items default to min-width:auto and would otherwise refuse to shrink
    below their text width and overflow the card instead. */
 
+/* Side by side while both figures fit; a figure too wide for half the row
+   wraps the pair onto two rows instead of breaking. */
 .summary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 1px;
   margin: 4px 0 0;
   border-radius: var(--radius);
@@ -496,6 +514,7 @@ select {
 }
 
 .summary > div {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -582,7 +601,9 @@ select {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  /* stretch, not flex-start: a shrink-wrapped line could not get narrower
+     than its longest word, and a name can be one long email address. */
+  align-items: stretch;
   margin: 4px 0 0;
   padding: 18px;
   border-radius: var(--radius-l);
@@ -598,7 +619,8 @@ select {
 
 .hero-amount {
   margin: 2px 0;
-  font-size: var(--fs-hero);
+  /* min() keeps a nine-digit total on one line on a 320px phone. */
+  font-size: min(var(--fs-hero), 10vw);
   font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.1;
@@ -644,6 +666,19 @@ select {
   height: 6px;
 }
 
+/* On the narrowest phones a shorter bar leaves the name column room. */
+@media (max-width: 399px) {
+  .position-bar {
+    width: 44px;
+  }
+}
+
+.position-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .position-bar::before {
   content: "";
   position: absolute;
@@ -674,7 +709,7 @@ select {
    fixed column is what keeps every row's zero line in the same place. */
 .money.position-amount {
   flex-shrink: 0;
-  min-width: 6.5em;
+  min-width: 5.5em;
   text-align: right;
   font-weight: 600;
 }
@@ -749,7 +784,7 @@ select {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid var(--color-border-strong);
+  border: 2px solid var(--color-border-input);
   background: var(--color-surface-2);
   color: var(--color-accent-contrast);
   font-size: 0.8rem;
@@ -888,8 +923,11 @@ select {
   text-overflow: ellipsis;
 }
 
+/* The field's own ring (.copy-field:focus-within) replaces this one; a
+   transparent outline rather than none, so forced-colours mode still has
+   something to draw. */
 .copy-input:focus {
-  outline: none;
+  outline: 2px solid transparent;
 }
 
 .copy-field:focus-within {
@@ -903,6 +941,7 @@ select {
 }
 
 .copy-icon {
+  position: relative;
   width: 40px;
   height: 40px;
   padding: 0;
@@ -923,7 +962,7 @@ select {
   width: 100%;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border-input);
   background: var(--color-surface);
   color: inherit;
   text-align: left;
@@ -1047,7 +1086,8 @@ select {
 /* Pads the hit area out to 44px without growing the visible circle. */
 .sheet-close::after,
 .subpage-back::after,
-.icon-btn::after {
+.icon-btn::after,
+.copy-icon::after {
   content: "";
   position: absolute;
   top: -4px;
@@ -1135,6 +1175,13 @@ select {
   border-color: transparent;
 }
 
+/* A label that may hold a member's name: let it wrap inside the button rather
+   than overflow it (a bare text node in a flex box can't shrink). */
+.btn-label {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
 .btn-block {
   width: 100%;
 }
@@ -1180,7 +1227,7 @@ select {
   width: 100%;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border-input);
   background: var(--color-surface);
 }
 
@@ -1258,14 +1305,12 @@ p.field-suffix {
 
 /* ---- money figures ---- */
 
+/* A figure never breaks inside itself: "€51,695." over "40" reads as a
+   different, valid amount. It may still wrap at a space ("IDR" / "12,891.00").
+   Addresses, which have nothing to break at, live in CopyField inputs. */
 .money {
   font-variant-numeric: tabular-nums;
-  /* Not every `.money` is a short figure: PayUpSheet renders crypto addresses
-     here (a Monero one is ~95 characters with nothing to break at), and in a
-     flex row that would push the copy button off-screen. Stated twice — see
-     .app-shell. */
-  overflow-wrap: break-word;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   min-width: 0;
 }
 
@@ -1413,9 +1458,17 @@ p.field-suffix {
 
 .method-main {
   flex: 1;
-  min-width: 0;
+  min-width: 4.5em;
   display: flex;
   flex-direction: column;
+}
+
+/* On a narrow row the tag ellipsizes rather than squeezing the name. */
+.row > .tag {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .method-name {
@@ -1593,19 +1646,17 @@ p.field-suffix {
 
 /* Segmented control: one method at a time. Three fill the width; more scroll
    sideways inside the track instead of wrapping into a second row. */
+/* Segmented control: one method at a time. More methods than fit wrap onto
+   a second row: a sideways-scrolling strip hid them with no hint, and a
+   mouse wheel can't scroll it in Delta Chat Desktop. */
 .method-switch {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   margin: 0 0 14px;
   padding: 3px;
   border-radius: 12px;
   background: var(--color-surface-2);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.method-switch::-webkit-scrollbar {
-  display: none;
 }
 
 .method-tab {
@@ -1614,8 +1665,8 @@ p.field-suffix {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  max-width: 12em;
-  min-height: 38px;
+  max-width: 100%;
+  min-height: 44px;
   padding: 0 12px;
   border: none;
   border-radius: 10px;
@@ -1632,13 +1683,16 @@ p.field-suffix {
 }
 
 /* Raised in light, outlined in dark: there the surface is darker than the
-   track, so a fill alone would read as pressed in. */
-.method-tab[aria-selected="true"] {
+   track, so a fill alone would read as pressed in. The transparent outline
+   is what forced-colours mode draws once it strips fills and shadows. */
+.method-tab[aria-pressed="true"] {
   background: var(--color-surface);
   color: var(--color-text);
   box-shadow:
     inset 0 0 0 1px var(--color-border-strong),
     0 1px 3px rgba(0, 0, 0, 0.14);
+  outline: 2px solid transparent;
+  outline-offset: -2px;
 }
 
 .method-heading {

@@ -137,9 +137,11 @@ export function Balances() {
             className="btn btn-primary"
             onActivate={() => openTransfer(one)}
           >
-            {owing
-              ? `Pay ${nameOf(one.toId)}`
-              : `Ask ${nameOf(one.fromId)} to pay`}
+            <span className="btn-label">
+              {owing
+                ? `Pay ${nameOf(one.toId)}`
+                : `Ask ${nameOf(one.fromId)} to pay`}
+            </span>
             <Icon name="arrow-right" size={18} />
           </TapButton>
         )}
@@ -174,7 +176,9 @@ export function Balances() {
           return (
             <div className="row row-static" key={m.id}>
               <Avatar member={m} />
-              <span className="row-text">{m.id === self ? "You" : m.name}</span>
+              <span className="row-text position-name">
+                {m.id === self ? "You" : m.name}
+              </span>
               <span className="position-bar" aria-hidden="true">
                 {cents !== 0 && (
                   <span

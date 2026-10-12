@@ -88,7 +88,13 @@ export function App() {
             everyone, so they live up here rather than under "Me". */}
         <header className="app-header">
           <h1 className="app-heading">
-            <TapButton className="group-btn" onActivate={openGroup}>
+            {/* A big tap target for fingers; keyboard and screen-reader users
+                get the one control that says what it does, the gear. */}
+            <TapButton
+              className="group-btn"
+              tabIndex={-1}
+              onActivate={openGroup}
+            >
               <span className="app-title">{settings.title || "Halvsies"}</span>
               <span className="group-meta">
                 {memberCount === 1 ? "1 person" : `${memberCount} people`} ·{" "}

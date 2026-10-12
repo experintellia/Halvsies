@@ -301,19 +301,16 @@ export function PayUpSheet({
         </p>
       )}
 
+      {/* Toggle buttons in a labelled group rather than ARIA tabs: tabs
+          promise arrow-key navigation and a linked panel, which this isn't. */}
       {options.length > 1 && (
-        <div
-          className="method-switch"
-          role="tablist"
-          aria-label="Payment method"
-        >
+        <div className="method-switch" role="group" aria-label="Payment method">
           {options.map((o) => (
             <button
               key={o.id}
               type="button"
-              role="tab"
               className="method-tab"
-              aria-selected={o === selected ? "true" : "false"}
+              aria-pressed={o === selected ? "true" : "false"}
               // The strip scrolls sideways when there are many methods, so a
               // pointerup only counts if it went down on this tab and stayed
               // (Row.tsx's rule for scrollable lists).
@@ -346,7 +343,7 @@ export function PayUpSheet({
       )}
 
       {selected && (
-        <div role={options.length > 1 ? "tabpanel" : undefined}>
+        <div>
           {isPreferred && (
             <p className="preferred-line">
               <Icon name="circle-check" size={16} />
