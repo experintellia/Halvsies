@@ -129,6 +129,19 @@ export function ExpenseList() {
 
   return (
     <section aria-label="Expenses" className="has-fab">
+      {/* First in the DOM so keyboard and screen-reader users reach it before
+          every row; it floats (position: fixed), so it still looks last. */}
+      <button
+        type="button"
+        className="fab"
+        onPointerUp={addBtn}
+        onClick={(e) => {
+          if (e.detail === 0) addBtn();
+        }}
+      >
+        <Icon name="plus" size={20} />
+        Add expense
+      </button>
       {days.length === 0 ? (
         <div className="empty">
           <SplitMark />
@@ -172,18 +185,6 @@ export function ExpenseList() {
           ))}
         </>
       )}
-
-      <button
-        type="button"
-        className="fab"
-        onPointerUp={addBtn}
-        onClick={(e) => {
-          if (e.detail === 0) addBtn();
-        }}
-      >
-        <Icon name="plus" size={20} />
-        Add expense
-      </button>
 
       <ExpenseDetail
         open={viewId !== null}

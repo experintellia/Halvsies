@@ -214,18 +214,18 @@ export function ProfileForm() {
           <span className="method-name">Add payment method</span>
         </Row>
       </div>
-      {nothingOffered ? (
+      {nothingOffered && (
         <p className="fine">
           None of your saved methods work for {currency} debts. Add one that
           does, or change the group currency.
         </p>
-      ) : (
-        rows.length > 0 && (
-          <p className="fine">
-            <Icon name="eye" size={15} />
-            Everyone in this chat can see these.
-          </p>
-        )
+      )}
+      {/* Payers see a note on its own too, so it counts as something shown. */}
+      {(rows.length > 0 || current.note) && (
+        <p className="fine">
+          <Icon name="eye" size={15} />
+          Everyone in this chat can see your payment details and note.
+        </p>
       )}
 
       {/* Always visible, whether or not any method is configured: this is
@@ -242,7 +242,7 @@ export function ProfileForm() {
         onBlur={() => save({ ...current, note: note.trim() || undefined })}
       />
 
-      {self && rows.length > 0 && (
+      {self && (rows.length > 0 || current.note) && (
         <TapButton
           className="btn btn-ghost btn-block"
           onActivate={() => setPreviewing(true)}

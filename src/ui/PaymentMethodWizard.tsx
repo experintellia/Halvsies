@@ -523,6 +523,9 @@ export function PaymentMethodWizard({
                   ariaLabel="Copy test link"
                 />
               </div>
+              {/* The filled-in link itself: the one place to check that a
+                  custom template's placeholders land where they should. */}
+              <p className="field-suffix">{testUrl}</p>
             </div>
           )}
           {valid && !testUrl && target.kind === "bank" && (

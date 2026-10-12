@@ -207,7 +207,8 @@ const SHOTS = [
   {
     name: "payup",
     caption: "One tap from a debt to actually paying it",
-    height: 1000,
+    // Phone height, so the landing page's 9:19 frame shows the whole sheet.
+    height: 844,
     // The hero's own button: rows mentioning Deniz below it are his static
     // net-position line, not something to tap.
     steps: [`esc(); tab("Balances")`, `tap(byText("button", "Pay Deniz"))`],

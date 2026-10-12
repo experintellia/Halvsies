@@ -2,7 +2,7 @@
 // Every amount here is integer cents; the only float-adjacent code is
 // Amount.tsx's own text parser, which this file never touches directly.
 import type { ComponentChildren, JSX } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import {
   addExpense,
   deleteExpense,
@@ -155,7 +155,11 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
   const [weights, setWeights] = useState<Record<MemberId, number>>({});
   const [exact, setExact] = useState<Record<MemberId, number>>({});
 
-  useEffect(() => {
+  // A layout effect, not a passive one: it runs before the sheet paints. A
+  // passive effect could land up to ~100ms later on a busy device, briefly
+  // showing the previous expense's values on reopen and resetting anything
+  // tapped or typed in that window (a split mode, an armed Delete, an amount).
+  useLayoutEffect(() => {
     if (!open) return;
     const allIds = membersRef.current.map((m) => m.id);
     setAmountCents(expense?.amountCents ?? 0);

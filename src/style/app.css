@@ -626,6 +626,13 @@ select {
   line-height: 1.1;
 }
 
+/* A figure can't wrap, and "IDR 71,550,000.00" is 17 characters: past ~12 the
+   big amounts step down a size instead of running out of the card. */
+.hero-amount.long,
+.sheet-amount.long {
+  font-size: min(1.5rem, 7.5vw);
+}
+
 /* The headline when you are square: words, not a 42px zero. */
 .hero-title {
   margin: 0 0 2px;
@@ -666,10 +673,11 @@ select {
   height: 6px;
 }
 
-/* On the narrowest phones a shorter bar leaves the name column room. */
-@media (max-width: 399px) {
+/* On the narrowest phones the bar gives way to the name: the signed, coloured
+   amount still says which side each person is on. 360px and up keep it. */
+@media (max-width: 359px) {
   .position-bar {
-    width: 44px;
+    display: none;
   }
 }
 
@@ -804,8 +812,15 @@ select {
   border-color: var(--color-accent);
 }
 
+/* Unselected rows sit on the sheet's own colour, so they need an outline to
+   read as rows at all; "not included" is a note, not a figure. */
 .row-check:not(.selected) {
   color: var(--color-text-dim);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.row-check:not(.selected) .row-amount {
+  font-weight: 400;
 }
 
 .row-check:not(.selected) .money {
@@ -1578,9 +1593,11 @@ p.field-suffix {
   background: var(--color-surface-2);
 }
 
+/* A real border, not an inset shadow: each option's own background would
+   paint over a shadow and leave the group with no edge at all. */
 .wizard-options {
   border-radius: 14px;
-  box-shadow: inset 0 0 0 1px var(--color-border);
+  border: 1px solid var(--color-border);
   overflow: hidden;
 }
 
@@ -1742,9 +1759,12 @@ p.field-suffix {
   border-top: 1px solid var(--color-border);
 }
 
+/* Side by side when both labels fit on one line each; otherwise each takes
+   its own row rather than wrapping its label onto three lines. */
 .sheet-actions > .btn {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 48px;
+  white-space: nowrap;
 }
 
 .sheet-actions > p {
