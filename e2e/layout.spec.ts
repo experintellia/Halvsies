@@ -143,3 +143,28 @@ test("dark mode repaints the page from the dark tokens", async ({ page }) => {
   });
   expect(luminance).toBeLessThan(0.15);
 });
+
+// Only .app-content scrolls. When the page itself was taller than the screen,
+// iOS let it scroll and left a blank strip under the tab bar.
+test("the page never scrolls vertically, only the list does", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 420 });
+  await openAs(page, "Anna");
+  await setUpGroup(page, "Trip");
+  for (const title of ["Bread", "Cheese", "Wine", "Olives"]) {
+    await addExpense(page, { amount: "10", title, payer: "Anna" });
+  }
+  const m = await page.evaluate(() => {
+    const content = document.querySelector<HTMLElement>(".app-content")!;
+    const bar = document.querySelector<HTMLElement>(".tab-bar")!;
+    return {
+      page: document.documentElement.scrollHeight - window.innerHeight,
+      list: content.scrollHeight - content.clientHeight,
+      barGap: window.innerHeight - bar.getBoundingClientRect().bottom,
+    };
+  });
+  expect(m.page, "page scrolls vertically").toBeLessThanOrEqual(0);
+  expect(m.list, "list should overflow in this test").toBeGreaterThan(0);
+  expect(m.barGap).toBe(0);
+});

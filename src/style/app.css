@@ -113,7 +113,8 @@
 }
 
 html,
-body {
+body,
+#app {
   margin: 0;
   height: 100%;
 }
@@ -155,7 +156,10 @@ select {
 .app-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* Exactly the screen, never taller: .app-content is the one thing that
+     scrolls. 100vh here was taller than the visible area in iOS webviews,
+     so the whole page scrolled and left a blank strip under the tab bar. */
+  height: 100%;
   max-width: 640px; /* cap width on desktop; still full-bleed on phones */
   margin: 0 auto;
   /* Every string on every screen is user- or peer-supplied: member names,
@@ -242,6 +246,7 @@ select {
 
 .app-content {
   flex: 1;
+  min-height: 0; /* let it shrink below its content and scroll instead */
   padding: 8px 16px calc(24px + var(--safe-bottom));
   overflow-y: auto;
 }
@@ -1430,7 +1435,6 @@ p.field-suffix {
   .app-shell {
     border-left: 1px solid var(--color-border);
     border-right: 1px solid var(--color-border);
-    min-height: 100vh;
   }
 }
 
