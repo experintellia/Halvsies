@@ -274,7 +274,7 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
             <SettingRow
               icon="send"
               name="Export everything"
-              detail="The whole ledger, sent to this chat as one file"
+              detail="The whole ledger and everyone's payment details, sent to this chat as one file"
               onActivate={sendSnapshotToChat}
             />
           )}

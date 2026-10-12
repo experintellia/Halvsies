@@ -126,7 +126,14 @@ export function Balances() {
         {mine.length > 0 ? (
           <>
             <p className="hero-label">{heroLabel}</p>
-            <p className="hero-amount money">{money(Math.abs(myCents))}</p>
+            <p
+              className={
+                "hero-amount money" +
+                (money(Math.abs(myCents)).length > 12 ? " long" : "")
+              }
+            >
+              {money(Math.abs(myCents))}
+            </p>
           </>
         ) : (
           <p className="hero-title">{heroLabel}</p>

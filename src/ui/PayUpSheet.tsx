@@ -273,7 +273,9 @@ export function PayUpSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
-      <p className="sheet-amount money">{amount}</p>
+      <p className={"sheet-amount money" + (amount.length > 12 ? " long" : "")}>
+        {amount}
+      </p>
 
       {/* The creditor's own instructions come first — they may override which
           method to use ("IBAN please, PayPal charges me a fee"), so showing

@@ -126,6 +126,12 @@ describe("the method rows", () => {
     expect(show()).not.toContain("None of your saved methods");
   });
 
+  it("a note alone is something payers see: privacy line and preview stay", () => {
+    mount("EUR", { note: "Cash is fine" });
+    expect(show()).toContain("Everyone in this chat can see");
+    expect(buttonWith("See what payers see")).toBeDefined();
+  });
+
   it("counts an address-only crypto method as offered", () => {
     mount("EUR", {
       crypto: { label: "USDC on Base", address: "0xabc", network: "other" },
