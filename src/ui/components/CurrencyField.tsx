@@ -42,8 +42,7 @@ function CurrencyRow({
   const name = currencyName(code);
   return (
     <Row
-      role="option"
-      aria-selected={selected}
+      aria-current={selected ? "true" : undefined}
       className={"currency-row" + (selected ? " selected" : "")}
       onActivate={() => onPick(code)}
     >
@@ -109,7 +108,9 @@ function CurrencyPicker({
         </span>
       </label>
 
-      <div role="listbox" aria-label="Currencies" className="currency-list">
+      {/* Plain buttons, not role="listbox": a listbox promises arrow-key
+          navigation, which 162 Tab-stop rows don't deliver. */}
+      <div className="currency-list">
         {common.length > 0 && (
           <>
             <p className="picker-section">Common</p>
@@ -133,7 +134,7 @@ function CurrencyPicker({
           />
         ))}
         {matches.length === 0 && (
-          <p className="placeholder">
+          <p className="placeholder" role="status">
             No currency matches “{query}”. Codes are three letters, e.g. EUR.
           </p>
         )}
@@ -155,7 +156,11 @@ export function CurrencyField({
   return (
     <div className="field">
       <span className="field-label">{label}</span>
-      <TapButton className="picker-value" onActivate={() => setOpen(true)}>
+      <TapButton
+        className="picker-value"
+        ariaLabel={`${label}: ${name ?? current}`}
+        onActivate={() => setOpen(true)}
+      >
         <span className="money currency-code">{current}</span>
         <span className="row-text">{name ?? "Choose a currency"}</span>
         <Icon name="chevron-down" size={18} />

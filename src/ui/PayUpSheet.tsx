@@ -456,7 +456,9 @@ export function PayUpSheet({
           webxdc hosts ship a WebView with no JS-dialog handler, where confirm()
           returns false instantly and the settlement would silently never be
           recorded. */}
-      <div className="sheet-actions">
+      {/* Live: "Mark as paid" swaps itself for a question, and the button
+          that had focus is gone — say what replaced it. */}
+      <div className="sheet-actions" aria-live="polite">
         {preview ? (
           <p className="field-suffix">
             A sample {amount} debt. Nothing here is recorded or sent.

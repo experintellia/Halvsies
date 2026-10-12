@@ -116,14 +116,18 @@ function Stepper(props: {
     <span className="stepper" role="group" aria-label={label}>
       <TapButton
         className="btn btn-secondary stepper-btn"
+        ariaLabel="Fewer"
         disabled={value <= 0}
         onActivate={() => onChange(value - 1)}
       >
         −
       </TapButton>
-      <span className="stepper-value">{value}</span>
+      <span className="stepper-value" aria-live="polite">
+        {value}
+      </span>
       <TapButton
         className="btn btn-secondary stepper-btn"
+        ariaLabel="More"
         disabled={value >= MAX_SHARES}
         onActivate={() => onChange(value + 1)}
       >
@@ -318,7 +322,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
 
       <div className="field">
         <span className="field-label">Split</span>
-        <div className="field-row">
+        <div className="field-row" role="group" aria-label="Split">
           {(["even", "weights", "exact"] as SplitMode[]).map((m) => (
             <ChipButton
               key={m}
@@ -406,6 +410,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                 <div style={{ marginLeft: 44, marginTop: 4 }}>
                   <Amount
                     label="Amount"
+                    ariaLabel={`Amount for ${m.name}`}
                     valueCents={exact[m.id] ?? 0}
                     currency={currency}
                     onChange={(cents) => setExact({ ...exact, [m.id]: cents })}
@@ -442,11 +447,9 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         />
       </label>
 
-      {error && (
-        <p role="alert" className="money-negative">
-          {error}
-        </p>
-      )}
+      <p role="status" className="money-negative form-status">
+        {error}
+      </p>
 
       <div className="field-row" style={{ marginTop: 8 }}>
         {expense && (

@@ -32,7 +32,7 @@ export async function pickCurrency(page: Page, code: string): Promise<void> {
   await page.locator(".picker-value").click();
   await page.getByPlaceholder("Code or name — EUR, krona, rupee").fill(code);
   await page
-    .getByRole("option")
+    .locator(".currency-row")
     .filter({ has: page.locator(".currency-code", { hasText: code }) })
     .first()
     .click();

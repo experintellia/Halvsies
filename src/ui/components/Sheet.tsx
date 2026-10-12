@@ -20,6 +20,32 @@ export interface SheetProps {
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** Keeps Tab inside `panel`. Shared by Sheet and SubPage. Also catches focus
+ *  that fell out to <body> because the focused control unmounted (a "Mark as
+ *  paid" that swaps for its confirmation), which would otherwise Tab into
+ *  the covered screen. */
+export function trapTab(e: KeyboardEvent, panel: HTMLElement): void {
+  if (e.key !== "Tab") return;
+  const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
+  if (focusables.length === 0) {
+    e.preventDefault();
+    return;
+  }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (!panel.contains(active)) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  } else if (e.shiftKey && (active === first || active === panel)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
 export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<Element | null>(null);
@@ -64,24 +90,7 @@ export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
         close();
         return;
       }
-      const panel = panelRef.current;
-      if (e.key !== "Tab" || !panel) return;
-      const focusables = Array.from(
-        panel.querySelectorAll<HTMLElement>(FOCUSABLE),
-      );
-      if (focusables.length === 0) {
-        e.preventDefault();
-        return;
-      }
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
+      if (panelRef.current) trapTab(e, panelRef.current);
     }
     document.addEventListener("keydown", onKeyDown);
 

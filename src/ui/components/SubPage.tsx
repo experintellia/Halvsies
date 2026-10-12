@@ -1,19 +1,22 @@
 // A full-screen sub-page: it covers the whole app including the tab bar, and
 // owns the header while it is up. Renders nothing when closed.
 //
-// Deliberately NOT a Sheet. A Sheet is a modal — backdrop, focus trap,
-// aria-modal — because it interrupts you. This is a route you navigated to:
-// it leaves via the back button in its header, or Escape (which is what a
+// Not a Sheet: no backdrop, no swipe. This is a route you navigated to: it
+// leaves via the back button in its header, or Escape (which is what a
 // hardware Back maps to in the WebViews this ships in). The Escape wiring is
 // the same shape as Sheet's on purpose — a document-level keydown listener
 // plus the callback in a ref, so that a re-render from an incoming chat
 // update doesn't tear the listener down (and yank focus) mid-typing.
 //
-// ponytail: no focus trap. Tab can still reach the covered app behind it,
-// which a modal would forbid — add Sheet's trap here if that ever bites.
+// To assistive tech it is still a modal (role="dialog", aria-modal, Sheet's
+// Tab trap): most sub-pages render *inside* the screen they cover (the
+// expense form sits in the Expenses tab), so nothing can aria-hide what is
+// behind them, and without this a screen reader or Tab walks straight into
+// the hidden list underneath.
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useId, useRef } from "preact/hooks";
 import { Icon } from "./Icon";
+import { trapTab } from "./Sheet";
 
 export interface SubPageProps {
   open: boolean;
@@ -28,6 +31,7 @@ export function SubPage({ open, title, onBack, children }: SubPageProps) {
   const openerRef = useRef<Element | null>(null);
   const backRef = useRef(onBack);
   backRef.current = onBack;
+  const titleId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -38,11 +42,13 @@ export function SubPage({ open, title, onBack, children }: SubPageProps) {
     }
 
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape" || !backRef.current) return;
       // Pages and sheets nest (a currency picker inside group settings): only
       // the top one — the last in the DOM — answers, or one Escape closes all.
       const layers = document.querySelectorAll(".sheet, .subpage");
-      if (layers[layers.length - 1] !== panelRef.current) return;
+      const panel = panelRef.current;
+      if (!panel || layers[layers.length - 1] !== panel) return;
+      trapTab(e, panel);
+      if (e.key !== "Escape" || !backRef.current) return;
       e.preventDefault();
       backRef.current();
     }
@@ -57,7 +63,14 @@ export function SubPage({ open, title, onBack, children }: SubPageProps) {
   if (!open) return null;
 
   return (
-    <div className="subpage" ref={panelRef} tabIndex={-1}>
+    <div
+      className="subpage"
+      ref={panelRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
       <header className="app-header">
         {onBack && (
           <button
@@ -72,7 +85,9 @@ export function SubPage({ open, title, onBack, children }: SubPageProps) {
             <Icon name="chevron-left" size={20} />
           </button>
         )}
-        <h1 className="app-title">{title}</h1>
+        <h1 id={titleId} className="app-title">
+          {title}
+        </h1>
       </header>
       <div className="app-content">{children}</div>
     </div>

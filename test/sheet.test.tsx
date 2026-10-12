@@ -2,6 +2,7 @@
 import { render } from "preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sheet } from "../src/ui/components/Sheet";
+import { SubPage } from "../src/ui/components/SubPage";
 
 let host: HTMLElement;
 beforeEach(() => {
@@ -73,5 +74,45 @@ describe("Sheet swipe", () => {
       .querySelector(".sheet-backdrop")!
       .dispatchEvent(new Event("pointerup", { bubbles: true }));
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("SubPage focus", () => {
+  // It renders inside the screen it covers, so only being a modal keeps
+  // Tab (and a screen reader) out of the hidden list underneath.
+  it("is a labelled modal that keeps Tab inside", async () => {
+    const behind = document.createElement("button");
+    host.appendChild(behind);
+    const inner = document.createElement("div");
+    host.appendChild(inner);
+    render(
+      <SubPage open title="Add expense" onBack={() => {}}>
+        <input />
+      </SubPage>,
+      inner,
+    );
+    await settle();
+    const page = host.querySelector<HTMLElement>(".subpage")!;
+    expect(page.getAttribute("role")).toBe("dialog");
+    expect(page.getAttribute("aria-modal")).toBe("true");
+    expect(
+      document.getElementById(page.getAttribute("aria-labelledby")!)
+        ?.textContent,
+    ).toBe("Add expense");
+
+    const input = page.querySelector("input")!;
+    input.focus();
+    const tab = new KeyboardEvent("keydown", { key: "Tab", cancelable: true });
+    document.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(page.querySelector(".subpage-back"));
+
+    // Focus that fell out to <body> (its control unmounted) comes back in.
+    (document.activeElement as HTMLElement).blur();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", cancelable: true }),
+    );
+    expect(page.contains(document.activeElement)).toBe(true);
+    render(null, inner);
   });
 });

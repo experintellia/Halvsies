@@ -62,7 +62,7 @@ test("the wizard refuses a bad IBAN and offers a test link for a good handle", a
   await subpage(page)
     .getByLabel("IBAN", { exact: true })
     .fill("DE00 1234 5678");
-  await expect(subpage(page).getByRole("alert")).toHaveText(
+  await expect(subpage(page).getByRole("status")).toHaveText(
     "That doesn't look like a valid IBAN.",
   );
   await expect(

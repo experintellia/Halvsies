@@ -497,11 +497,11 @@ export function PaymentMethodWizard({
             </>
           )}
 
-          {filled && error && (
-            <p role="alert" className="money-negative">
-              {error}
-            </p>
-          )}
+          {/* Status, not alert: it changes as you type, and an alert would
+              cut in on every keystroke that flips the message. */}
+          <p role="status" className="money-negative form-status">
+            {filled ? error : null}
+          </p>
 
           {target.kind === "provider" && spec!.caveat && (
             <p className="field-suffix">{spec!.caveat}</p>
