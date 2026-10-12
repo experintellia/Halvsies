@@ -10,6 +10,7 @@ import { ExpenseList, dayHeading } from "../src/ui/ExpenseList";
 import { ProfileForm } from "../src/ui/ProfileForm";
 import { addExpense, deleteExpense } from "../src/state/doc";
 import { PayUpSheet } from "../src/ui/PayUpSheet";
+import { Balances } from "../src/ui/Balances";
 import { MembersSheet } from "../src/ui/MembersSheet";
 import {
   addVirtualMember,
@@ -528,7 +529,7 @@ describe("PayUpSheet", () => {
 
     setSettings({ groupCurrency: "USD" });
     sheetFor(TRANSFER);
-    pick("Bank");
+    pick("Bank transfer");
     await flush();
     expect(host.textContent).toContain(
       "No scannable code for this debt: EPC QR only supports EUR",
@@ -537,7 +538,7 @@ describe("PayUpSheet", () => {
 
     setSettings({ groupCurrency: "EUR" });
     sheetFor(TRANSFER);
-    pick("Bank");
+    pick("Bank transfer");
     await flush();
     expect(host.textContent).toContain("Scan with your banking app");
     expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
@@ -590,12 +591,21 @@ describe("PayUpSheet", () => {
     const carol = addVirtualMember("Carol", 2);
     installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
     try {
-      setProfile(carol.id, { paypalMe: "carol" });
-      sheetFor({ fromId: bob.id, toId: carol.id, amountCents: 2000 });
+      setProfile(carol.id, { paypalMe: "carol", note: "PayPal is fine" });
+      // "request", as Balances opens any transfer that isn't yours to pay.
+      sheetFor(
+        { fromId: bob.id, toId: carol.id, amountCents: 2000 },
+        "request",
+      );
 
       const text = host.textContent ?? "";
       expect(host.querySelector(".sheet-title")?.textContent).toBe(
         "Bob owes Carol",
+      );
+      // Balances opens a stranger's debt in "request" mode; the note is still
+      // Carol's, not "yours".
+      expect(host.querySelector(".payee-note strong")?.textContent).toBe(
+        "Carol",
       );
       expect(text).toContain("€20.00");
       expect(text).toContain("Only Bob or Carol can record this payment.");
@@ -638,7 +648,7 @@ describe("PayUpSheet", () => {
     for (const [label, href] of [
       ["PayPal", "https://paypal.me"],
       ["bunq", "https://bunq.me"],
-      ["Bank", null],
+      ["Bank transfer", null],
     ] as const) {
       pick(label);
       await flush();
@@ -661,13 +671,56 @@ describe("PayUpSheet", () => {
 
     const tabs = Array.from(host.querySelectorAll('[role="tab"]'));
     expect(tabs.map((t) => (t.textContent ?? "").trim())).toEqual([
-      "Bank",
+      "Bank transfer",
       "PayPal",
       "bunq",
     ]);
     expect(tabs[0].getAttribute("aria-selected")).toBe("true");
     expect(host.textContent).toContain("preferred way to be paid");
     expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
+  });
+
+  it("says when a custom link leaves the amount to the payer", () => {
+    setProfile(CREDITOR, {
+      customs: [
+        { id: "t", label: "Twint", urlTemplate: "https://twint.example/anna" },
+      ],
+    });
+    sheet();
+    expect(host.textContent).toContain("Type in €23.50 yourself");
+    expect(host.textContent).not.toContain("is filled in");
+  });
+
+  it("keeps one primary action: Open until the payer has opened it, then Mark as paid", async () => {
+    installWebxdc({ selfAddr: TRANSFER.fromId, selfName: "Payer" });
+    setProfile(CREDITOR, {
+      paypalMe: "anna",
+      iban: "DE89370400440532013000",
+      accountHolder: "Anna",
+    });
+    sheet();
+    const mark = () => buttons("Mark as paid")[0];
+    const open = linkTo("https://paypal.me")!;
+    expect(open.className).toContain("btn-primary");
+    expect(mark().className).toContain("btn-secondary");
+
+    open.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await flush();
+    expect(mark().className).toContain("btn-primary");
+
+    // No link to open on the bank tab: recording is the only action.
+    sheet();
+    pick("Bank transfer");
+    await flush();
+    expect(mark().className).toContain("btn-primary");
+  });
+
+  it("never makes the creditor's link the primary action for anyone but the payer", () => {
+    installWebxdc({ selfAddr: CREDITOR, selfName: "Anna" });
+    setProfile(CREDITOR, { paypalMe: "anna" });
+    sheetFor(TRANSFER, "request");
+    expect(linkTo("https://paypal.me")!.className).toContain("btn-secondary");
+    expect(buttons("Mark as received")[0].className).toContain("btn-primary");
   });
 
   it("ignores a preferred method the payee no longer has", () => {
@@ -743,7 +796,7 @@ describe("the Me tab preview and the payer's sheet", () => {
       />,
       host,
     );
-    expect(previewTabs).toEqual(["PayPal", "bunq", "Twint", "Bank"]);
+    expect(previewTabs).toEqual(["PayPal", "bunq", "Twint", "Bank transfer"]);
     expect(previewTabs).toEqual(tabLabels());
   });
 
@@ -769,6 +822,38 @@ describe("the Me tab preview and the payer's sheet", () => {
     );
     expect(labels.some((l) => l.includes("Mark as"))).toBe(false);
     expect(labels.some((l) => l.includes("Tell the chat"))).toBe(false);
+  });
+});
+
+describe("Balances", () => {
+  it("is all square in words, not a 42px zero, while others still owe", async () => {
+    const bob = addVirtualMember("Bob", 1);
+    const carol = addVirtualMember("Carol", 2);
+    installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
+    const id = "square-test";
+    addExpense({
+      id,
+      title: "Cab",
+      amountCents: 2000,
+      payerId: bob.id,
+      split: { mode: "even", entries: { [bob.id]: 1, [carol.id]: 1 } },
+      date: "2026-08-01",
+      createdBy: bob.id,
+      editedAt: 0,
+    });
+    try {
+      render(<Balances />, host);
+      expect(host.querySelector(".hero-title")?.textContent).toBe(
+        "You're all square",
+      );
+      expect(host.querySelector(".hero-amount")).toBeNull();
+      expect(host.textContent).toContain("Carol → Bob");
+    } finally {
+      render(null, host);
+      deleteExpense(id);
+      removeMember(bob.id);
+      removeMember(carol.id);
+    }
   });
 });
 

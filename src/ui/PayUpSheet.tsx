@@ -83,6 +83,7 @@ export function PayUpSheet({
   const [usedMethod, setUsedMethod] = useState<string | undefined>(undefined);
   const [confirming, setConfirming] = useState(false);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const armedTab = useRef<string | undefined>(undefined);
 
   const self = selfAddr();
 
@@ -186,7 +187,12 @@ export function PayUpSheet({
     });
   }
   if (hasIban) {
-    options.push({ id: "bank", kind: "bank", label: "Bank", icon: "landmark" });
+    options.push({
+      id: "bank",
+      kind: "bank",
+      label: "Bank transfer",
+      icon: "landmark",
+    });
   }
   // The payee's pick goes first and is what the sheet opens on; the rest keep
   // their fixed order, so every peer sees the same switcher.
@@ -202,6 +208,16 @@ export function PayUpSheet({
   // nothing about, attributed to them in the chat info line.
   const isParty =
     !preview && (transfer.fromId === self || transfer.toId === self);
+  // Whose details these are, from where the viewer stands: your own only when
+  // you are the creditor — not merely because Balances opened this in
+  // "request" mode, which it also does for a debt between two others.
+  const ownDetails = transfer.toId === self && !preview;
+  // One primary action at a time. Opening the payment app is the payer's next
+  // step; recording it takes over once they have. For anyone but the payer,
+  // opening the creditor's link is not their job at all.
+  const openIsPrimary = preview || (direction === "pay" && isParty);
+  const markIsPrimary =
+    !openIsPrimary || selected?.kind !== "link" || usedMethod !== undefined;
 
   // Asking for money is not method-specific: the debtor should get every way
   // to pay in one message and pick.
@@ -269,9 +285,7 @@ export function PayUpSheet({
             size={24}
           />
           <p>
-            <strong>
-              {direction === "pay" || preview ? creditorName : "Your note"}
-            </strong>
+            <strong>{ownDetails ? "Your note" : creditorName}</strong>
             {profile.note}
           </p>
         </div>
@@ -281,9 +295,9 @@ export function PayUpSheet({
         <p className="placeholder">
           {preview
             ? "Payers see nothing here yet. Add a payment method first."
-            : direction === "pay"
-              ? `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to fill in their profile in the Me tab.`
-              : "Add your payment details in the Me tab so this is a one-tap payment next time."}
+            : ownDetails
+              ? "Add your payment details in the Me tab so this is a one-tap payment next time."
+              : `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to add a payment method in the Me tab.`}
         </p>
       )}
 
@@ -300,7 +314,16 @@ export function PayUpSheet({
               role="tab"
               className="method-tab"
               aria-selected={o === selected ? "true" : "false"}
-              onPointerUp={() => setSelectedId(o.id)}
+              // The strip scrolls sideways when there are many methods, so a
+              // pointerup only counts if it went down on this tab and stayed
+              // (Row.tsx's rule for scrollable lists).
+              onPointerDown={() => (armedTab.current = o.id)}
+              onPointerLeave={() => (armedTab.current = undefined)}
+              onPointerCancel={() => (armedTab.current = undefined)}
+              onPointerUp={() => {
+                if (armedTab.current === o.id) setSelectedId(o.id);
+                armedTab.current = undefined;
+              }}
               onClick={(e) => {
                 if (e.detail === 0) setSelectedId(o.id);
               }}
@@ -318,7 +341,7 @@ export function PayUpSheet({
           <span className="method-icon">
             <Icon name={selected.icon} size={20} />
           </span>
-          {selected.kind === "bank" ? "Bank transfer" : selected.label}
+          {selected.label}
         </h3>
       )}
 
@@ -343,9 +366,7 @@ export function PayUpSheet({
                       ? `${amount} is filled in`
                       : `Type in ${amount} yourself`}
                   </strong>
-                  <span>
-                    Scan it from another phone, or open {selected.label} here.
-                  </span>
+                  <span>Scan it from another phone.</span>
                 </p>
               </div>
               {/* Plan.md §5 M2: many devices have no handler for `bitcoin:`/
@@ -359,7 +380,9 @@ export function PayUpSheet({
               )}
               <div className="open-row">
                 <a
-                  className="btn btn-primary"
+                  className={
+                    openIsPrimary ? "btn btn-primary" : "btn btn-secondary"
+                  }
                   href={selected.method.url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -402,9 +425,7 @@ export function PayUpSheet({
                   <QR payload={qr.payload} size={QR_SIZE} />
                   <p className="qr-caption">
                     <strong>{qr.hint}</strong>
-                    <span>
-                      IBAN, amount and reference fill in by themselves.
-                    </span>
+                    <span>Fills in IBAN, amount and reference.</span>
                   </p>
                 </div>
               ) : (
@@ -436,7 +457,7 @@ export function PayUpSheet({
           webxdc hosts ship a WebView with no JS-dialog handler, where confirm()
           returns false instantly and the settlement would silently never be
           recorded. */}
-      <div className="sheet-actions wrap">
+      <div className="sheet-actions">
         {preview ? (
           <p className="field-suffix">
             A sample {amount} debt. Nothing here is recorded or sent.
@@ -468,7 +489,7 @@ export function PayUpSheet({
             {canSendToChat && direction === "pay" && selected && (
               <TapButton className="btn btn-secondary" onActivate={tellTheChat}>
                 <Icon name="send" size={18} />
-                Tell the chat
+                I'm paying now
               </TapButton>
             )}
             {canSendToChat && direction === "request" && (
@@ -481,7 +502,9 @@ export function PayUpSheet({
               </TapButton>
             )}
             <TapButton
-              className="btn btn-primary"
+              className={
+                markIsPrimary ? "btn btn-primary" : "btn btn-secondary"
+              }
               onActivate={() => setConfirming(true)}
             >
               <Icon name="check" size={18} />

@@ -79,7 +79,7 @@ export function Balances() {
         <p className="empty-text">
           {expenses.length === 0
             ? "Add an expense and who owes whom shows up here."
-            : "Everyone is settled up. Nobody owes anybody."}
+            : "Nobody owes anybody."}
         </p>
         {sheet}
       </div>
@@ -96,10 +96,10 @@ export function Balances() {
       ? "You owe"
       : myCents > 0
         ? "You're owed"
-        : "Your balance";
+        : "You're all square";
   const heroSub =
     mine.length === 0
-      ? "You're all square. The others still have payments to make."
+      ? `The others still have ${others.length === 1 ? "1 payment" : `${others.length} payments`} to make.`
       : one
         ? owing
           ? "One payment settles you up"
@@ -121,8 +121,16 @@ export function Balances() {
   return (
     <div>
       <section className="hero">
-        <p className="hero-label">{heroLabel}</p>
-        <p className="hero-amount money">{money(Math.abs(myCents))}</p>
+        {/* Square while others aren't: a 42px €0.00 would be the loudest
+            thing on screen, so the words take the headline instead. */}
+        {mine.length > 0 ? (
+          <>
+            <p className="hero-label">{heroLabel}</p>
+            <p className="hero-amount money">{money(Math.abs(myCents))}</p>
+          </>
+        ) : (
+          <p className="hero-title">{heroLabel}</p>
+        )}
         <p className="hero-sub">{heroSub}</p>
         {one && (
           <TapButton

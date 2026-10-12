@@ -25,7 +25,7 @@ const DATE = new Intl.DateTimeFormat(undefined, {
   year: "numeric",
 });
 
-/** "Wednesday - 6 May 2026", the day header for an ISO `yyyy-mm-dd` date. */
+/** "Wednesday, 6 May 2026", the day header for an ISO `yyyy-mm-dd` date. */
 export function dayHeading(iso: string): string {
   const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!parts) return iso; // an imported ledger can carry anything
@@ -33,7 +33,7 @@ export function dayHeading(iso: string): string {
   // UTC midnight, which formats as the *previous* day everywhere west of
   // Greenwich — the one place a date is allowed to move by a timezone.
   const d = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
-  return `${WEEKDAY.format(d)} - ${DATE.format(d)}`;
+  return `${WEEKDAY.format(d)}, ${DATE.format(d)}`;
 }
 
 /**

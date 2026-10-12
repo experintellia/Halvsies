@@ -19,7 +19,9 @@
  *   --color-accent          teal: primary action, active tab, focus ring
  *   --color-accent-contrast text/icon on top of --color-accent
  *   --color-accent-soft     teal tint: method icon tiles, selected rows
- *   --color-positive        "is owed" / credit amounts, "fills in amount"
+ *   --color-positive        "is owed" / credit amounts, "fills in amount";
+ *                           a true green, kept well apart from the teal so
+ *                           status never reads as something to tap
  *   --color-positive-soft   tint behind positive tags
  *   --color-negative        "owes" / debt amounts
  *   --color-danger          destructive actions (text only, never a fill)
@@ -30,7 +32,7 @@
  * Spacing runs on 4px: 4 · 8 · 12 · 16 · 24 · 32.
  *
  *   --radius-s / --radius / --radius-l   10 / 16 / 20px corners
- *   --shadow-float          only for things that float (FAB, active segment)
+ *   --shadow-float          only for things that float (the FAB)
  *   --safe-bottom           env() safe-area inset, for bottom-pinned UI
  *   --z-sheet               z-index for Sheet/overlay (50); list rows use 1,
  *                           sticky chrome (tab bar, FAB) 2–3
@@ -56,8 +58,8 @@
   --color-accent-contrast: #ffffff;
   --color-accent-soft: #dcf1ec;
 
-  --color-positive: #0a7448;
-  --color-positive-soft: #e1f3e8;
+  --color-positive: #2b6e2f;
+  --color-positive-soft: #e8f3e6;
   --color-negative: #b42318;
   --color-danger: #b42318;
   --color-mint: #8fe9d6;
@@ -92,8 +94,8 @@
     --color-accent-contrast: #04201c;
     --color-accent-soft: #11302b;
 
-    --color-positive: #5fd49a;
-    --color-positive-soft: #10291d;
+    --color-positive: #81c784;
+    --color-positive-soft: #15291a;
     --color-negative: #ff8a80;
     --color-danger: #ff8a80;
     --color-mint: #1d6b60;
@@ -242,10 +244,8 @@ select {
 
 /* Section labels on the tab screens. Small, uppercase, dim: they name a
    group, they are not headlines. A trailing figure (a day's total) sits on
-   the right. A bare <h2> (group settings' "Backup") gets the same look; any
-   h2 with a class of its own (a sheet title, an empty state) keeps its own. */
-.section-label,
-.app-content h2:not([class]) {
+   the right. */
+.section-label {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -448,18 +448,11 @@ select {
   border-top: 1px solid var(--color-border);
 }
 
-/* Non-tappable <div> variants of .row — a plain card (.row-block) or a
-   still-flex but inert list row (.row-static). */
-.row-block {
-  display: block;
-}
-
-.row-block,
+/* An inert list row (a member's net position): still flex, never pressable. */
 .row-static {
   cursor: default;
 }
 
-.row-block:active,
 .row-static:active {
   background: var(--color-surface);
 }
@@ -478,12 +471,6 @@ select {
 .row-amount {
   flex-shrink: 0;
   font-weight: 600;
-}
-
-.row-meta {
-  display: block;
-  font-size: var(--fs-meta);
-  color: var(--color-text-dim);
 }
 
 .chevron {
@@ -560,8 +547,8 @@ select {
   height: 3px;
   margin-top: 6px;
   border-radius: 2px;
-  background: var(--color-accent);
-  opacity: 0.55;
+  /* Not the accent: teal is for what you can tap, and this is a measure. */
+  background: var(--color-border-strong);
 }
 
 .expense-amounts {
@@ -591,6 +578,8 @@ select {
 
 /* The one figure the screen is about, and the one action it asks for. */
 .hero {
+  /* Clips the edge-to-edge list of your transfers to the hero's corners. */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -613,6 +602,13 @@ select {
   font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.1;
+}
+
+/* The headline when you are square: words, not a 42px zero. */
+.hero-title {
+  margin: 0 0 2px;
+  font-size: var(--fs-h1);
+  font-weight: 700;
 }
 
 .hero-sub {
@@ -674,9 +670,11 @@ select {
   background: var(--color-negative);
 }
 
-.position-amount {
+/* .money (later in this file) resets min-width, hence the doubled class. The
+   fixed column is what keeps every row's zero line in the same place. */
+.money.position-amount {
   flex-shrink: 0;
-  min-width: 5.5em;
+  min-width: 6.5em;
   text-align: right;
   font-weight: 600;
 }
@@ -900,7 +898,6 @@ select {
 }
 
 /* The button keeps its own width whatever the value does. */
-.field-row .copy-btn,
 .copy-btn {
   flex-shrink: 0;
 }
@@ -1225,8 +1222,8 @@ select {
   accent-color: var(--color-accent);
 }
 
-/* Prose, not a value: this carries help text in the wizard, the profile
-   screen and the pay-up sheet, so it must wrap. */
+/* Prose, not a value: this carries help text in the wizard, group settings
+   and the pay-up sheet, so it must wrap. */
 .field-suffix {
   color: var(--color-text-dim);
   font-size: var(--fs-meta);
@@ -1447,6 +1444,22 @@ p.field-suffix {
   color: var(--color-positive);
 }
 
+/* A settings row's explanation: wraps, unlike a method's one-line detail. */
+.setting-detail {
+  font-size: var(--fs-meta);
+  color: var(--color-text-dim);
+}
+
+.danger-row .method-icon {
+  background: none;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-danger);
+}
+
+.danger-row .method-name {
+  color: var(--color-danger);
+}
+
 .add-row .method-icon {
   background: none;
   border: 1.5px dashed var(--color-border-strong);
@@ -1618,10 +1631,14 @@ p.field-suffix {
   text-overflow: ellipsis;
 }
 
+/* Raised in light, outlined in dark: there the surface is darker than the
+   track, so a fill alone would read as pressed in. */
 .method-tab[aria-selected="true"] {
   background: var(--color-surface);
   color: var(--color-text);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+  box-shadow:
+    inset 0 0 0 1px var(--color-border-strong),
+    0 1px 3px rgba(0, 0, 0, 0.14);
 }
 
 .method-heading {
@@ -1664,6 +1681,7 @@ p.field-suffix {
 
 .sheet-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin: 18px -16px 0;
   padding: 14px 16px 0;
@@ -1678,8 +1696,4 @@ p.field-suffix {
 .sheet-actions > p {
   flex: 1 1 100%;
   margin: 0;
-}
-
-.sheet-actions.wrap {
-  flex-wrap: wrap;
 }

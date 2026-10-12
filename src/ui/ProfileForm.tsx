@@ -119,7 +119,11 @@ export function ProfileForm() {
       icon: "landmark",
       name: "Bank transfer",
       detail: formatIban(current.iban!),
-      tag: qr.ok ? { text: "QR code", ok: true } : undefined,
+      // Same question as every other row: does the amount come pre-filled?
+      // For a bank transfer, only the QR code can carry it.
+      tag: qr.ok
+        ? { text: "Fills in amount", ok: true }
+        : { text: "Payer types amount", ok: false },
       target: { kind: "bank" },
     });
   }
@@ -148,7 +152,13 @@ export function ProfileForm() {
 
   // `hasBank`, not a QR: an IBAN is an international account number and a
   // transfer to it works in any currency — only the QR is currency-locked.
-  const nothingOffered = rows.length > 0 && offered.length === 0 && !hasBank;
+  // An address-only crypto method (no URI scheme) is offered too, just
+  // without a link, so it counts.
+  const nothingOffered =
+    rows.length > 0 &&
+    offered.length === 0 &&
+    !hasBank &&
+    !current.crypto?.address.trim();
 
   return (
     <div>
@@ -210,10 +220,12 @@ export function ProfileForm() {
           does, or change the group currency.
         </p>
       ) : (
-        <p className="fine">
-          <Icon name="eye" size={15} />
-          Everyone in this chat can see these.
-        </p>
+        rows.length > 0 && (
+          <p className="fine">
+            <Icon name="eye" size={15} />
+            Everyone in this chat can see these.
+          </p>
+        )
       )}
 
       {/* Always visible, whether or not any method is configured: this is
@@ -230,7 +242,7 @@ export function ProfileForm() {
         onBlur={() => save({ ...current, note: note.trim() || undefined })}
       />
 
-      {self && (
+      {self && rows.length > 0 && (
         <TapButton
           className="btn btn-ghost btn-block"
           onActivate={() => setPreviewing(true)}

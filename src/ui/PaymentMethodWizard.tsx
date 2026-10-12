@@ -360,7 +360,15 @@ export function PaymentMethodWizard({
                     <TapButton
                       key={entry.label}
                       className="wizard-option"
-                      onActivate={() => setTarget(entry.target)}
+                      onActivate={() => {
+                        setTarget(entry.target);
+                        // Re-adding the method that is already preferred must
+                        // not quietly drop the mark on save.
+                        const id = methodIdOf(entry.target);
+                        setPreferred(
+                          id !== undefined && profile.preferred === id,
+                        );
+                      }}
                     >
                       <span className="wizard-option-title">
                         <strong>{entry.label}</strong>
@@ -376,16 +384,19 @@ export function PaymentMethodWizard({
         </>
       ) : (
         <>
-          {/* Step 2: where to find it, then the field itself. */}
-          <p>
-            {target.kind === "provider"
-              ? spec!.whereToFind
-              : target.kind === "bank"
-                ? "Your IBAN is on your bank statement or in your banking app under account details. The account holder name must match the account, or some banks reject the transfer."
-                : target.kind === "crypto"
-                  ? CRYPTO_STEP.whereToFind
-                  : "Paste a payment URL and mark where the amount goes. Use {amount}, {currency} and {ref} as placeholders — we substitute them for each debt."}
-          </p>
+          {/* Step 2: where to find it, then the field itself. Opened on a
+              saved method, it is an edit view: they found it once already. */}
+          {!editing && (
+            <p>
+              {target.kind === "provider"
+                ? spec!.whereToFind
+                : target.kind === "bank"
+                  ? "Your IBAN is on your bank statement or in your banking app under account details. The account holder name must match the account, or some banks reject the transfer."
+                  : target.kind === "crypto"
+                    ? CRYPTO_STEP.whereToFind
+                    : "Paste a payment URL and mark where the amount goes. Use {amount}, {currency} and {ref} as placeholders — we substitute them for each debt."}
+            </p>
+          )}
 
           {stepPill && (
             <p className="field-suffix">
@@ -432,7 +443,7 @@ export function PaymentMethodWizard({
               value={value}
               onInput={(e) => setValue(textValue(e))}
             />
-            {target.kind === "provider" && (
+            {target.kind === "provider" && !editing && (
               <span className="field-suffix">{spec!.example}</span>
             )}
           </label>
@@ -516,7 +527,8 @@ export function PaymentMethodWizard({
           )}
           {valid && !testUrl && target.kind === "bank" && (
             <p className="field-suffix">
-              Saved IBANs are shown with a scannable QR code on EUR debts.
+              Payers get a scannable QR code on EUR and CZK debts, and the IBAN
+              with copy buttons in any currency.
             </p>
           )}
           {valid && !testUrl && target.kind === "crypto" && (

@@ -34,7 +34,9 @@ export type IconName =
   | "eye"
   | "trash"
   | "arrow-right"
-  | "circle-check";
+  | "circle-check"
+  | "users"
+  | "folder-open";
 
 /** Icon geometry only: everything else (stroke, size) comes from <Icon>. */
 const ICONS: Record<IconName, JSX.Element> = {
@@ -162,6 +164,19 @@ const ICONS: Record<IconName, JSX.Element> = {
       <path d="M5 12h14" />
       <path d="m12 5 7 7-7 7" />
     </>
+  ),
+  // lucide/users
+  users: (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <circle cx="9" cy="7" r="4" />
+    </>
+  ),
+  // lucide/folder-open
+  "folder-open": (
+    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
   ),
   // lucide/circle-check
   "circle-check": (
