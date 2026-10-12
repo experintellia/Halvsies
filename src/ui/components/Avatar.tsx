@@ -16,11 +16,26 @@ function hashHue(id: string): number {
   return h % 360;
 }
 
-function initials(name: string): string {
+// First grapheme, not first UTF-16 unit: "🏰"[0] is half a surrogate pair.
+// Intl.Segmenter keeps ZWJ emoji and flags whole; code points are the fallback
+// for engines without it (Firefox < 125).
+const Segmenter = (
+  Intl as {
+    Segmenter?: new () => { segment(s: string): Iterable<{ segment: string }> };
+  }
+).Segmenter;
+
+function firstGrapheme(s: string): string {
+  if (Segmenter)
+    for (const { segment } of new Segmenter().segment(s)) return segment;
+  return Array.from(s)[0] ?? "";
+}
+
+export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
-  const first = parts[0][0] ?? "";
-  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "";
+  const first = firstGrapheme(parts[0]);
+  const last = parts.length > 1 ? firstGrapheme(parts[parts.length - 1]) : "";
   return (first + last).toUpperCase();
 }
 
