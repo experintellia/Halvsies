@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] — 2026-10-12
 
 ### Changed
 
@@ -16,9 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Group settings moved off the Me tab. Tap the group name, or the gear next to
   it, at the top of any tab.
 - The Me tab is one row per payment method, each saying what a payer gets
-  ("Fills in amount", "QR code"). Remove lives in the method's edit view, so
-  the tab carries no red buttons. The second list of raw URLs is gone: "See
-  what payers see" opens the real pay-up sheet for a sample €10 debt.
+  ("Fills in amount" or "Payer types amount"). Remove lives in the method's
+  edit view, so the tab carries no red buttons. The second list of raw URLs is
+  gone: "See what payers see" opens the real pay-up sheet for a sample €10
+  debt.
 - The pay-up sheet shows one method at a time behind a switcher, with the
   payee's note on top as a chat bubble and the amount in large type.
 - Balances leads with what you owe (or are owed) and one button to settle it.
@@ -32,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A preferred payment method. Tick it in a method's edit view and the pay-up
   sheet opens on it, lists it first and says so. Stored as an optional
   `preferred` field on the profile; older peers ignore it.
+
+### Fixed
+
+- The chat line for a settled debt names who paid. When the person being paid
+  recorded it with "Mark as received", the line read "Bob paid Bob" instead of
+  "Anna paid Bob".
 
 ## [0.1.1] — 2026-08-02
 
