@@ -441,7 +441,7 @@ describe("PayUpSheet", () => {
 
   /** Switches the sheet to another method, as a tap on its tab would. */
   const pick = (label: string): void => {
-    const tab = Array.from(host.querySelectorAll('[role="tab"]')).find(
+    const tab = Array.from(host.querySelectorAll(".method-tab")).find(
       (t) => (t.textContent ?? "").trim() === label,
     );
     tap(tab);
@@ -669,13 +669,13 @@ describe("PayUpSheet", () => {
     });
     sheet();
 
-    const tabs = Array.from(host.querySelectorAll('[role="tab"]'));
+    const tabs = Array.from(host.querySelectorAll(".method-tab"));
     expect(tabs.map((t) => (t.textContent ?? "").trim())).toEqual([
       "Bank transfer",
       "PayPal",
       "bunq",
     ]);
-    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    expect(tabs[0].getAttribute("aria-pressed")).toBe("true");
     expect(host.textContent).toContain("preferred way to be paid");
     expect(fieldValues()).toContain("DE89 3704 0044 0532 0130 00");
   });
@@ -731,9 +731,9 @@ describe("PayUpSheet", () => {
     });
     sheet();
 
-    const tabs = Array.from(host.querySelectorAll('[role="tab"]'));
+    const tabs = Array.from(host.querySelectorAll(".method-tab"));
     expect(tabs[0].textContent).toBe("PayPal");
-    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    expect(tabs[0].getAttribute("aria-pressed")).toBe("true");
     expect(host.textContent).not.toContain("preferred way to be paid");
   });
 });
@@ -763,7 +763,7 @@ describe("the Me tab preview and the payer's sheet", () => {
   afterEach(() => setProfile(ME, {}));
 
   const tabLabels = (): string[] =>
-    Array.from(host.querySelectorAll('[role="tab"]')).map((t) =>
+    Array.from(host.querySelectorAll(".method-tab")).map((t) =>
       (t.textContent ?? "").trim(),
     );
 
