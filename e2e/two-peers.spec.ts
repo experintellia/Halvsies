@@ -5,6 +5,7 @@ import {
   addExpense,
   addMethod,
   captureChat,
+  methodButtons,
   openAs,
   setUpGroup,
   sheet,
@@ -55,10 +56,10 @@ test("an expense, a profile and a payment all reach the other person", async ({
   await expect(payup.locator(".payee-note")).toContainText(
     "IBAN is easiest for me",
   );
-  await expect(payup.getByRole("tab")).toHaveText(["Bank transfer", "PayPal"]);
+  await expect(methodButtons(payup)).toHaveText(["Bank transfer", "PayPal"]);
   await expect(
-    payup.getByRole("tab", { name: "Bank transfer" }),
-  ).toHaveAttribute("aria-selected", "true");
+    payup.getByRole("button", { name: "Bank transfer", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(payup).toContainText("Ben's preferred way to be paid");
   await expect(payup.locator("svg.qr-code")).toHaveCount(1);
   await expect(payup.locator("input.copy-input").nth(1)).toHaveValue(
@@ -66,7 +67,7 @@ test("an expense, a profile and a payment all reach the other person", async ({
   );
 
   // Switching shows one method at a time: PayPal, with the amount filled in.
-  await payup.getByRole("tab", { name: "PayPal" }).click();
+  await payup.getByRole("button", { name: "PayPal", exact: true }).click();
   await expect(
     payup.getByRole("link", { name: /Open PayPal/ }),
   ).toHaveAttribute("href", "https://paypal.me/benb/50.00EUR");

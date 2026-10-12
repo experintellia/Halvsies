@@ -129,6 +129,10 @@ export async function addMethod(
   await expect(page.locator(".sheet")).toHaveCount(0);
 }
 
+/** The pay-up sheet's method switcher buttons (toggle buttons, aria-pressed). */
+export const methodButtons = (scope: Locator): Locator =>
+  scope.getByRole("group", { name: "Payment method" }).getByRole("button");
+
 /** A saved method's row on the Me tab. */
 export const methodRow = (page: Page, name: string): Locator =>
   page.locator(".list .row", {

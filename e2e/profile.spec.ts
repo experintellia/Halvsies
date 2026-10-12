@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   addMethod,
+  methodButtons,
   methodRow,
   openAs,
   openGroupSettings,
@@ -121,10 +122,7 @@ test("'See what payers see' is the payer's sheet, and nothing can be recorded fr
   const preview = sheet(page);
   await expect(preview.locator(".sheet-title")).toHaveText("What payers see");
   await expect(preview.locator(".sheet-amount")).toHaveText("€10.00");
-  await expect(preview.getByRole("tab")).toHaveText([
-    "PayPal",
-    "Bank transfer",
-  ]);
+  await expect(methodButtons(preview)).toHaveText(["PayPal", "Bank transfer"]);
   await expect(
     preview.getByRole("link", { name: /Open PayPal/ }),
   ).toHaveAttribute("href", "https://paypal.me/annab/10.00EUR");

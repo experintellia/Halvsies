@@ -5,6 +5,7 @@ import {
   addExpense,
   addMethod,
   addVirtualMember,
+  methodButtons,
   openAs,
   setUpGroup,
   sheet,
@@ -55,10 +56,69 @@ for (const colorScheme of ["light", "dark"] as const) {
     }
 
     await page.getByRole("button", { name: "See what payers see" }).click();
-    await expect(sheet(page).getByRole("tab")).toHaveCount(2);
+    await expect(methodButtons(sheet(page))).toHaveCount(2);
     await expectNoSidewaysScroll(page, "pay-up sheet");
   });
 }
+
+test("big figures stay whole on a 360px phone", async ({ page }) => {
+  // Rupiah: totals in the tens of millions are ordinary. A figure that wraps
+  // mid-number ("12,891,85" / "0.00") reads as a different amount.
+  await page.setViewportSize({ width: 360, height: 740 });
+  await openAs(page, "Anna");
+  await setUpGroup(page, "Bali", "IDR");
+  await addVirtualMember(page, "Deniz");
+  await addExpense(page, {
+    amount: "51695400",
+    title: "Villa",
+    payer: "Deniz",
+  });
+
+  const figures = [".summary-value", ".day-heading .money", ".expense-amount"];
+  for (const selector of figures) {
+    for (const el of await page.locator(selector).all()) {
+      const lines = await el.evaluate((node) => node.getClientRects().length);
+      expect(lines, `${selector} wraps inside a figure`).toBe(1);
+    }
+  }
+  await tab(page, "Balances");
+  const heroLines = await page.locator(".hero-amount").evaluate((node) => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return range.getClientRects().length;
+  });
+  expect(heroLines).toBe(1);
+  await expect(page.locator(".position-name").first()).toBeVisible();
+  await expectNoSidewaysScroll(page, "Balances in IDR");
+});
+
+test("keyboard focus is visible on a grouped-list row", async ({ page }) => {
+  await openAs(page, "Anna");
+  await setUpGroup(page);
+  await addExpense(page, { amount: "12", title: "Coffee" });
+
+  const row = page.locator(".list .row", { hasText: "Coffee" });
+  // Real keyboard focus (programmatic focus after a tap isn't :focus-visible).
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press("Tab");
+    if (await row.evaluate((el) => el === document.activeElement)) break;
+  }
+  await expect(row).toBeFocused();
+  // Drawn inside the row and above its neighbours, so the list's rounded
+  // clipping can't swallow it.
+  const style = await row.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return {
+      width: s.outlineWidth,
+      offset: s.outlineOffset,
+      z: s.zIndex,
+      style: s.outlineStyle,
+    };
+  });
+  expect(style.style).not.toBe("none");
+  expect(style.offset).toBe("-2px");
+  expect(style.z).toBe("2");
+});
 
 test("dark mode repaints the page from the dark tokens", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
