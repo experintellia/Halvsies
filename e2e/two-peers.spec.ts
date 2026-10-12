@@ -55,11 +55,10 @@ test("an expense, a profile and a payment all reach the other person", async ({
   await expect(payup.locator(".payee-note")).toContainText(
     "IBAN is easiest for me",
   );
-  await expect(payup.getByRole("tab")).toHaveText(["Bank", "PayPal"]);
-  await expect(payup.getByRole("tab", { name: "Bank" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(payup.getByRole("tab")).toHaveText(["Bank transfer", "PayPal"]);
+  await expect(
+    payup.getByRole("tab", { name: "Bank transfer" }),
+  ).toHaveAttribute("aria-selected", "true");
   await expect(payup).toContainText("Ben's preferred way to be paid");
   await expect(payup.locator("svg.qr-code")).toHaveCount(1);
   await expect(payup.locator("input.copy-input").nth(1)).toHaveValue(
@@ -74,15 +73,27 @@ test("an expense, a profile and a payment all reach the other person", async ({
   await expect(payup.locator("svg.qr-code")).toHaveCount(1);
   await expect(payup).toContainText("€50.00 is filled in");
 
+  // One primary action: opening PayPal, until the payer has.
+  await expect(payup.getByRole("link", { name: /Open PayPal/ })).toHaveClass(
+    /btn-primary/,
+  );
+  await expect(payup.getByRole("button", { name: "Mark as paid" })).toHaveClass(
+    /btn-secondary/,
+  );
+
   await payup.getByRole("button", { name: "Copy PayPal link" }).click();
   await expect(payup.getByRole("button", { name: "Copied" })).toBeVisible();
 
   const sent = captureChat(anna);
-  await payup.getByRole("button", { name: "Tell the chat" }).click();
+  await payup.getByRole("button", { name: "I'm paying now" }).click();
   expect(await sent).toContain(
     "Paying Ben €50.00 now — https://paypal.me/benb/50.00EUR",
   );
 
+  // Having said how they pay, recording it is now the main action.
+  await expect(payup.getByRole("button", { name: "Mark as paid" })).toHaveClass(
+    /btn-primary/,
+  );
   await payup.getByRole("button", { name: "Mark as paid" }).click();
   await payup.getByRole("button", { name: "Yes, record it" }).click();
   await expect(anna.getByRole("heading", { name: "All square" })).toBeVisible();

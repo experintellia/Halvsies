@@ -42,8 +42,9 @@ test("each saved method says what a payer gets", async ({ page }) => {
     "Payer types amount",
   );
   await expect(methodRow(page, "Bank transfer")).toContainText(IBAN);
+  // Via its QR code, a bank transfer fills the amount in too.
   await expect(methodRow(page, "Bank transfer").locator(".tag")).toHaveText(
-    "QR code",
+    "Fills in amount",
   );
   // Still no destructive buttons: Remove lives inside each method's edit view.
   await expect(page.getByRole("button", { name: /Remove/ })).toHaveCount(0);
@@ -63,7 +64,7 @@ test("the wizard refuses a bad IBAN and offers a test link for a good handle", a
   await expect(
     sheet(page).getByRole("button", { name: "Save" }),
   ).toBeDisabled();
-  await sheet(page).getByRole("button", { name: "Back" }).click();
+  await sheet(page).getByRole("button", { name: "Back", exact: true }).click();
 
   await sheet(page).locator(".wizard-option", { hasText: "PayPal" }).click();
   await sheet(page).getByLabel("PayPal handle").fill("annab");
@@ -120,13 +121,16 @@ test("'See what payers see' is the payer's sheet, and nothing can be recorded fr
   const preview = sheet(page);
   await expect(preview.locator(".sheet-title")).toHaveText("What payers see");
   await expect(preview.locator(".sheet-amount")).toHaveText("€10.00");
-  await expect(preview.getByRole("tab")).toHaveText(["PayPal", "Bank"]);
+  await expect(preview.getByRole("tab")).toHaveText([
+    "PayPal",
+    "Bank transfer",
+  ]);
   await expect(
     preview.getByRole("link", { name: /Open PayPal/ }),
   ).toHaveAttribute("href", "https://paypal.me/annab/10.00EUR");
   await expect(preview).toContainText("Nothing here is recorded or sent.");
   await expect(
-    preview.getByRole("button", { name: /Mark as|Tell the chat/ }),
+    preview.getByRole("button", { name: /Mark as|I'm paying now/ }),
   ).toHaveCount(0);
 });
 
@@ -134,7 +138,7 @@ test("a method the group currency can't use says why", async ({ page }) => {
   await addMethod(page, "bunq", { "bunq handle": "anna" });
   await openGroupSettings(page);
   await pickCurrency(page, "SEK");
-  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await tab(page, "Me");
 
   await expect(methodRow(page, "bunq")).toContainText(

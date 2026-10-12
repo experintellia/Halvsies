@@ -39,7 +39,7 @@ test("group settings open from the name and from the gear, and edit the group", 
   await expect(
     page.locator(".subpage").getByRole("heading", { name: "Group settings" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.locator(".subpage")).toHaveCount(0);
 
   await openGroupSettings(page);

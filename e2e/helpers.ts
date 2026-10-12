@@ -76,7 +76,7 @@ export async function addVirtualMember(
     sheet(page).getByLabel(`Name of ${name}`, { exact: true }),
   ).toBeVisible();
   await sheet(page).getByRole("button", { name: "Close" }).click();
-  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
 }
 
 export interface NewExpense {
