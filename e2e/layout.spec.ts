@@ -205,6 +205,8 @@ test("the page never scrolls vertically, only the list does", async ({
   expect(await refused(".app-shell .row")).toBe(false);
 
   await openNewExpense(page);
+  // The form is mounted inside the (scrollable) list, but its header is not.
+  expect(await refused(".subpage > .app-header")).toBe(true);
   const sub = [".subpage > .app-header"];
   const subBefore = await pinned(sub);
   expect(await scrollList(".subpage")).toBeGreaterThan(0);

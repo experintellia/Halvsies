@@ -57,6 +57,7 @@ export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
     let startY = 0;
     let dy = 0;
     let state: "idle" | "deciding" | "dragging" = "idle";
+    let closing: ReturnType<typeof setTimeout> | undefined;
     function onTouchStart(e: TouchEvent) {
       if (e.touches.length !== 1 || !panel || panel.scrollTop > 0) {
         // A second finger mid-drag (a pinch): put the sheet back.
@@ -98,7 +99,7 @@ export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
       panel.style.transition = "";
       if (!dirtyRef.current && dy > Math.min(120, panel.offsetHeight / 3)) {
         panel.style.transform = "translateY(100%)";
-        setTimeout(close, 200); // .sheet's transform transition
+        closing = setTimeout(close, 200); // .sheet's transform transition
       } else {
         panel.style.transform = "";
       }
@@ -109,6 +110,7 @@ export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
     panel?.addEventListener("touchcancel", onTouchEnd);
 
     return () => {
+      clearTimeout(closing);
       panel?.removeEventListener("touchstart", onTouchStart);
       panel?.removeEventListener("touchmove", onTouchMove);
       panel?.removeEventListener("touchend", onTouchEnd);

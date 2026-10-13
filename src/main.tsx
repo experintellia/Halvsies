@@ -32,8 +32,10 @@ document.addEventListener(
   "touchmove",
   (e) => {
     if (e.touches.length > 1 || (vv && vv.scale > 1)) return;
+    // Nearest box wins: a sub-page's header finds .subpage (never scrolls),
+    // not the tab's .app-content the sub-page happens to be mounted in.
     const box = (e.target as Element).closest(
-      ".app-content, .sheet, .sheet-backdrop",
+      ".app-content, .sheet, .sheet-backdrop, .subpage, textarea",
     );
     if (!box || box.scrollHeight <= box.clientHeight) e.preventDefault();
   },
