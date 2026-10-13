@@ -8,6 +8,9 @@ export interface TapButtonProps {
   onActivate: () => void;
   className: string;
   disabled?: boolean;
+  /** Looks disabled and says so, but stays focusable and still activates:
+   *  for a Save that explains what is missing when pressed. */
+  ariaDisabled?: boolean;
   /** For icon-only buttons, which have no visible text to name them. */
   ariaLabel?: string;
   /** -1 for a pointer-only duplicate of a control that is already focusable. */
@@ -22,6 +25,7 @@ export function TapButton({
   onActivate,
   className,
   disabled,
+  ariaDisabled,
   ariaLabel,
   tabIndex,
   title,
@@ -33,6 +37,7 @@ export function TapButton({
       type="button"
       className={className}
       disabled={disabled}
+      aria-disabled={ariaDisabled || undefined}
       aria-label={ariaLabel}
       aria-describedby={describedBy}
       tabIndex={tabIndex}

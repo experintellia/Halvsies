@@ -378,11 +378,13 @@ describe("ProfileForm", () => {
     const text = host.textContent ?? "";
     expect(text).toContain("paypal.me"); // the "where to find it" guidance
     expect(host.querySelector("input")).not.toBeNull();
-    // Nothing typed yet, so Save must be disabled — no half-configured method.
+    // Nothing typed yet, so Save must not save — no half-configured method.
+    // It reads as disabled but stays focusable, to say what's missing.
     const save = Array.from(host.querySelectorAll("button")).find(
       (b) => (b.textContent ?? "").trim() === "Save",
     ) as HTMLButtonElement | undefined;
-    expect(save?.disabled).toBe(true);
+    expect(save?.disabled).toBe(false);
+    expect(save?.getAttribute("aria-disabled")).toBe("true");
   });
 });
 

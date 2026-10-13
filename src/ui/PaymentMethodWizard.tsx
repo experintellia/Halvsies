@@ -42,6 +42,7 @@ import { SubPage } from "./components/SubPage";
 import { announce } from "./announce";
 import { CopyButton } from "./components/CopyButton";
 import { Icon } from "./components/Icon";
+import { TapButton } from "./components/TapButton";
 
 /** What the wizard is currently editing. `null` = still on the picker step. */
 export type WizardTarget =
@@ -90,35 +91,6 @@ function withPreferred(
 
 function textValue(e: Event): string {
   return (e.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
-}
-
-/** Tap-safe button — see Row.tsx for why taps ride pointerup in this WebView. */
-function TapButton({
-  onActivate,
-  className,
-  disabled,
-  children,
-}: {
-  onActivate: () => void;
-  className: string;
-  disabled?: boolean;
-  children: preact.ComponentChildren;
-}) {
-  return (
-    <button
-      type="button"
-      className={className}
-      disabled={disabled}
-      onPointerUp={() => {
-        if (!disabled) onActivate();
-      }}
-      onClick={(e) => {
-        if (e.detail === 0 && !disabled) onActivate();
-      }}
-    >
-      {children}
-    </button>
-  );
 }
 
 export function PaymentMethodWizard({
@@ -230,6 +202,14 @@ export function PaymentMethodWizard({
   // part was touched: announcing "Banks need the account holder's name" the
   // moment the IBAN turns valid interrupts someone who hasn't got there yet.
   const shown = filled && (valueBad || restTouched) ? error : null;
+  const fieldLabel =
+    target?.kind === "provider"
+      ? `${spec!.label} handle`
+      : target?.kind === "bank"
+        ? "IBAN"
+        : target?.kind === "crypto"
+          ? "Wallet address"
+          : "Link template";
   const rest = (on: boolean) => ({
     "aria-invalid": (on && !valueBad && shown !== null) || undefined,
     "aria-describedby": on && !valueBad && shown ? statusId : undefined,
@@ -270,7 +250,16 @@ export function PaymentMethodWizard({
   }
 
   function save(): void {
-    if (!valid || !target) return;
+    if (!target) return;
+    if (!valid) {
+      // Save stays focusable (aria-disabled), so pressing it early says what
+      // is missing instead of doing nothing. An error not on screen yet is
+      // revealed, and its status line announces it.
+      if (!filled) announce(`Fill in “${fieldLabel}” first.`);
+      else if (shown) announce(shown);
+      else setRestTouched(true);
+      return;
+    }
     if (target.kind === "provider") {
       const stored = spec!.normalize ? spec!.normalize(value) : value.trim();
       onSave(
@@ -413,7 +402,7 @@ export function PaymentMethodWizard({
           ))}
         </>
       ) : (
-        // Enter in any text field saves, once the method is valid.
+        // Enter in any text field saves (or says what's missing).
         <div
           onKeyDown={(e) => {
             const t = e.target as HTMLInputElement;
@@ -421,7 +410,7 @@ export function PaymentMethodWizard({
             // Cancelled, or the same keystroke's click lands on the row focus
             // returns to ("Add payment method") and opens the wizard again.
             e.preventDefault();
-            if (valid) save();
+            save(); // explains instead, while not valid
           }}
         >
           {/* Step 2: where to find it, then the field itself. Opened on a
@@ -462,15 +451,7 @@ export function PaymentMethodWizard({
 
           <div className="field">
             <label>
-              <span className="field-label">
-                {target.kind === "provider"
-                  ? `${spec!.label} handle`
-                  : target.kind === "bank"
-                    ? "IBAN"
-                    : target.kind === "crypto"
-                      ? "Wallet address"
-                      : "Link template"}
-              </span>
+              <span className="field-label">{fieldLabel}</span>
               <input
                 type="text"
                 autoFocus
@@ -626,7 +607,8 @@ export function PaymentMethodWizard({
           <div className="wizard-actions">
             <TapButton
               className="btn btn-primary btn-block"
-              disabled={!valid}
+              ariaDisabled={!valid}
+              describedBy={shown ? statusId : undefined}
               onActivate={save}
             >
               Save
