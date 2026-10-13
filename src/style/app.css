@@ -112,18 +112,14 @@
   box-sizing: border-box;
 }
 
+/* The page is exactly screen-high and never scrolls (only .app-content
+   does), so it has nothing to rubber-band: without overscroll-behavior iOS
+   still bounces the whole app, tab bar and all, on any drag. */
 html,
 body,
 #app {
   margin: 0;
   height: 100%;
-}
-
-/* The page is exactly screen-high and never scrolls (only .app-content and
-   sub-pages do), so it has nothing to rubber-band: without this iOS still
-   bounces the whole app, tab bar and all, on any drag. */
-html,
-body {
   overscroll-behavior: none;
 }
 
@@ -212,6 +208,7 @@ main:focus {
      scrolls. 100vh here was taller than the visible area in iOS webviews,
      so the whole page scrolled and left a blank strip under the tab bar. */
   height: 100%;
+  position: relative; /* the FAB's anchor */
   max-width: 640px; /* cap width on desktop; still full-bleed on phones */
   margin: 0 auto;
   /* Every string on every screen is user- or peer-supplied: member names,
@@ -387,11 +384,6 @@ main:focus {
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
   padding-bottom: var(--safe-bottom);
-  position: sticky;
-  bottom: 0;
-  /* Sticky alone only makes it positioned with z-index auto, so .row's
-     z-index: 1 painted every scrolled card straight over the tab bar. */
-  z-index: 2;
 }
 
 .tab-btn {
@@ -438,14 +430,13 @@ main:focus {
 }
 
 /* ---- floating add button ----
-   Fixed rather than sticky: .app-content is its own scroll container, so a
-   sticky child would stick inside a box that never scrolls. The right edge
-   tracks .app-shell's 640px cap on desktop. */
+   Absolute against .app-shell, not fixed: .app-content (its parent) is
+   not positioned, so the button neither scrolls with the list nor depends
+   on the iOS layout viewport, and the shell's 640px cap comes for free. */
 
 .fab {
-  position: fixed;
+  position: absolute;
   right: 16px;
-  right: max(16px, calc((100vw - 640px) / 2 + 16px));
   bottom: calc(76px + var(--safe-bottom));
   z-index: 3;
   display: inline-flex;
@@ -1208,7 +1199,6 @@ main:focus {
   max-width: 640px; /* matches .app-shell, so it lands over it on desktop */
   margin: 0 auto;
   background: var(--color-bg);
-  overflow-y: auto;
   /* Same reason as .app-shell: every string in here is user-supplied. */
   overflow-wrap: break-word;
   overflow-wrap: anywhere;

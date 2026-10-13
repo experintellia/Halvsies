@@ -7,6 +7,7 @@ import {
   addVirtualMember,
   methodButtons,
   openAs,
+  openNewExpense,
   setUpGroup,
   sheet,
   tab,
@@ -167,4 +168,30 @@ test("the page never scrolls vertically, only the list does", async ({
   expect(m.page, "page scrolls vertically").toBeLessThanOrEqual(0);
   expect(m.list, "list should overflow in this test").toBeGreaterThan(0);
   expect(m.barGap).toBe(0);
+
+  // Scrolling the list moves only the list: header, add button and tab bar
+  // stay put, on the main screen and on a sub-page alike.
+  const pinned = (selectors: string[]) =>
+    page.evaluate(
+      (sels) =>
+        sels.map((s) => document.querySelector(s)!.getBoundingClientRect().top),
+      selectors,
+    );
+  const scrollList = (scope: string) =>
+    page.evaluate((sc) => {
+      const box = document.querySelector<HTMLElement>(`${sc} .app-content`)!;
+      box.scrollTop = box.scrollHeight;
+      return box.scrollTop;
+    }, scope);
+
+  const main = [".app-shell > .app-header", ".fab", ".tab-bar"];
+  const before = await pinned(main);
+  expect(await scrollList(".app-shell")).toBeGreaterThan(0);
+  expect(await pinned(main)).toEqual(before);
+
+  await openNewExpense(page);
+  const sub = [".subpage > .app-header"];
+  const subBefore = await pinned(sub);
+  expect(await scrollList(".subpage")).toBeGreaterThan(0);
+  expect(await pinned(sub)).toEqual(subBefore);
 });

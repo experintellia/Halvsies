@@ -134,7 +134,7 @@ export function ExpenseList() {
   return (
     <section aria-label="Expenses" className="has-fab">
       {/* First in the DOM so keyboard and screen-reader users reach it before
-          every row; it floats (position: fixed), so it still looks last. */}
+          every row; it floats (position: absolute), so it still looks last. */}
       <button
         type="button"
         className="fab"
