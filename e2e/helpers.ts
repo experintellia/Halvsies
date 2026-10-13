@@ -32,7 +32,7 @@ export async function pickCurrency(page: Page, code: string): Promise<void> {
   await page.locator(".picker-value").click();
   await page.getByPlaceholder("Code or name — EUR, krona, rupee").fill(code);
   await page
-    .getByRole("option")
+    .locator(".currency-row")
     .filter({ has: page.locator(".currency-code", { hasText: code }) })
     .first()
     .click();
@@ -49,7 +49,7 @@ export async function setUpGroup(
     page.getByRole("heading", { name: "Set up this split" }),
   ).toBeVisible();
   await pickCurrency(page, currency);
-  await page.getByLabel("Name (optional)").fill(title);
+  await page.getByLabel("Group name (optional)").fill(title);
   await page.getByRole("button", { name: "Start splitting" }).click();
   await expect(page.locator(".tab-bar")).toBeVisible();
 }

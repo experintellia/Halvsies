@@ -117,6 +117,17 @@ describe("searchCurrencies", () => {
     expect(searchCurrencies(codes, "indian rupee", ["en"])[0]).toBe("INR");
   });
 
+  it("ignores accents, and survives a locale the engine rejects", () => {
+    expect(searchCurrencies(["ISK", "SEK"], "krona", ["en"])).toEqual([
+      "ISK",
+      "SEK",
+    ]);
+    // Seen in the wild as navigator.language; DisplayNames throws on it.
+    expect(
+      searchCurrencies(["SEK", "USD"], "swedish", ["en-US@posix"]),
+    ).toEqual(["SEK"]);
+  });
+
   // Ranked, not merely filtered: an exact code beats a name that contains the
   // same letters, so typing a code you know never buries it under prose.
   it("puts an exact code first", () => {

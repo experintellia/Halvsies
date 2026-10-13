@@ -1,11 +1,12 @@
 // Bottom sheet / modal. Renders nothing when closed; while open it traps
-// focus, closes on backdrop tap (onPointerUp — see Row.tsx), a downward swipe
+// focus (useLayer), closes on backdrop tap (onPointerUp — see Row.tsx), a downward swipe
 // and Escape, and restores focus to whatever opened it when it closes.
 //
 // For short, glanceable content. Anything tall or form-like is a SubPage.
 import type { ComponentChildren } from "preact";
 import { useEffect, useId, useRef } from "preact/hooks";
 import { Icon } from "./Icon";
+import { useLayer } from "./useLayer";
 
 export interface SheetProps {
   open: boolean;
@@ -17,12 +18,8 @@ export interface SheetProps {
   children: ComponentChildren;
 }
 
-const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const openerRef = useRef<Element | null>(null);
   const titleId = useId();
 
   // Callers pass a fresh arrow every render (`onClose={() => setTarget(null)}`),
@@ -45,46 +42,10 @@ export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
     closeRef.current();
   }
 
+  useLayer(open, panelRef, close);
+
   useEffect(() => {
     if (!open) return;
-    openerRef.current = document.activeElement;
-    // Don't steal focus from a child that already claimed it — ExpenseForm
-    // autofocuses the amount field, and re-focusing the panel here would shut
-    // the keyboard on the app's highest-traffic path.
-    if (!panelRef.current?.contains(document.activeElement)) {
-      panelRef.current?.focus();
-    }
-
-    function onKeyDown(e: KeyboardEvent) {
-      // Only the top layer answers; see SubPage.
-      const layers = document.querySelectorAll(".sheet, .subpage");
-      if (layers[layers.length - 1] !== panelRef.current) return;
-      if (e.key === "Escape") {
-        e.preventDefault();
-        close();
-        return;
-      }
-      const panel = panelRef.current;
-      if (e.key !== "Tab" || !panel) return;
-      const focusables = Array.from(
-        panel.querySelectorAll<HTMLElement>(FOCUSABLE),
-      );
-      if (focusables.length === 0) {
-        e.preventDefault();
-        return;
-      }
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-
     // Swipe down to close. Touch events, not pointer events: the sheet body
     // scrolls, and only a touchmove listener can claim the gesture from the
     // browser (preventDefault) — and only on its first move, before a scroll
@@ -98,6 +59,11 @@ export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
     let state: "idle" | "deciding" | "dragging" = "idle";
     function onTouchStart(e: TouchEvent) {
       if (e.touches.length !== 1 || !panel || panel.scrollTop > 0) {
+        // A second finger mid-drag (a pinch): put the sheet back.
+        if (state === "dragging" && panel) {
+          panel.style.transition = "";
+          panel.style.transform = "";
+        }
         state = "idle";
         return;
       }
@@ -143,13 +109,10 @@ export function Sheet({ open, onClose, title, dirty, children }: SheetProps) {
     panel?.addEventListener("touchcancel", onTouchEnd);
 
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
       panel?.removeEventListener("touchstart", onTouchStart);
       panel?.removeEventListener("touchmove", onTouchMove);
       panel?.removeEventListener("touchend", onTouchEnd);
       panel?.removeEventListener("touchcancel", onTouchEnd);
-      const opener = openerRef.current;
-      if (opener instanceof HTMLElement) opener.focus();
     };
   }, [open]);
 

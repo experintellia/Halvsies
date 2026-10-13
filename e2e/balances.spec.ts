@@ -112,3 +112,22 @@ test("owed by several, with a debt between two others listed separately", async 
     sheet(page).getByRole("button", { name: "Mark as received" }),
   ).toBeVisible();
 });
+
+test("keyboard: a second Enter on Mark as paid doesn't skip the confirmation", async ({
+  page,
+}) => {
+  await addVirtualMember(page, "Ben");
+  await addExpense(page, { amount: "50", title: "Groceries", payer: "Ben" });
+  await tab(page, "Balances");
+  await page.getByRole("button", { name: "Pay Ben" }).click();
+
+  await sheet(page).getByRole("button", { name: "Mark as paid" }).focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await expect(
+    sheet(page).getByRole("button", { name: "Yes, record it" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "All square" })).toHaveCount(
+    0,
+  );
+});

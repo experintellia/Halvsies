@@ -66,7 +66,7 @@ test("a row opens a read-only summary; editing by shares and deleting both work"
   await form.getByRole("button", { name: "Shares" }).click();
   await form
     .getByRole("group", { name: "Shares for Ben" })
-    .getByRole("button", { name: "+" })
+    .getByRole("button", { name: "More" })
     .click();
   await expect(form).toContainText("2 shares · 67%");
   await form.getByRole("button", { name: "Save" }).click();

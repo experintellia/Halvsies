@@ -2,7 +2,7 @@
 // Every amount here is integer cents; the only float-adjacent code is
 // Amount.tsx's own text parser, which this file never touches directly.
 import type { ComponentChildren, JSX } from "preact";
-import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useId, useLayoutEffect, useRef, useState } from "preact/hooks";
 import {
   addExpense,
   deleteExpense,
@@ -20,6 +20,7 @@ import {
   type Split,
   type SplitMode,
 } from "../state/model";
+import { announce } from "./announce";
 import { useDocValue, useSelfId } from "./useDoc";
 import { SubPage } from "./components/SubPage";
 import { Amount } from "./components/Amount";
@@ -109,13 +110,15 @@ function sharePercent(weight: number, total: number): string {
 function Stepper(props: {
   value: number;
   onChange: (next: number) => void;
-  label: string;
+  /** Whose shares: names the group and both buttons. */
+  name: string;
 }) {
-  const { value, onChange, label } = props;
+  const { value, onChange, name } = props;
   return (
-    <span className="stepper" role="group" aria-label={label}>
+    <span className="stepper" role="group" aria-label={`Shares for ${name}`}>
       <TapButton
         className="btn btn-secondary stepper-btn"
+        ariaLabel={`Fewer shares for ${name}`}
         disabled={value <= 0}
         onActivate={() => onChange(value - 1)}
       >
@@ -124,6 +127,7 @@ function Stepper(props: {
       <span className="stepper-value">{value}</span>
       <TapButton
         className="btn btn-secondary stepper-btn"
+        ariaLabel={`More shares for ${name}`}
         disabled={value >= MAX_SHARES}
         onActivate={() => onChange(value + 1)}
       >
@@ -154,6 +158,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
   const [mode, setMode] = useState<SplitMode>("even");
   const [weights, setWeights] = useState<Record<MemberId, number>>({});
   const [exact, setExact] = useState<Record<MemberId, number>>({});
+  const statusId = useId();
+  const betweenId = useId();
 
   // A layout effect, not a passive one: it runs before the page paints. A
   // passive effect could land up to ~100ms later on a busy device, briefly
@@ -199,6 +205,10 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
     editedAt: expense?.editedAt ?? 0,
   };
   const error = validateSplit(draft);
+  // What the status line says. A fresh form has no amount yet, and greeting
+  // it (and a screen reader) with "Amount must be more than zero" before
+  // anything was typed is noise — Save is simply not ready.
+  const shownError = amountCents > 0 ? error : null;
   const memberIds = members.map((m) => m.id);
   const shares = splitShares(draft, memberIds);
   const exactAssigned = participants.reduce((s, id) => s + (exact[id] ?? 0), 0);
@@ -261,6 +271,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
       });
     }
     onClose();
+    announce(expense ? "Expense saved" : "Expense added");
   }
 
   // Two-tap confirmation rather than window.confirm(): several webxdc hosts
@@ -270,10 +281,13 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
     if (!expense) return;
     if (!confirmingDelete) {
       setConfirmingDelete(true);
+      // The focused button renames itself, which screen readers don't re-read.
+      announce("Really delete? Press again to delete.");
       return;
     }
     deleteExpense(expense.id);
     onClose();
+    announce("Expense deleted");
   }
 
   return (
@@ -288,6 +302,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         onChange={setAmountCents}
         currency={currency}
         autoFocus
+        describedBy={shownError?.startsWith("Amount") ? statusId : undefined}
+        invalid={shownError?.startsWith("Amount")}
       />
 
       <label className="field">
@@ -297,12 +313,19 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
           value={title}
           placeholder="e.g. Dinner"
           onInput={(e) => setTitle((e.currentTarget as HTMLInputElement).value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.isComposing) return;
+            // See the wizard: an uncancelled Enter also clicks whatever focus
+            // returns to once the form has closed.
+            e.preventDefault();
+            handleSave(); // no-op while invalid
+          }}
         />
       </label>
 
       <div className="field">
         <span className="field-label">Paid by</span>
-        <div className="field-row">
+        <div className="field-row" role="group" aria-label="Paid by">
           {members.map((m) => (
             <ChipButton
               key={m.id}
@@ -318,7 +341,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
 
       <div className="field">
         <span className="field-label">Split</span>
-        <div className="field-row">
+        <div className="field-row" role="group" aria-label="Split">
           {(["even", "weights", "exact"] as SplitMode[]).map((m) => (
             <ChipButton
               key={m}
@@ -337,8 +360,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         )}
       </div>
 
-      <div className="field">
-        <span className="field-label">
+      <div className="field" role="group" aria-labelledby={betweenId}>
+        <span className="field-label" id={betweenId}>
           Split between{" "}
           <span className="field-suffix">
             ({participants.length} of {members.length})
@@ -379,10 +402,15 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                 <div className="share-controls">
                   <Stepper
                     value={weight}
-                    label={`Shares for ${m.name}`}
-                    onChange={(next) =>
-                      setWeights({ ...weights, [m.id]: next })
-                    }
+                    name={m.name}
+                    onChange={(next) => {
+                      setWeights({ ...weights, [m.id]: next });
+                      // Only the one that changed, by name — making every
+                      // member's line live read out two lines per tap.
+                      announce(
+                        `${m.name}: ${next} ${next === 1 ? "share" : "shares"}, ${sharePercent(next, totalShares - weight + next)}`,
+                      );
+                    }}
                   />
                   {/* Shares, then the percentage they add up to, then the
                       percentage. The money is deliberately NOT repeated here:
@@ -406,6 +434,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                 <div style={{ marginLeft: 44, marginTop: 4 }}>
                   <Amount
                     label="Amount"
+                    ariaLabel={`Amount for ${m.name}`}
                     valueCents={exact[m.id] ?? 0}
                     currency={currency}
                     onChange={(cents) => setExact({ ...exact, [m.id]: cents })}
@@ -442,11 +471,9 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         />
       </label>
 
-      {error && (
-        <p role="alert" className="money-negative">
-          {error}
-        </p>
-      )}
+      <p id={statusId} role="status" className="money-negative form-status">
+        {shownError}
+      </p>
 
       <div className="field-row" style={{ marginTop: 8 }}>
         {expense && (

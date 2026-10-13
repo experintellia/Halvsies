@@ -10,6 +10,11 @@ export interface AmountProps {
   currency: string;
   autoFocus?: boolean;
   label: string;
+  /** When several share one visible label ("Amount" under each member). */
+  ariaLabel?: string;
+  /** Id of the message saying what is wrong, and whether it is this field. */
+  describedBy?: string;
+  invalid?: boolean;
 }
 
 /**
@@ -63,6 +68,9 @@ export function Amount({
   currency,
   autoFocus,
   label,
+  ariaLabel,
+  describedBy,
+  invalid,
 }: AmountProps) {
   const [text, setText] = useState(() => formatForEdit(valueCents));
   // Typed in, not merely focused. This field is autofocused the instant the
@@ -86,6 +94,9 @@ export function Amount({
           className="amount-input"
           type="text"
           inputMode="decimal"
+          aria-label={ariaLabel}
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
           autoFocus={autoFocus}
           value={text}
           onFocus={(e) => (e.currentTarget as HTMLInputElement).select()}

@@ -4,6 +4,7 @@
 // older/non-secure-context webviews too, hence the textarea+execCommand path.
 import { useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon";
+import { announce } from "../announce";
 
 export interface CopyButtonProps {
   /** the text copied to the clipboard */
@@ -19,6 +20,9 @@ export interface CopyButtonProps {
 }
 
 function fallbackCopy(text: string): boolean {
+  // The textarea takes focus to be selected; hand it back afterwards, or a
+  // keyboard or screen-reader user is left on <body>.
+  const prev = document.activeElement;
   const ta = document.createElement("textarea");
   ta.value = text;
   ta.setAttribute("readonly", "");
@@ -35,6 +39,7 @@ function fallbackCopy(text: string): boolean {
     ok = false;
   }
   document.body.removeChild(ta);
+  if (prev instanceof HTMLElement) prev.focus();
   return ok;
 }
 
@@ -63,7 +68,11 @@ export function CopyButton({
 
   const activate = () => {
     copyText(value).then((ok) => {
-      if (!ok) return;
+      if (!ok) {
+        announce("Couldn't copy. Select the text and copy it by hand.");
+        return;
+      }
+      announce("Copied");
       setCopied(true);
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setCopied(false), 1500);

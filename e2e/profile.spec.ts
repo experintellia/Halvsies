@@ -62,9 +62,9 @@ test("the wizard refuses a bad IBAN and offers a test link for a good handle", a
   await subpage(page)
     .getByLabel("IBAN", { exact: true })
     .fill("DE00 1234 5678");
-  await expect(subpage(page).getByRole("alert")).toHaveText(
-    "That doesn't look like a valid IBAN.",
-  );
+  await expect(
+    subpage(page).getByRole("status").filter({ hasText: "IBAN" }),
+  ).toHaveText("That doesn't look like a valid IBAN.");
   await expect(
     subpage(page).getByRole("button", { name: "Save" }),
   ).toBeDisabled();
@@ -150,4 +150,27 @@ test("a method the group currency can't use says why", async ({ page }) => {
   await expect(
     page.getByText("None of your saved methods work for SEK debts"),
   ).toBeVisible();
+});
+
+test("keyboard: Enter in the wizard saves once and doesn't reopen it", async ({
+  page,
+}) => {
+  const add = page.getByRole("button", { name: "Add payment method" });
+  await add.focus();
+  await page.keyboard.press("Enter");
+  await subpage(page)
+    .getByRole("button", { name: /^Bank transfer/ })
+    .focus();
+  await page.keyboard.press("Enter");
+  // The step's first field takes focus by itself.
+  await expect(subpage(page).getByLabel("IBAN", { exact: true })).toBeFocused();
+  await page.keyboard.type("DE89 3704 0044 0532 0130 00");
+  await subpage(page).getByLabel("Account holder name").fill("Anna B");
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator(".subpage")).toHaveCount(0);
+  await expect(add).toBeFocused();
+  await expect(page.locator(".row", { hasText: "Bank transfer" })).toHaveCount(
+    1,
+  );
 });

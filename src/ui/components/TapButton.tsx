@@ -12,6 +12,9 @@ export interface TapButtonProps {
   ariaLabel?: string;
   /** -1 for a pointer-only duplicate of a control that is already focusable. */
   tabIndex?: number;
+  title?: string;
+  /** Id of help text that belongs to this control but isn't its name. */
+  describedBy?: string;
   children: ComponentChildren;
 }
 
@@ -21,6 +24,8 @@ export function TapButton({
   disabled,
   ariaLabel,
   tabIndex,
+  title,
+  describedBy,
   children,
 }: TapButtonProps) {
   return (
@@ -29,7 +34,9 @@ export function TapButton({
       className={className}
       disabled={disabled}
       aria-label={ariaLabel}
+      aria-describedby={describedBy}
       tabIndex={tabIndex}
+      title={title}
       onPointerUp={() => {
         if (!disabled) onActivate();
       }}

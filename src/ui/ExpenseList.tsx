@@ -94,7 +94,11 @@ export function ExpenseList() {
     const myShare = myShareOf(expense);
     const barWidth = `${Math.max(3, (expense.amountCents / largest) * 100)}%`;
     return (
-      <Row key={expense.id} onActivate={() => setViewId(expense.id)}>
+      <Row
+        key={expense.id}
+        className="expense-row"
+        onActivate={() => setViewId(expense.id)}
+      >
         <Avatar
           member={payer ?? { id: expense.payerId, name: "?" }}
           size={36}
