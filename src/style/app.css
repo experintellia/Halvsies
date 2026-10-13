@@ -119,6 +119,14 @@ body,
   height: 100%;
 }
 
+/* The page is exactly screen-high and never scrolls (only .app-content and
+   sub-pages do), so it has nothing to rubber-band: without this iOS still
+   bounces the whole app, tab bar and all, on any drag. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
 /* Pinch-zoom stays; double-tap zoom goes, so a quick second tap on a
    stepper counts as a tap. */
 html {

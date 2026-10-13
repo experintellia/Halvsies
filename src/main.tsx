@@ -9,17 +9,16 @@ import { render } from "preact";
 import "./style/app.css";
 import { App } from "./ui/App";
 
-// iOS scrolls the window up to keep a focused input above the keyboard, and
+// iOS scrolls the window to keep a focused input above the keyboard, and
 // when that input unmounts while focused (Save closes the form) the keyboard
 // drops without the scroll being undone: the page stays shifted up with a
-// blank strip under the tab bar. Once the keyboard is gone, pull the scroll
-// back inside the document. Clamped, not reset to 0, so a scrolled list
-// keeps its place.
+// blank strip under the tab bar. The page itself never scrolls (only
+// .app-content and sub-pages do), so once the keyboard is gone any window
+// scroll is that leftover — put it back.
 const vv = window.visualViewport;
 vv?.addEventListener("resize", () => {
   if (vv.height < window.innerHeight) return; // keyboard still up
-  const max = document.documentElement.scrollHeight - window.innerHeight;
-  if (window.scrollY > max) window.scrollTo(0, Math.max(0, max));
+  if (window.scrollY !== 0 || vv.offsetTop !== 0) window.scrollTo(0, 0);
 });
 
 const root = document.getElementById("app");
