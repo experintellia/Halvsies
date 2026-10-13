@@ -21,6 +21,8 @@ import { Row } from "./components/Row";
 import { SplitMark } from "./components/SplitMark";
 import { TapButton } from "./components/TapButton";
 import { PayUpSheet } from "./PayUpSheet";
+import { ProfileForm } from "./ProfileForm";
+import { SubPage } from "./components/SubPage";
 
 function selfAddr(): string | undefined {
   return typeof window === "undefined" ? undefined : window.webxdc?.selfAddr;
@@ -37,6 +39,9 @@ export function Balances() {
   const expenses = useDocValue(listExpenses);
   const settlements = useDocValue(listSettlements);
   const [selected, setSelected] = useState<Selection | null>(null);
+  // Editing the payment details of a creditor who doesn't use the app, from
+  // their pay sheet; Back returns to that same sheet, details now filled in.
+  const [editing, setEditing] = useState<Selection | null>(null);
 
   const self = selfAddr();
   const currency = settings.groupCurrency;
@@ -61,12 +66,30 @@ export function Balances() {
     });
 
   const sheet = (
-    <PayUpSheet
-      transfer={selected?.transfer ?? { fromId: "", toId: "", amountCents: 0 }}
-      direction={selected?.direction ?? "pay"}
-      open={selected !== null}
-      onClose={() => setSelected(null)}
-    />
+    <>
+      <PayUpSheet
+        transfer={
+          selected?.transfer ?? { fromId: "", toId: "", amountCents: 0 }
+        }
+        direction={selected?.direction ?? "pay"}
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        onEditPayee={() => {
+          setEditing(selected);
+          setSelected(null);
+        }}
+      />
+      <SubPage
+        open={editing !== null}
+        title={`${editing ? memberOf(editing.transfer.toId).name : ""}'s payment details`}
+        onBack={() => {
+          setSelected(editing);
+          setEditing(null);
+        }}
+      >
+        {editing && <ProfileForm memberId={editing.transfer.toId} />}
+      </SubPage>
+    </>
   );
 
   if (transfers.length === 0) {

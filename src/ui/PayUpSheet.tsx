@@ -40,6 +40,11 @@ export interface PayUpSheetProps {
    * the local user. Nothing can be recorded or sent from it.
    */
   preview?: boolean;
+  /**
+   * Opens the payment details of a creditor who doesn't use the app (a member
+   * added by hand), so someone who does can fill them in for them.
+   */
+  onEditPayee?: () => void;
 }
 
 function selfAddr(): string | undefined {
@@ -80,6 +85,7 @@ export function PayUpSheet({
   open,
   onClose,
   preview = false,
+  onEditPayee,
 }: PayUpSheetProps) {
   const [usedMethod, setUsedMethod] = useState<string | undefined>(undefined);
   const [confirming, setConfirming] = useState(false);
@@ -207,6 +213,10 @@ export function PayUpSheet({
   // the transfer may make it: otherwise tapping "Bob owes Carol €20" in a
   // 4-person group would let an uninvolved member clear a debt they know
   // nothing about, attributed to them in the chat info line.
+  // Members added by hand (isVirtual) aren't in the chat and can't open the
+  // app: they can't fill in their own details or be asked in the chat.
+  const creditorOffline = !preview && creditor?.isVirtual === true;
+  const debtorOffline = !preview && debtor?.isVirtual === true;
   const isParty =
     !preview && (transfer.fromId === self || transfer.toId === self);
   // Whose details these are, from where the viewer stands: your own only when
@@ -306,8 +316,25 @@ export function PayUpSheet({
             ? "Payers see nothing here yet. Add a payment method first."
             : ownDetails
               ? "Add your payment details in the Me tab so this is a one-tap payment next time."
-              : `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to add a payment method in the Me tab.`}
+              : creditorOffline
+                ? `${creditorName} doesn't use Halvsies, so there are no payment details on file.${
+                    transfer.fromId === self
+                      ? " Pay them however you usually do, then mark it as paid."
+                      : ""
+                  }`
+                : `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to add a payment method in the Me tab.`}
         </p>
+      )}
+      {/* They can't add their own details, so anyone in the group may, and
+          the next payment gets the same QR codes and links as anyone's. */}
+      {creditorOffline && nothingOnFile && onEditPayee && (
+        <TapButton
+          className="btn btn-secondary btn-block"
+          onActivate={onEditPayee}
+        >
+          <Icon name="plus" size={18} />
+          Add {creditorName}'s payment details
+        </TapButton>
       )}
 
       {/* Toggle buttons in a labelled group rather than ARIA tabs: tabs
@@ -459,6 +486,12 @@ export function PayUpSheet({
         </div>
       )}
 
+      {creditorOffline && !nothingOnFile && onEditPayee && (
+        <TapButton className="btn btn-quiet btn-block" onActivate={onEditPayee}>
+          Edit {creditorName}'s payment details
+        </TapButton>
+      )}
+
       {/* In-app two-tap confirmation rather than window.confirm(): several
           webxdc hosts ship a WebView with no JS-dialog handler, where confirm()
           returns false instantly and the settlement would silently never be
@@ -505,7 +538,23 @@ export function PayUpSheet({
                 I'm paying now
               </TapButton>
             )}
-            {canSendToChat && direction === "request" && (
+            {/* Not in this chat: a chat message would never reach them. The
+                same request, copied, goes wherever they can be reached. */}
+            {transfer.toId === self && debtorOffline && (
+              <p key="offline-note" className="field-suffix">
+                {debtorName} isn't in this chat. Send them the request another
+                way, then mark it as received.
+              </p>
+            )}
+            {transfer.toId === self && debtorOffline && (
+              <CopyButton
+                key="copy-ask"
+                value={askText()}
+                label="Copy request"
+                className="btn-block"
+              />
+            )}
+            {canSendToChat && direction === "request" && !debtorOffline && (
               <TapButton
                 key="ask"
                 className="btn btn-secondary"
