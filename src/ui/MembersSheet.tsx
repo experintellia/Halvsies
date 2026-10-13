@@ -167,7 +167,9 @@ export function MembersSheet({ open, onClose }: MembersSheetProps) {
               setNewName((e.currentTarget as HTMLInputElement).value)
             }
             onKeyDown={(e) => {
-              if (e.key === "Enter") add();
+              if (e.key !== "Enter" || e.isComposing) return;
+              e.preventDefault();
+              add();
             }}
           />
           <TapButton className="btn btn-secondary" onActivate={add}>

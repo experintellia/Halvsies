@@ -314,7 +314,11 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
           placeholder="e.g. Dinner"
           onInput={(e) => setTitle((e.currentTarget as HTMLInputElement).value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleSave(); // no-op while invalid
+            if (e.key !== "Enter" || e.isComposing) return;
+            // See the wizard: an uncancelled Enter also clicks whatever focus
+            // returns to once the form has closed.
+            e.preventDefault();
+            handleSave(); // no-op while invalid
           }}
         />
       </label>

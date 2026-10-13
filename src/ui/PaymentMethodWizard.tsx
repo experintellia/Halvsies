@@ -417,7 +417,11 @@ export function PaymentMethodWizard({
         <div
           onKeyDown={(e) => {
             const t = e.target as HTMLInputElement;
-            if (e.key === "Enter" && t.type === "text" && valid) save();
+            if (e.key !== "Enter" || e.isComposing || t.type !== "text") return;
+            // Cancelled, or the same keystroke's click lands on the row focus
+            // returns to ("Add payment method") and opens the wizard again.
+            e.preventDefault();
+            if (valid) save();
           }}
         >
           {/* Step 2: where to find it, then the field itself. Opened on a
