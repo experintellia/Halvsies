@@ -25,11 +25,14 @@ export function captureChat(page: Page): Promise<string> {
 /** The bottom sheet currently open (there is only ever one on top). */
 export const sheet = (page: Page): Locator => page.locator(".sheet").last();
 
+/** The full-screen sub-page on top (the expense form, the wizard, …). */
+export const subpage = (page: Page): Locator => page.locator(".subpage").last();
+
 export async function pickCurrency(page: Page, code: string): Promise<void> {
   await page.locator(".picker-value").click();
   await page.getByPlaceholder("Code or name — EUR, krona, rupee").fill(code);
   await page
-    .getByRole("option")
+    .locator(".currency-row")
     .filter({ has: page.locator(".currency-code", { hasText: code }) })
     .first()
     .click();
@@ -46,7 +49,7 @@ export async function setUpGroup(
     page.getByRole("heading", { name: "Set up this split" }),
   ).toBeVisible();
   await pickCurrency(page, currency);
-  await page.getByLabel("Name (optional)").fill(title);
+  await page.getByLabel("Group name (optional)").fill(title);
   await page.getByRole("button", { name: "Start splitting" }).click();
   await expect(page.locator(".tab-bar")).toBeVisible();
 }
@@ -97,7 +100,7 @@ export interface NewExpense {
 export async function openNewExpense(page: Page): Promise<Locator> {
   await tab(page, "Expenses");
   await page.getByRole("button", { name: "Add expense" }).click();
-  const form = sheet(page);
+  const form = subpage(page);
   await expect(
     form.getByRole("heading", { name: "Add expense" }),
   ).toBeVisible();
@@ -118,7 +121,7 @@ export async function addExpense(page: Page, e: NewExpense): Promise<void> {
     await form.getByRole("checkbox", { name: new RegExp(name) }).click();
   }
   await form.getByRole("button", { name: "Save" }).click();
-  await expect(page.locator(".sheet")).toHaveCount(0);
+  await expect(page.locator(".subpage")).toHaveCount(0);
 }
 
 /** Me tab → Add payment method → `option` → fill → Save. */
@@ -130,18 +133,18 @@ export async function addMethod(
 ): Promise<void> {
   await tab(page, "Me");
   await page.locator(".row", { hasText: "Add payment method" }).click();
-  await sheet(page)
+  await subpage(page)
     .locator(".wizard-option", { hasText: option })
     .first()
     .click();
   for (const [label, value] of Object.entries(fields)) {
-    await sheet(page).getByLabel(label).fill(value);
+    await subpage(page).getByLabel(label).fill(value);
   }
   if (opts.preferred) {
-    await sheet(page).getByLabel("Preferred way to be paid").check();
+    await subpage(page).getByLabel("Preferred way to be paid").check();
   }
-  await sheet(page).getByRole("button", { name: "Save" }).click();
-  await expect(page.locator(".sheet")).toHaveCount(0);
+  await subpage(page).getByRole("button", { name: "Save" }).click();
+  await expect(page.locator(".subpage")).toHaveCount(0);
 }
 
 /** The pay-up sheet's method switcher buttons (toggle buttons, aria-pressed). */

@@ -58,7 +58,7 @@ test("group settings open from the name and from the gear, and edit the group", 
   await expect(page.locator(".subpage")).toHaveCount(0);
 
   await openGroupSettings(page);
-  const name = page.getByLabel("Name (optional)");
+  const name = page.getByLabel("Group name (optional)");
   await name.fill("Lisbon");
   await name.blur();
   await pickCurrency(page, "GBP");
@@ -91,7 +91,7 @@ test("members: add, rename and remove someone who doesn't use the app", async ({
   const row = sheet.locator(".method-row", {
     has: page.getByLabel("Name of Oma"),
   });
-  await row.getByRole("button", { name: "Remove" }).click();
-  await row.getByRole("button", { name: "Really remove?" }).click();
+  await row.getByRole("button", { name: "Remove Oma" }).click();
+  await row.getByRole("button", { name: "Really remove Oma" }).click();
   await expect(sheet.getByLabel("Name of Oma")).toHaveCount(0);
 });

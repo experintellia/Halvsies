@@ -179,7 +179,7 @@ describe("a method's edit view", () => {
 
     expect(getProfile(ME)?.paypalMe).toBeUndefined();
     expect(getProfile(ME)?.revolutTag).toBe("anna");
-    expect(host.querySelector(".sheet")).toBeNull();
+    expect(host.querySelector(".subpage")).toBeNull();
   });
 
   it("marks a method preferred, and moving the mark clears the old one", async () => {
@@ -190,7 +190,7 @@ describe("a method's edit view", () => {
     });
     await openRow("PayPal");
     const box = host.querySelector<HTMLInputElement>(
-      '.sheet input[type="checkbox"]',
+      '.subpage input[type="checkbox"]',
     )!;
     expect(box.checked).toBe(false);
     box.checked = true;
@@ -202,7 +202,7 @@ describe("a method's edit view", () => {
 
     await openRow("Bank transfer");
     const bankBox = host.querySelector<HTMLInputElement>(
-      '.sheet input[type="checkbox"]',
+      '.subpage input[type="checkbox"]',
     )!;
     bankBox.checked = true;
     bankBox.dispatchEvent(new Event("change", { bubbles: true }));
@@ -223,7 +223,7 @@ describe("a method's edit view", () => {
     );
     await flush();
     const box = host.querySelector<HTMLInputElement>(
-      '.sheet input[type="checkbox"]',
+      '.subpage input[type="checkbox"]',
     )!;
     expect(box.checked).toBe(true);
   });

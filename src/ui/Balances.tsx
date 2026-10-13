@@ -119,13 +119,14 @@ export function Balances() {
   );
 
   return (
-    <div>
+    <section aria-label="Balances">
       <section className="hero">
         {/* Square while others aren't: a 42px €0.00 would be the loudest
             thing on screen, so the words take the headline instead. */}
         {mine.length > 0 ? (
           <>
-            <p className="hero-label">{heroLabel}</p>
+            {/* The heading is the sentence the screen is about. */}
+            <h2 className="hero-label">{heroLabel}</h2>
             <p
               className={
                 "hero-amount money" +
@@ -136,7 +137,7 @@ export function Balances() {
             </p>
           </>
         ) : (
-          <p className="hero-title">{heroLabel}</p>
+          <h2 className="hero-title">{heroLabel}</h2>
         )}
         <p className="hero-sub">{heroSub}</p>
         {one && (
@@ -176,12 +177,12 @@ export function Balances() {
       </section>
 
       <h2 className="section-label">Everyone</h2>
-      <div className="list">
+      <div className="list" role="list">
         {byPosition.map((m) => {
           const cents = balances[m.id] ?? 0;
           const width = `${(Math.abs(cents) / scale) * 50}%`;
           return (
-            <div className="row row-static" key={m.id}>
+            <div className="row row-static" role="listitem" key={m.id}>
               <Avatar member={m} />
               <span className="row-text position-name">
                 {m.id === self ? "You" : m.name}
@@ -244,6 +245,6 @@ export function Balances() {
       </p>
 
       {sheet}
-    </div>
+    </section>
   );
 }

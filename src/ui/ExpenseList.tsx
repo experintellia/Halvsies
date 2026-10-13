@@ -94,7 +94,11 @@ export function ExpenseList() {
     const myShare = myShareOf(expense);
     const barWidth = `${Math.max(3, (expense.amountCents / largest) * 100)}%`;
     return (
-      <Row key={expense.id} onActivate={() => setViewId(expense.id)}>
+      <Row
+        key={expense.id}
+        className="expense-row"
+        onActivate={() => setViewId(expense.id)}
+      >
         <Avatar
           member={payer ?? { id: expense.payerId, name: "?" }}
           size={36}
@@ -130,7 +134,7 @@ export function ExpenseList() {
   return (
     <section aria-label="Expenses" className="has-fab">
       {/* First in the DOM so keyboard and screen-reader users reach it before
-          every row; it floats (position: fixed), so it still looks last. */}
+          every row; it floats (position: absolute), so it still looks last. */}
       <button
         type="button"
         className="fab"

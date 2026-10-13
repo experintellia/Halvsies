@@ -111,7 +111,7 @@ export function App() {
           </TapButton>
         </header>
 
-        <main className="app-content">
+        <main className="app-content" tabIndex={-1}>
           {tab === "expenses" && <ExpenseList />}
           {tab === "balances" && <Balances />}
           {tab === "me" && <ProfileForm />}

@@ -28,6 +28,7 @@ import { QR } from "./components/QR";
 import { Avatar } from "./components/Avatar";
 import { Icon, type IconName } from "./components/Icon";
 import { TapButton } from "./components/TapButton";
+import { announce } from "./announce";
 
 export interface PayUpSheetProps {
   transfer: Transfer;
@@ -267,9 +268,15 @@ export function PayUpSheet({
       createdBy: self || transfer.fromId,
     });
     onClose();
+    announce("Payment recorded");
   }
 
   const nothingOnFile = options.length === 0 && !profile.note;
+  const question =
+    (direction === "pay"
+      ? `Record that you paid ${creditorName} ${amount}?`
+      : `Record that ${debtorName} paid you ${amount}?`) +
+    " Everyone in this chat will see it.";
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
@@ -467,32 +474,40 @@ export function PayUpSheet({
           </p>
         ) : confirming ? (
           <>
-            <p>
-              {direction === "pay"
-                ? `Record that you paid ${creditorName} ${amount}?`
-                : `Record that ${debtorName} paid you ${amount}?`}{" "}
-              Everyone in this chat will see it.
-            </p>
+            <p>{question}</p>
+            {/* Keyed, every button here: unkeyed, Preact reused the focused
+                "Mark as paid" element as "Yes, record it", and a second
+                Enter skipped the confirmation it exists to ask for. */}
             <TapButton
+              key="cancel"
               className="btn btn-secondary"
               onActivate={() => setConfirming(false)}
             >
               Cancel
             </TapButton>
-            <TapButton className="btn btn-primary" onActivate={record}>
+            <TapButton
+              key="yes"
+              className="btn btn-primary"
+              onActivate={record}
+            >
               Yes, record it
             </TapButton>
           </>
         ) : (
           <>
             {canSendToChat && direction === "pay" && selected && (
-              <TapButton className="btn btn-secondary" onActivate={tellTheChat}>
+              <TapButton
+                key="paying"
+                className="btn btn-secondary"
+                onActivate={tellTheChat}
+              >
                 <Icon name="send" size={18} />
                 I'm paying now
               </TapButton>
             )}
             {canSendToChat && direction === "request" && (
               <TapButton
+                key="ask"
                 className="btn btn-secondary"
                 onActivate={() => sendToChat(askText())}
               >
@@ -501,10 +516,15 @@ export function PayUpSheet({
               </TapButton>
             )}
             <TapButton
+              key="mark"
               className={
                 markIsPrimary ? "btn btn-primary" : "btn btn-secondary"
               }
-              onActivate={() => setConfirming(true)}
+              onActivate={() => {
+                setConfirming(true);
+                // The button you pressed is replaced by this question.
+                announce(question);
+              }}
             >
               <Icon name="check" size={18} />
               {direction === "pay" ? "Mark as paid" : "Mark as received"}

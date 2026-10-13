@@ -219,8 +219,9 @@ describe("ProfileForm", () => {
       (b) => (b.querySelector("strong")?.textContent ?? "").trim() === label,
     ) as HTMLElement | undefined;
 
-  /** The wizard sheet only — the profile screen behind it has fields too. */
-  const sheet = (): HTMLElement => host.querySelector(".sheet") as HTMLElement;
+  /** The wizard page only — the profile screen behind it has fields too. */
+  const wizard = (): HTMLElement =>
+    host.querySelector(".subpage") as HTMLElement;
 
   it("opens the wizard picker listing every provider", async () => {
     await openPicker();
@@ -289,7 +290,7 @@ describe("ProfileForm", () => {
     expect(text).toContain("USD or GBP only");
     expect(text).toContain("won't be offered for EUR debts");
 
-    const input = sheet().querySelector("input") as HTMLInputElement;
+    const input = wizard().querySelector("input") as HTMLInputElement;
     input.value = "anna";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     await flush();
@@ -322,7 +323,7 @@ describe("ProfileForm", () => {
       await flush();
       expect(host.textContent).toContain("won't be offered for CHF debts");
 
-      const input = sheet().querySelector("input") as HTMLInputElement;
+      const input = wizard().querySelector("input") as HTMLInputElement;
       input.value = "anna";
       input.dispatchEvent(new Event("input", { bubbles: true }));
       await flush();
@@ -340,13 +341,13 @@ describe("ProfileForm", () => {
     tap(option("Crypto"));
     await flush();
 
-    const labels = Array.from(sheet().querySelectorAll(".field-label")).map(
+    const labels = Array.from(wizard().querySelectorAll(".field-label")).map(
       (l) => (l.textContent ?? "").trim(),
     );
     expect(labels).toEqual(["Name", "Wallet address", "Network"]);
-    expect(sheet().querySelectorAll('input[type="text"]')).toHaveLength(2);
+    expect(wizard().querySelectorAll('input[type="text"]')).toHaveLength(2);
 
-    const select = sheet().querySelector("select") as HTMLSelectElement;
+    const select = wizard().querySelector("select") as HTMLSelectElement;
     expect(Array.from(select.options).map((o) => o.value)).toEqual([
       "bitcoin",
       "ethereum",

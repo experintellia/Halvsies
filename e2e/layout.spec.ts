@@ -7,6 +7,7 @@ import {
   addVirtualMember,
   methodButtons,
   openAs,
+  openNewExpense,
   setUpGroup,
   sheet,
   tab,
@@ -142,4 +143,72 @@ test("dark mode repaints the page from the dark tokens", async ({ page }) => {
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
   });
   expect(luminance).toBeLessThan(0.15);
+});
+
+// Only .app-content scrolls. When the page itself was taller than the screen,
+// iOS let it scroll and left a blank strip under the tab bar.
+test("the page never scrolls vertically, only the list does", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 420 });
+  await openAs(page, "Anna");
+  await setUpGroup(page, "Trip");
+  for (const title of ["Bread", "Cheese", "Wine", "Olives"]) {
+    await addExpense(page, { amount: "10", title, payer: "Anna" });
+  }
+  const m = await page.evaluate(() => {
+    const content = document.querySelector<HTMLElement>(".app-content")!;
+    const bar = document.querySelector<HTMLElement>(".tab-bar")!;
+    return {
+      page: document.documentElement.scrollHeight - window.innerHeight,
+      list: content.scrollHeight - content.clientHeight,
+      barGap: window.innerHeight - bar.getBoundingClientRect().bottom,
+    };
+  });
+  expect(m.page, "page scrolls vertically").toBeLessThanOrEqual(0);
+  expect(m.list, "list should overflow in this test").toBeGreaterThan(0);
+  expect(m.barGap).toBe(0);
+
+  // Scrolling the list moves only the list: header, add button and tab bar
+  // stay put, on the main screen and on a sub-page alike.
+  const pinned = (selectors: string[]) =>
+    page.evaluate(
+      (sels) =>
+        sels.map((s) => document.querySelector(s)!.getBoundingClientRect().top),
+      selectors,
+    );
+  const scrollList = (scope: string) =>
+    page.evaluate((sc) => {
+      const box = document.querySelector<HTMLElement>(`${sc} .app-content`)!;
+      box.scrollTop = box.scrollHeight;
+      return box.scrollTop;
+    }, scope);
+
+  const main = [".app-shell > .app-header", ".fab", ".tab-bar"];
+  const before = await pinned(main);
+  expect(await scrollList(".app-shell")).toBeGreaterThan(0);
+  expect(await pinned(main)).toEqual(before);
+
+  // A drag the page itself would take is refused; a list that can scroll
+  // keeps it. (iOS keeps keyboard-height scroll room on the page.)
+  const refused = (selector: string) =>
+    page.evaluate((sel) => {
+      const e = new TouchEvent("touchmove", {
+        bubbles: true,
+        cancelable: true,
+      });
+      document.querySelector(sel)!.dispatchEvent(e);
+      return e.defaultPrevented;
+    }, selector);
+  expect(await refused(".tab-bar")).toBe(true);
+  expect(await refused(".app-shell > .app-header")).toBe(true);
+  expect(await refused(".app-shell .row")).toBe(false);
+
+  await openNewExpense(page);
+  // The form is mounted inside the (scrollable) list, but its header is not.
+  expect(await refused(".subpage > .app-header")).toBe(true);
+  const sub = [".subpage > .app-header"];
+  const subBefore = await pinned(sub);
+  expect(await scrollList(".subpage")).toBeGreaterThan(0);
+  expect(await pinned(sub)).toEqual(subBefore);
 });
