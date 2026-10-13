@@ -140,7 +140,8 @@ export function netBalances(
   settlements: Settlement[],
   memberIds: MemberId[],
 ): Record<MemberId, number> {
-  const out: Record<MemberId, number> = {};
+  // No prototype: an id like "constructor" must start at 0, not at a function.
+  const out: Record<MemberId, number> = Object.create(null);
   const bump = (id: MemberId, delta: number) => {
     out[id] = (out[id] ?? 0) + delta;
   };

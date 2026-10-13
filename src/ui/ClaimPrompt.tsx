@@ -30,6 +30,7 @@ import { useDocValue, useSelfId } from "./useDoc";
 import { Sheet } from "./components/Sheet";
 import { Avatar } from "./components/Avatar";
 import { TapButton } from "./components/TapButton";
+import { announce } from "./announce";
 
 /** Every payment detail in a profile, as label + value lines to show. */
 function detailLines(p: PaymentProfile): Array<[string, string]> {
@@ -37,7 +38,10 @@ function detailLines(p: PaymentProfile): Array<[string, string]> {
     s.label,
     p[s.field] ?? "",
   ]);
-  if (p.iban) out.push(["Bank transfer", formatIban(p.iban)]);
+  if (p.iban) {
+    const holder = p.accountHolder ? ` · ${p.accountHolder}` : "";
+    out.push(["Bank transfer", formatIban(p.iban) + holder]);
+  }
   if (p.crypto) out.push([p.crypto.label || "Crypto", p.crypto.address]);
   for (const c of p.customs ?? []) out.push([c.label, c.urlTemplate]);
   if (p.note) out.push(["Note", p.note]);
@@ -76,14 +80,17 @@ export function ClaimConfirm({
   if (answeredElsewhere) return null;
 
   if (merged && parked) {
-    // Discarding is the safe answer, so closing the sheet means "no".
+    // × or Escape counts as "no" (the safe answer); a stray swipe or backdrop
+    // tap doesn't (`dirty`), since the details are likely yours.
     const answer = (keep: boolean): void => {
       keepClaimedProfile(member.id, keep);
+      announce(keep ? "Payment details kept" : "Payment details discarded");
       onDone(null);
     };
     return (
       <Sheet
         open
+        dirty
         onClose={() => answer(false)}
         title="Are these your payment details?"
       >
@@ -142,6 +149,7 @@ export function ClaimConfirm({
           className="btn btn-danger"
           onActivate={() => {
             const reason = claimMember(member.id);
+            if (!reason) announce(`${member.name} merged into you`);
             // Details stay parked only if you had none (see claimMember):
             // then there is one more question to ask.
             if (reason || !hasPaymentDetails(getProfile(member.id))) {

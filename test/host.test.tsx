@@ -366,7 +366,7 @@ describe("restore from file", () => {
   });
 
   // MANUAL E3
-  it("E3 — hides Restore and says so on a host without importFiles", async () => {
+  it("E3 — hides Import from file and says so on a host without importFiles", async () => {
     const { doc, GroupSettings } = await boot({ importFiles: false });
     doc.ensureSelfRegistered();
     render(<GroupSettings open onClose={() => {}} />, dom);

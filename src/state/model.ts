@@ -170,9 +170,19 @@ export function newId(timestampMs: number, seq = 0): string {
   return `${ts}${suffix}${rand}`;
 }
 
-/** Does this profile hold anything a payer could use (or read)? */
+/**
+ * Does this profile hold anything a payer could use (or read)? Not the
+ * fields that only qualify another one: a preferred method, an account
+ * holder or BIC without an IBAN.
+ */
 export function hasPaymentDetails(p: PaymentProfile | undefined): boolean {
-  return Object.values(p ?? {}).some(
-    (v) => v !== undefined && v !== "" && (!Array.isArray(v) || v.length > 0),
+  return Object.entries(p ?? {}).some(
+    ([k, v]) =>
+      k !== "preferred" &&
+      k !== "accountHolder" &&
+      k !== "bic" &&
+      v !== undefined &&
+      v !== "" &&
+      (!Array.isArray(v) || v.length > 0),
   );
 }

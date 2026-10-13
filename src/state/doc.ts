@@ -471,7 +471,11 @@ export function createDoc() {
   function claims(): Array<[MemberId, MemberId]> {
     const into = new Map<MemberId, MemberId>();
     for (const m of yMembers.values()) {
-      if (m.mergedInto) into.set(m.id, m.mergedInto);
+      // Only into someone on file: a crafted target ("constructor", a
+      // stranger) would otherwise move money to an id nobody can see.
+      if (m.mergedInto && yMembers.has(m.mergedInto)) {
+        into.set(m.id, m.mergedInto);
+      }
     }
     const resolve = (id: MemberId): MemberId => {
       // Bounded: a cycle can only come from a crafted doc, never from a claim.
@@ -637,7 +641,7 @@ export function createDoc() {
    */
   function renameMember(id: MemberId, name: string): string | null {
     const prev = yMembers.get(id);
-    if (!prev) return null;
+    if (!prev || prev.mergedInto) return null;
     if (!prev.isVirtual) return NOT_VIRTUAL_RENAME;
     const trimmed = name.trim();
     if (!trimmed) return "a name cannot be empty";
@@ -661,7 +665,8 @@ export function createDoc() {
    */
   function removeMember(id: MemberId): string | null {
     const prev = yMembers.get(id);
-    if (!prev) return null;
+    // A merged member's entry is what routes their ledger to the claimer.
+    if (!prev || prev.mergedInto) return null;
     if (!prev.isVirtual) return NOT_VIRTUAL_REMOVE;
     const blocked = removalBlockedBy(id, listExpenses(), listSettlements());
     if (blocked) return blocked;
@@ -718,11 +723,17 @@ export function createDoc() {
     selfName = name || addr;
     const existing = yMembers.get(addr);
     if (existing) {
-      // An imported snapshot marks you unclaimed until you open it here.
+      // An imported snapshot marks you unclaimed until you open it here, and
+      // nobody can have merged you: claimMember refuses your own id, so a
+      // `mergedInto` on your entry is a wrong merge (or a peer's write) —
+      // dropping it gives you back everything, the ledger is read through it.
       const keepName = !name || name === addr || name === existing.name;
-      if (keepName && !existing.isVirtual) return existing;
+      if (keepName && !existing.isVirtual && !existing.mergedInto) {
+        return existing;
+      }
+      const { mergedInto: _wrongMerge, ...rest } = existing;
       const renamed: Member = {
-        ...existing,
+        ...rest,
         name: keepName ? existing.name : name,
         isVirtual: false,
         addr,
@@ -820,7 +831,13 @@ export function createDoc() {
       {
         settings: getSettings(),
         members: byKey(listMembers()),
-        profiles: yProfiles.toJSON(),
+        // Listed members only: details parked on a merged member are not
+        // anyone's until their claimer says so.
+        profiles: Object.fromEntries(
+          listMembers()
+            .filter((m) => yProfiles.has(m.id))
+            .map((m) => [m.id, yProfiles.get(m.id)!]),
+        ),
         expenses: byKey(listExpenses()),
         settlements: byKey(listSettlements()),
       },
@@ -834,10 +851,10 @@ export function createDoc() {
     const snap = parseSnapshot(json);
     // Whoever is in this chat right now stays real: a restore must not hand a
     // live member to whoever taps "That's me" first.
-    const live = new Set(
+    const live = new Map(
       listMembers()
         .filter((m) => !m.isVirtual)
-        .map((m) => m.id),
+        .map((m) => [m.id, m]),
     );
     doc.transact(() => {
       if (!opts?.merge) {
@@ -861,7 +878,14 @@ export function createDoc() {
       for (const m of Object.values(snap.members)) {
         yMembers.set(m.id, { ...m, isVirtual: !live.has(m.id) });
       }
-      // A replace wiped your own entry; put it back so you can claim yourself.
+      // A replace must not drop the people who are in this chat right now
+      // (you included): put them back, unanswered, so each gets the "Were you
+      // in this group before?" prompt without having to reopen the app.
+      for (const [id, m] of live) {
+        if (yMembers.has(id)) continue;
+        const { claimAsked: _answered, ...unanswered } = m;
+        yMembers.set(id, unanswered);
+      }
       if (selfId && !yMembers.has(selfId)) {
         yMembers.set(selfId, selfEntry(selfId));
       }

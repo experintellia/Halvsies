@@ -507,3 +507,87 @@ describe("claims across peers", () => {
     expect(balances(a)).toEqual(balances(b));
   });
 });
+
+describe("merge marks that must not stick", () => {
+  it("reopening the app undoes a wrong merge of a real member", () => {
+    const s = createDoc();
+    s.registerSelf("mallory@x", "Mallory");
+    s.registerSelf("bob@x", "Bob");
+    s.addExpense(expense("e", { payerId: "bob@x", createdBy: "bob@x" }));
+    // A peer's raw write (or a mistaken claim after an import).
+    const bob = s.getMember("bob@x")!;
+    s.doc.getMap("members").set("bob@x", { ...bob, mergedInto: "mallory@x" });
+    expect(s.listMembers().map((m) => m.id)).not.toContain("bob@x");
+
+    s.registerSelf("bob@x", "Bob"); // Bob opens the app
+    expect(s.getMember("bob@x")?.mergedInto).toBeUndefined();
+    expect(s.listExpenses()[0].payerId).toBe("bob@x");
+  });
+
+  it("ignores a mark that points at nobody on file", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1);
+    s.addExpense(
+      expense("e", {
+        payerId: g.id,
+        createdBy: g.id,
+        split: { mode: "even", entries: { [g.id]: 1, "anna@x": 1 } },
+      }),
+    );
+    for (const target of ["constructor", "__proto__", "stranger"]) {
+      s.doc.getMap("members").set(g.id, { ...g, mergedInto: target });
+      const ids = s.listMembers().map((m) => m.id);
+      const b = netBalances(s.listExpenses(), s.listSettlements(), ids);
+      expect(Object.values(b).reduce((x, y) => x + y, 0)).toBe(0);
+      expect(s.listExpenses()[0].payerId).toBe(g.id);
+    }
+  });
+
+  it("a merged member can't be removed or renamed", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.claimMember(g);
+    s.removeMember(g);
+    s.renameMember(g, "Oma");
+    expect(s.getMember(g)).toMatchObject({
+      name: "Grandma",
+      mergedInto: "anna@x",
+    });
+  });
+
+  it("backups leave out payment details parked on a merged member", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.setProfile(g, { paypalMe: "grandma" });
+    s.claimMember(g); // parked, not yet answered
+    expect(JSON.parse(s.exportSnapshot()).profiles).toEqual({});
+  });
+
+  it("keeping parked details never overwrites ones you added meanwhile", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.setProfile(g, { paypalMe: "grandma" });
+    s.claimMember(g);
+    s.setProfile("anna@x", { paypalMe: "anna" }); // e.g. another device
+    s.keepClaimedProfile(g, true);
+    expect(s.getProfile("anna@x")).toEqual({ paypalMe: "anna" });
+  });
+
+  it("a replace import keeps people who are in the chat right now", () => {
+    const old = createDoc();
+    old.registerSelf("old-a", "A");
+    const s = createDoc();
+    s.registerSelf("ben@x", "Ben");
+    s.markClaimAsked();
+    s.registerSelf("anna@x", "Anna");
+    s.importSnapshot(old.exportSnapshot());
+    expect(s.getMember("ben@x")).toMatchObject({ isVirtual: false });
+    // Asked afresh: this ledger is new to everyone.
+    expect(s.getMember("ben@x")?.claimAsked).toBeUndefined();
+    expect(s.getMember("old-a")?.isVirtual).toBe(true);
+  });
+});
