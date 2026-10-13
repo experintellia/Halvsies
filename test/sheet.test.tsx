@@ -112,6 +112,11 @@ describe("SubPage focus", () => {
         new KeyboardEvent("keydown", { key: "Tab", shiftKey }),
       );
     tab();
+    // Wrapped on keydown already: with nothing focusable after the page
+    // (group settings, the setup screen), the browser would leave the page.
+    expect(document.activeElement).toBe(page.querySelector(".subpage-back"));
+    input.focus();
+    tab();
     behind.focus();
     expect(document.activeElement).toBe(page.querySelector(".subpage-back"));
     // …and Shift+Tab off the first stop wraps to the last.
@@ -147,6 +152,29 @@ describe("closing a layer whose opener is gone", () => {
     await settle();
     opener.remove(); // e.g. the row of the expense just deleted
     render(null, inner);
+    await settle();
+    expect(document.activeElement).toBe(main);
+  });
+
+  it("also when the opener goes in the same render (a settled debt)", async () => {
+    const main = document.createElement("main");
+    main.tabIndex = -1;
+    host.appendChild(main);
+    const opener = document.createElement("button");
+    host.appendChild(opener);
+    opener.focus();
+    const inner = document.createElement("div");
+    host.appendChild(inner);
+    render(
+      <Sheet open onClose={() => {}} title="T">
+        <button>Yes, record it</button>
+      </Sheet>,
+      inner,
+    );
+    await settle();
+    host.querySelector<HTMLElement>(".sheet button:not(.sheet-close)")!.focus();
+    render(null, inner); // focus goes back to the opener…
+    opener.remove(); // …which the same update then removes
     await settle();
     expect(document.activeElement).toBe(main);
   });

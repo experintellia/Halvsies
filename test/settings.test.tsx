@@ -215,7 +215,7 @@ describe("the group settings sub-page", () => {
     expect(page).not.toBeNull();
     const text = page?.textContent ?? "";
     expect(text).toContain("Group currency");
-    expect(text).toContain("Name (optional)");
+    expect(text).toContain("Group name (optional)");
     expect(text).toContain("Members");
     expect(text).toContain("Backup");
     // Its own title in its own header, not the group's.

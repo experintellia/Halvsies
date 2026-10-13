@@ -205,6 +205,10 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
     editedAt: expense?.editedAt ?? 0,
   };
   const error = validateSplit(draft);
+  // What the status line says. A fresh form has no amount yet, and greeting
+  // it (and a screen reader) with "Amount must be more than zero" before
+  // anything was typed is noise — Save is simply not ready.
+  const shownError = amountCents > 0 ? error : null;
   const memberIds = members.map((m) => m.id);
   const shares = splitShares(draft, memberIds);
   const exactAssigned = participants.reduce((s, id) => s + (exact[id] ?? 0), 0);
@@ -298,8 +302,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         onChange={setAmountCents}
         currency={currency}
         autoFocus
-        describedBy={statusId}
-        invalid={amountCents > 0 && error?.startsWith("Amount")}
+        describedBy={shownError?.startsWith("Amount") ? statusId : undefined}
+        invalid={shownError?.startsWith("Amount")}
       />
 
       <label className="field">
@@ -309,6 +313,9 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
           value={title}
           placeholder="e.g. Dinner"
           onInput={(e) => setTitle((e.currentTarget as HTMLInputElement).value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave(); // no-op while invalid
+          }}
         />
       </label>
 
@@ -392,9 +399,14 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                   <Stepper
                     value={weight}
                     name={m.name}
-                    onChange={(next) =>
-                      setWeights({ ...weights, [m.id]: next })
-                    }
+                    onChange={(next) => {
+                      setWeights({ ...weights, [m.id]: next });
+                      // Only the one that changed, by name — making every
+                      // member's line live read out two lines per tap.
+                      announce(
+                        `${m.name}: ${next} ${next === 1 ? "share" : "shares"}, ${sharePercent(next, totalShares - weight + next)}`,
+                      );
+                    }}
                   />
                   {/* Shares, then the percentage they add up to, then the
                       percentage. The money is deliberately NOT repeated here:
@@ -402,7 +414,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                       other member's, which is what makes the column scannable.
                       splitShares owns that figure; the percentage is only the
                       hint that makes the share count mean something. */}
-                  <span className="field-suffix" aria-live="polite">
+                  <span className="field-suffix">
                     {weight === 0
                       ? totalShares > 0
                         ? "0 shares — pays nothing"
@@ -456,7 +468,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
       </label>
 
       <p id={statusId} role="status" className="money-negative form-status">
-        {error}
+        {shownError}
       </p>
 
       <div className="field-row" style={{ marginTop: 8 }}>

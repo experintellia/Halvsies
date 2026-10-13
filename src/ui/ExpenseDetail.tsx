@@ -59,7 +59,8 @@ export function ExpenseDetail({
         {formatMoney(expense.amountCents, currency)}
       </p>
       <p className="detail-sub">
-        Paid by {nameOf(expense.payerId)} · {expense.date}
+        Paid by {expense.payerId === selfId ? "you" : nameOf(expense.payerId)} ·{" "}
+        {expense.date}
       </p>
 
       <h3 className="detail-heading">{MODE_TEXT[expense.split.mode]}</h3>
@@ -74,7 +75,7 @@ export function ExpenseDetail({
             <span className="detail-share-name">
               {id === selfId ? "You" : nameOf(id)}
               {id === expense.payerId && (
-                <span className="field-suffix"> · paid</span>
+                <span className="field-suffix"> · paid the bill</span>
               )}
             </span>
             <span className="money">{formatMoney(shares[id], currency)}</span>

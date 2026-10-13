@@ -138,6 +138,8 @@ export function PaymentMethodWizard({
   const [label, setLabel] = useState("");
   const [network, setNetwork] = useState<CryptoNetwork>("bitcoin");
   const [preferred, setPreferred] = useState(false);
+  // Left a field below the main one: only then may its error show.
+  const [restTouched, setRestTouched] = useState(false);
 
   // Re-seed whenever the page is (re)opened, so a previous run's half-typed
   // handle never leaks into the next one. This stays mounted while closed.
@@ -162,6 +164,7 @@ export function PaymentMethodWizard({
     );
     setHolder(profile.accountHolder ?? "");
     setBic(profile.bic ?? "");
+    setRestTouched(false);
     setLabel(
       t?.kind === "custom"
         ? (profile.customs?.find((c) => c.id === t.id)?.label ?? "")
@@ -223,6 +226,15 @@ export function PaymentMethodWizard({
   }
   const filled = value.trim() !== "";
   const valid = filled && error === null;
+  // An error about a field further down (holder, BIC, name) waits until that
+  // part was touched: announcing "Banks need the account holder's name" the
+  // moment the IBAN turns valid interrupts someone who hasn't got there yet.
+  const shown = filled && (valueBad || restTouched) ? error : null;
+  const rest = (on: boolean) => ({
+    "aria-invalid": (on && !valueBad && shown !== null) || undefined,
+    "aria-describedby": on && !valueBad && shown ? statusId : undefined,
+    onBlur: () => setRestTouched(true),
+  });
   const statusId = useId();
   const exampleId = useId();
 
@@ -401,7 +413,13 @@ export function PaymentMethodWizard({
           ))}
         </>
       ) : (
-        <>
+        // Enter in any text field saves, once the method is valid.
+        <div
+          onKeyDown={(e) => {
+            const t = e.target as HTMLInputElement;
+            if (e.key === "Enter" && t.type === "text" && valid) save();
+          }}
+        >
           {/* Step 2: where to find it, then the field itself. Opened on a
               saved method, it is an edit view: they found it once already. */}
           {!editing && (
@@ -433,6 +451,7 @@ export function PaymentMethodWizard({
                 placeholder={target.kind === "crypto" ? "Bitcoin" : "Twint"}
                 value={label}
                 onInput={(e) => setLabel(textValue(e))}
+                {...rest(shown === "Give the link a name.")}
               />
             </label>
           )}
@@ -459,9 +478,12 @@ export function PaymentMethodWizard({
                 inputMode={target.kind === "custom" ? "url" : undefined}
                 aria-invalid={valueBad || undefined}
                 aria-describedby={
-                  target.kind === "provider" && !editing
-                    ? `${exampleId} ${statusId}`
-                    : statusId
+                  [
+                    target.kind === "provider" && !editing && exampleId,
+                    valueBad && statusId,
+                  ]
+                    .filter(Boolean)
+                    .join(" ") || undefined
                 }
                 placeholder={
                   target.kind === "provider"
@@ -516,6 +538,7 @@ export function PaymentMethodWizard({
                   autoCapitalize="words"
                   value={holder}
                   onInput={(e) => setHolder(textValue(e))}
+                  {...rest(!shown?.includes("BIC"))}
                 />
               </label>
               <label className="field">
@@ -527,6 +550,7 @@ export function PaymentMethodWizard({
                   spellcheck={false}
                   value={bic}
                   onInput={(e) => setBic(textValue(e))}
+                  {...rest(!!shown?.includes("BIC"))}
                 />
               </label>
             </>
@@ -535,7 +559,7 @@ export function PaymentMethodWizard({
           {/* Status, not alert: it changes as you type, and an alert would
               cut in on every keystroke that flips the message. */}
           <p id={statusId} role="status" className="money-negative form-status">
-            {filled ? error : null}
+            {shown}
           </p>
 
           {target.kind === "provider" && spec!.caveat && (
@@ -613,7 +637,7 @@ export function PaymentMethodWizard({
               </TapButton>
             )}
           </div>
-        </>
+        </div>
       )}
     </SubPage>
   );

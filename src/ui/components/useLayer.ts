@@ -37,36 +37,63 @@ export function useLayer(
   const escRef = useRef(onEscape);
   escRef.current = onEscape;
 
+  // The control focus was last on inside this layer; see the rescue below.
+  const lastRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
     const opener = document.activeElement;
     // Don't steal focus from a child that already claimed it — re-focusing
     // the panel would shut a keyboard that is already up.
+    // On the panel itself is no claim: a just-closed layer's fallback may
+    // have put it there before this ran.
     const panel = panelRef.current;
-    if (panel && !panel.contains(document.activeElement)) focusStart(panel);
+    const at = document.activeElement;
+    if (panel && (!panel.contains(at) || at === panel)) focusStart(panel);
 
-    // Tab is trapped after the fact: the browser moves focus, and if it left
-    // the layer it is wrapped back. Not by predicting the last stop on
-    // keydown — a date input takes several Tabs inside itself.
+    // Tab is trapped two ways. On keydown, off either end of the tab order.
+    // And after the fact, on focusin, for what keydown can't predict: a date
+    // input takes several Tabs inside itself before it lets go.
     let tabbing = false;
     let back = false;
     function onKeyDown(e: KeyboardEvent) {
       const panel = panelRef.current;
       if (!isTop(panel)) return;
-      if (e.key === "Tab") {
-        tabbing = true;
-        back = e.shiftKey;
-        setTimeout(() => (tabbing = false));
-      } else if (e.key === "Escape" && escRef.current) {
+      if (e.key === "Escape" && escRef.current) {
         e.preventDefault();
         escRef.current();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      tabbing = true;
+      back = e.shiftKey;
+      setTimeout(() => (tabbing = false));
+      const all = panel.querySelectorAll<HTMLElement>(FOCUSABLE);
+      const active = document.activeElement;
+      const edge = back ? [all[0], panel] : [all[all.length - 1]];
+      const composite =
+        active instanceof HTMLInputElement &&
+        /^(date|time|datetime-local|month|week)$/.test(active.type);
+      // Needed even with the focusin net: when nothing focusable follows the
+      // panel (group settings, the setup screen) Tab leaves the page.
+      if (
+        all.length === 0 ||
+        (edge.includes(active as HTMLElement) && !composite)
+      ) {
+        e.preventDefault();
+        (all.length ? all[back ? all.length - 1 : 0] : panel).focus();
       }
     }
     // Only for Tab: a copy button's off-screen textarea takes focus outside
     // the panel on purpose, and must keep it.
     function onFocusIn(e: FocusEvent) {
       const panel = panelRef.current;
-      if (!tabbing || !isTop(panel) || panel.contains(e.target as Node)) return;
+      if (!isTop(panel)) return;
+      if (panel.contains(e.target as Node)) {
+        lastRef.current = e.target as HTMLElement;
+        return;
+      }
+      if (!tabbing) return;
       const all = panel.querySelectorAll<HTMLElement>(FOCUSABLE);
       (all.length ? all[back ? all.length - 1 : 0] : panel).focus();
     }
@@ -75,20 +102,20 @@ export function useLayer(
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("focusin", onFocusIn);
-      if (
-        opener instanceof HTMLElement &&
-        opener !== document.body &&
-        opener.isConnected
-      ) {
-        opener.focus();
-        return;
-      }
-      // The opener went with the thing it opened (a deleted expense's row, a
-      // settled debt's button, the setup screen). Land on the screen instead
-      // of <body>, which screen readers read as "start of page". Next tick:
-      // the screen may be mounting in this same render.
+      const hadFocus = panel?.contains(document.activeElement);
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+      // The opener can go with the thing it opened (a deleted expense's row,
+      // a settled debt's button, the setup screen) — now, or in the render
+      // that is still in flight. Land on what is now on top instead of
+      // <body>, which screen readers read as "start of page".
+      // Nothing to restore when focus was never here: an iOS tap doesn't
+      // focus buttons, so the opener is <body> and so is focus — leave it.
+      if (!hadFocus && (opener === document.body || !opener)) return;
       setTimeout(() => {
-        if (lost()) document.querySelector<HTMLElement>("main")?.focus();
+        if (!lost()) return;
+        const layers =
+          document.querySelectorAll<HTMLElement>(".sheet, .subpage");
+        (layers[layers.length - 1] ?? document.querySelector("main"))?.focus();
       });
     };
   }, [open]);
@@ -104,10 +131,22 @@ export function useLayer(
       focusStart(panel);
   }, [step]);
 
-  // The focused control unmounted under you ("Mark as paid" swapping for its
+  // The focused control went away under you ("Mark as paid" swapping for its
   // confirmation, a stepper hitting 0 and disabling): catch focus on the
-  // panel rather than leave it on <body>, outside the dialog.
+  // panel rather than leave it on <body>, outside the dialog. Only then — a
+  // field you blurred yourself (iOS "Done") is still there, and pulling a
+  // screen reader back to the dialog's title after every edit would be worse.
   useEffect(() => {
-    if (open && lost() && isTop(panelRef.current)) panelRef.current.focus();
+    const last = lastRef.current;
+    if (
+      open &&
+      lost() &&
+      last &&
+      (!last.isConnected || (last as HTMLButtonElement).disabled) &&
+      isTop(panelRef.current)
+    ) {
+      lastRef.current = null;
+      panelRef.current.focus();
+    }
   });
 }

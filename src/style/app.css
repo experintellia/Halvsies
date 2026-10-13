@@ -1518,6 +1518,7 @@ p.field-suffix {
 }
 
 .profile-name {
+  margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
 }

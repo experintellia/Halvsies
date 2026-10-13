@@ -138,7 +138,7 @@ export function FirstRunSetup({ open }: { open: boolean }) {
 
       <div className="field">
         <label>
-          <span className="field-label">Name (optional)</span>
+          <span className="field-label">Group name (optional)</span>
           <input
             type="text"
             placeholder="Halvsies"
@@ -253,7 +253,7 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
       />
       <div className="field">
         <label>
-          <span className="field-label">Name (optional)</span>
+          <span className="field-label">Group name (optional)</span>
           <input
             type="text"
             placeholder="Halvsies"

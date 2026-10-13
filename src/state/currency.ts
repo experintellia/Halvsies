@@ -329,6 +329,13 @@ export function currencyName(
  * shortest: typing "in" should offer INR before it offers "Indonesian Rupiah",
  * "Indian Rupee" before "Argentine Peso".
  */
+/** Lower-case and accent-free, so "krona" finds the Icelandic Króna. */
+const fold = (s: string): string =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 export function searchCurrencies(
   codes: readonly string[],
   query: string,
@@ -336,10 +343,10 @@ export function searchCurrencies(
 ): string[] {
   const q = query.trim().toUpperCase();
   if (!q) return [...codes];
-  const lower = q.toLowerCase();
+  const lower = fold(q);
   const scored: { code: string; rank: number }[] = [];
   for (const code of codes) {
-    const name = currencyName(code, locales)?.toLowerCase();
+    const name = fold(currencyName(code, locales) ?? "") || undefined;
     let rank = -1;
     if (code === q) rank = 0;
     else if (code.startsWith(q)) rank = 1;

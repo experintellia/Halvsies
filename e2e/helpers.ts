@@ -49,7 +49,7 @@ export async function setUpGroup(
     page.getByRole("heading", { name: "Set up this split" }),
   ).toBeVisible();
   await pickCurrency(page, currency);
-  await page.getByLabel("Name (optional)").fill(title);
+  await page.getByLabel("Group name (optional)").fill(title);
   await page.getByRole("button", { name: "Start splitting" }).click();
   await expect(page.locator(".tab-bar")).toBeVisible();
 }
