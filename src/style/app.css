@@ -1313,6 +1313,22 @@ main:focus {
   background: var(--color-surface);
 }
 
+/* iOS draws a date input natively, at its own minimum width, and ignores
+   width: 100% — it pokes out of the form and the page scrolls sideways.
+   Without the native appearance it sizes like any other input; min-height
+   stands in for the text line it no longer reserves, and the value goes
+   back to the left edge where every other field's text sits. */
+.field input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  min-height: calc(1.4em + 26px);
+}
+
+.field input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+}
+
 .field input:focus,
 .field textarea:focus,
 .field select:focus,
