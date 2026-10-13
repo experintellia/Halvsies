@@ -2,7 +2,7 @@
 // Every amount here is integer cents; the only float-adjacent code is
 // Amount.tsx's own text parser, which this file never touches directly.
 import type { ComponentChildren, JSX } from "preact";
-import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useId, useLayoutEffect, useRef, useState } from "preact/hooks";
 import {
   addExpense,
   deleteExpense,
@@ -20,6 +20,7 @@ import {
   type Split,
   type SplitMode,
 } from "../state/model";
+import { announce } from "./announce";
 import { useDocValue, useSelfId } from "./useDoc";
 import { SubPage } from "./components/SubPage";
 import { Amount } from "./components/Amount";
@@ -109,25 +110,24 @@ function sharePercent(weight: number, total: number): string {
 function Stepper(props: {
   value: number;
   onChange: (next: number) => void;
-  label: string;
+  /** Whose shares: names the group and both buttons. */
+  name: string;
 }) {
-  const { value, onChange, label } = props;
+  const { value, onChange, name } = props;
   return (
-    <span className="stepper" role="group" aria-label={label}>
+    <span className="stepper" role="group" aria-label={`Shares for ${name}`}>
       <TapButton
         className="btn btn-secondary stepper-btn"
-        ariaLabel="Fewer"
+        ariaLabel={`Fewer shares for ${name}`}
         disabled={value <= 0}
         onActivate={() => onChange(value - 1)}
       >
         −
       </TapButton>
-      <span className="stepper-value" aria-live="polite">
-        {value}
-      </span>
+      <span className="stepper-value">{value}</span>
       <TapButton
         className="btn btn-secondary stepper-btn"
-        ariaLabel="More"
+        ariaLabel={`More shares for ${name}`}
         disabled={value >= MAX_SHARES}
         onActivate={() => onChange(value + 1)}
       >
@@ -158,6 +158,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
   const [mode, setMode] = useState<SplitMode>("even");
   const [weights, setWeights] = useState<Record<MemberId, number>>({});
   const [exact, setExact] = useState<Record<MemberId, number>>({});
+  const statusId = useId();
+  const betweenId = useId();
 
   // A layout effect, not a passive one: it runs before the page paints. A
   // passive effect could land up to ~100ms later on a busy device, briefly
@@ -265,6 +267,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
       });
     }
     onClose();
+    announce(expense ? "Expense saved" : "Expense added");
   }
 
   // Two-tap confirmation rather than window.confirm(): several webxdc hosts
@@ -274,10 +277,13 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
     if (!expense) return;
     if (!confirmingDelete) {
       setConfirmingDelete(true);
+      // The focused button renames itself, which screen readers don't re-read.
+      announce("Really delete? Press again to delete.");
       return;
     }
     deleteExpense(expense.id);
     onClose();
+    announce("Expense deleted");
   }
 
   return (
@@ -292,6 +298,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         onChange={setAmountCents}
         currency={currency}
         autoFocus
+        describedBy={statusId}
+        invalid={amountCents > 0 && error?.startsWith("Amount")}
       />
 
       <label className="field">
@@ -306,7 +314,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
 
       <div className="field">
         <span className="field-label">Paid by</span>
-        <div className="field-row">
+        <div className="field-row" role="group" aria-label="Paid by">
           {members.map((m) => (
             <ChipButton
               key={m.id}
@@ -341,8 +349,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         )}
       </div>
 
-      <div className="field">
-        <span className="field-label">
+      <div className="field" role="group" aria-labelledby={betweenId}>
+        <span className="field-label" id={betweenId}>
           Split between{" "}
           <span className="field-suffix">
             ({participants.length} of {members.length})
@@ -383,7 +391,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                 <div className="share-controls">
                   <Stepper
                     value={weight}
-                    label={`Shares for ${m.name}`}
+                    name={m.name}
                     onChange={(next) =>
                       setWeights({ ...weights, [m.id]: next })
                     }
@@ -394,7 +402,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
                       other member's, which is what makes the column scannable.
                       splitShares owns that figure; the percentage is only the
                       hint that makes the share count mean something. */}
-                  <span className="field-suffix">
+                  <span className="field-suffix" aria-live="polite">
                     {weight === 0
                       ? totalShares > 0
                         ? "0 shares — pays nothing"
@@ -447,7 +455,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
         />
       </label>
 
-      <p role="status" className="money-negative form-status">
+      <p id={statusId} role="status" className="money-negative form-status">
         {error}
       </p>
 

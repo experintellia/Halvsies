@@ -8,7 +8,7 @@
 // Removal is deliberately conservative on top of that — see removalBlockedBy()
 // in state/doc: dropping a member who still appears in an expense would leave
 // the balances not summing to zero against any peer that still has them.
-import { useState } from "preact/hooks";
+import { useId, useState } from "preact/hooks";
 import {
   addVirtualMember,
   listExpenses,
@@ -23,42 +23,12 @@ import type { MemberId } from "../state/model";
 import { useDocValue, useSelfId } from "./useDoc";
 import { Sheet } from "./components/Sheet";
 import { Avatar } from "./components/Avatar";
+import { TapButton } from "./components/TapButton";
+import { announce } from "./announce";
 
 export interface MembersSheetProps {
   open: boolean;
   onClose: () => void;
-}
-
-/** Tap-safe button — taps ride pointerup in this WebView (see Row.tsx). */
-function TapButton({
-  onActivate,
-  className,
-  disabled,
-  title,
-  children,
-}: {
-  onActivate: () => void;
-  className: string;
-  disabled?: boolean;
-  title?: string;
-  children: preact.ComponentChildren;
-}) {
-  return (
-    <button
-      type="button"
-      className={className}
-      disabled={disabled}
-      title={title}
-      onPointerUp={() => {
-        if (!disabled) onActivate();
-      }}
-      onClick={(e) => {
-        if (e.detail === 0 && !disabled) onActivate();
-      }}
-    >
-      {children}
-    </button>
-  );
 }
 
 export function MembersSheet({ open, onClose }: MembersSheetProps) {
@@ -71,21 +41,25 @@ export function MembersSheet({ open, onClose }: MembersSheetProps) {
   // WebView with no JS-dialog handler, where confirm() returns false instantly.
   const [confirming, setConfirming] = useState<MemberId | null>(null);
   const [error, setError] = useState<string | undefined>(undefined);
+  const addId = useId();
 
   function add(): void {
     if (!newName.trim()) return;
     addVirtualMember(newName, now());
+    announce(`${newName.trim()} added`);
     setNewName("");
   }
 
-  function remove(id: MemberId): void {
+  function remove(id: MemberId, name: string): void {
     if (confirming !== id) {
       setConfirming(id);
+      announce(`Really remove ${name}? Press again to remove.`);
       return;
     }
     // removeMember re-checks and returns a reason: a peer may have added an
     // expense naming this member since the button rendered.
     const reason = removeMember(id);
+    if (!reason) announce(`${name} removed`);
     setError(reason ? `Not removed — ${reason}.` : undefined);
     setConfirming(null);
   }
@@ -152,7 +126,8 @@ export function MembersSheet({ open, onClose }: MembersSheetProps) {
                   }
                   disabled={blocked !== null}
                   title={blocked ?? undefined}
-                  onActivate={() => remove(m.id)}
+                  ariaLabel={`${confirming === m.id ? "Really remove" : "Remove"} ${m.name}`}
+                  onActivate={() => remove(m.id, m.name)}
                 >
                   {confirming === m.id ? "Really remove?" : "Remove"}
                 </TapButton>
@@ -175,24 +150,31 @@ export function MembersSheet({ open, onClose }: MembersSheetProps) {
         mentions them.
       </p>
 
-      <label className="field">
-        <span className="field-label">
+      {/* A div, not a <label>: a label around the Add button made the field's
+          name "Add someone who doesn't use this app Add". Enter adds too. */}
+      <div className="field">
+        <span className="field-label" id={addId}>
           Add someone who doesn't use this app
         </span>
         <span className="field-row">
           <input
             type="text"
+            aria-labelledby={addId}
+            autoCapitalize="words"
             placeholder="Grandma"
             value={newName}
             onInput={(e) =>
               setNewName((e.currentTarget as HTMLInputElement).value)
             }
+            onKeyDown={(e) => {
+              if (e.key === "Enter") add();
+            }}
           />
           <TapButton className="btn btn-secondary" onActivate={add}>
             Add
           </TapButton>
         </span>
-      </label>
+      </div>
       <p className="field-suffix">
         They can be a payer and take a share like anyone else — you just settle
         up with them in person.

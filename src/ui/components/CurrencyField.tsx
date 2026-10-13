@@ -10,7 +10,7 @@
 // one has no onBlur at all: rows are <Row>s, which arm on pointerdown and fire
 // on pointerup, and the page is closed only by picking something, by its
 // Back button, or by Escape.
-import { useState } from "preact/hooks";
+import { useId, useState } from "preact/hooks";
 import {
   COMMON_CURRENCIES,
   currencyCodes,
@@ -21,6 +21,7 @@ import { SubPage } from "./SubPage";
 import { Row } from "./Row";
 import { Icon } from "./Icon";
 import { TapButton } from "./TapButton";
+import { announce } from "../announce";
 
 export interface CurrencyFieldProps {
   value: string;
@@ -113,7 +114,7 @@ function CurrencyPicker({
       <div className="currency-list">
         {common.length > 0 && (
           <>
-            <p className="picker-section">Common</p>
+            <h2 className="picker-section">Common</h2>
             {common.map((code) => (
               <CurrencyRow
                 key={code}
@@ -122,7 +123,7 @@ function CurrencyPicker({
                 onPick={onPick}
               />
             ))}
-            <p className="picker-section">All currencies</p>
+            <h2 className="picker-section">All currencies</h2>
           </>
         )}
         {rest.map((code) => (
@@ -133,11 +134,15 @@ function CurrencyPicker({
             onPick={onPick}
           />
         ))}
-        {matches.length === 0 && (
-          <p className="placeholder" role="status">
-            No currency matches “{query}”. Codes are three letters, e.g. EUR.
-          </p>
-        )}
+        {/* Always mounted, so the first "no match" is heard too. */}
+        <p
+          role="status"
+          className={matches.length === 0 ? "placeholder" : "form-status"}
+        >
+          {matches.length === 0
+            ? `No currency matches “${query}”. Codes are three letters, e.g. EUR.`
+            : null}
+        </p>
       </div>
     </SubPage>
   );
@@ -150,6 +155,7 @@ export function CurrencyField({
   hint,
 }: CurrencyFieldProps) {
   const [open, setOpen] = useState(false);
+  const hintId = useId();
   const current = value.toUpperCase();
   const name = currencyName(current);
 
@@ -158,14 +164,20 @@ export function CurrencyField({
       <span className="field-label">{label}</span>
       <TapButton
         className="picker-value"
-        ariaLabel={`${label}: ${name ?? current}`}
+        // The code as well as the name: voice control users say what they see.
+        ariaLabel={`${label}: ${current}${name ? ` ${name}` : ""}`}
+        describedBy={hint ? hintId : undefined}
         onActivate={() => setOpen(true)}
       >
         <span className="money currency-code">{current}</span>
         <span className="row-text">{name ?? "Choose a currency"}</span>
         <Icon name="chevron-down" size={18} />
       </TapButton>
-      {hint && <span className="field-suffix">{hint}</span>}
+      {hint && (
+        <span className="field-suffix" id={hintId}>
+          {hint}
+        </span>
+      )}
 
       <CurrencyPicker
         open={open}
@@ -174,6 +186,7 @@ export function CurrencyField({
         onPick={(code) => {
           onChange(code);
           setOpen(false);
+          announce(`${label} set to ${currencyName(code) ?? code}`);
         }}
       />
     </div>

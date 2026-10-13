@@ -28,6 +28,7 @@ import { QR } from "./components/QR";
 import { Avatar } from "./components/Avatar";
 import { Icon, type IconName } from "./components/Icon";
 import { TapButton } from "./components/TapButton";
+import { announce } from "./announce";
 
 export interface PayUpSheetProps {
   transfer: Transfer;
@@ -267,9 +268,15 @@ export function PayUpSheet({
       createdBy: self || transfer.fromId,
     });
     onClose();
+    announce("Payment recorded");
   }
 
   const nothingOnFile = options.length === 0 && !profile.note;
+  const question =
+    (direction === "pay"
+      ? `Record that you paid ${creditorName} ${amount}?`
+      : `Record that ${debtorName} paid you ${amount}?`) +
+    " Everyone in this chat will see it.";
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
@@ -456,9 +463,7 @@ export function PayUpSheet({
           webxdc hosts ship a WebView with no JS-dialog handler, where confirm()
           returns false instantly and the settlement would silently never be
           recorded. */}
-      {/* Live: "Mark as paid" swaps itself for a question, and the button
-          that had focus is gone — say what replaced it. */}
-      <div className="sheet-actions" aria-live="polite">
+      <div className="sheet-actions">
         {preview ? (
           <p className="field-suffix">
             A sample {amount} debt. Nothing here is recorded or sent.
@@ -469,12 +474,7 @@ export function PayUpSheet({
           </p>
         ) : confirming ? (
           <>
-            <p>
-              {direction === "pay"
-                ? `Record that you paid ${creditorName} ${amount}?`
-                : `Record that ${debtorName} paid you ${amount}?`}{" "}
-              Everyone in this chat will see it.
-            </p>
+            <p>{question}</p>
             <TapButton
               className="btn btn-secondary"
               onActivate={() => setConfirming(false)}
@@ -506,7 +506,11 @@ export function PayUpSheet({
               className={
                 markIsPrimary ? "btn btn-primary" : "btn btn-secondary"
               }
-              onActivate={() => setConfirming(true)}
+              onActivate={() => {
+                setConfirming(true);
+                // The button you pressed is replaced by this question.
+                announce(question);
+              }}
             >
               <Icon name="check" size={18} />
               {direction === "pay" ? "Mark as paid" : "Mark as received"}

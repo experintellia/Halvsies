@@ -119,6 +119,12 @@ body,
   height: 100%;
 }
 
+/* Pinch-zoom stays; double-tap zoom goes, so a quick second tap on a
+   stepper counts as a tap. */
+html {
+  touch-action: manipulation;
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);
@@ -168,8 +174,25 @@ select {
 /* Sheets and sub-pages take focus programmatically (tabindex="-1") so the
    screen reader lands inside them; that is not a keyboard focus to draw. */
 .sheet:focus,
-.subpage:focus {
+.subpage:focus,
+main:focus {
   outline: none;
+}
+
+/* Read out, never shown: the announce() live region. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+::placeholder {
+  color: var(--color-text-dim);
+  opacity: 1;
 }
 
 /* ---- app shell ---- */
@@ -270,6 +293,8 @@ select {
   min-height: 0; /* let it shrink below its content and scroll instead */
   padding: 8px 16px calc(24px + var(--safe-bottom));
   overflow-y: auto;
+  /* Tabbing down the list scrolls the focused row clear of the FAB. */
+  scroll-padding-bottom: 80px;
 }
 
 /* Section labels on the tab screens. Small, uppercase, dim: they name a
@@ -277,6 +302,7 @@ select {
    the right. */
 .section-label {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
@@ -370,11 +396,15 @@ select {
   border: none;
   background: none;
   color: var(--color-text-dim);
+  font-weight: 500;
   cursor: pointer;
 }
 
+/* Weight as well as colour: teal against grey is a hue step, not a
+   lightness one, and reads as no change to colour-blind eyes. */
 .tab-btn.active {
   color: var(--color-accent);
+  font-weight: 700;
 }
 
 /* flex, not inline: an inline <svg> sits on the text baseline and drags a
@@ -394,7 +424,9 @@ select {
 
 .tab-label {
   font-size: 0.72rem;
-  font-weight: 500;
+  font-weight: inherit;
+  /* At large text sizes "Expenses" must wrap whole, not as "Expense/s". */
+  overflow-wrap: normal;
 }
 
 /* ---- floating add button ----
@@ -560,8 +592,14 @@ select {
   letter-spacing: -0.01em;
 }
 
+/* Wraps the amounts under the title once large text leaves no room beside
+   it, instead of squeezing the title to "C…" and clipping the amounts. */
+.expense-row {
+  flex-wrap: wrap;
+}
+
 .expense-main {
-  flex: 1;
+  flex: 1 1 5em;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -598,6 +636,7 @@ select {
 
 .expense-amounts {
   flex-shrink: 0;
+  margin-left: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -957,7 +996,7 @@ select {
   border: none;
   background: none;
   color: var(--color-text);
-  font-size: var(--fs-body);
+  font-size: max(16px, var(--fs-body)); /* see the input rule up top */
   font-variant-numeric: tabular-nums;
   /* An IBAN or a wallet address must never be clipped silently: it is being
      copied out by hand when the button fails. */
@@ -1290,7 +1329,9 @@ select {
 .field-row input,
 .field-row textarea,
 .field-row select {
-  flex: 1 1 8em;
+  /* px, not em: with 16px inputs, 8em no longer fit beside an avatar in a
+     320px-wide members row. */
+  flex: 1 1 120px;
   width: auto;
 }
 
@@ -1505,12 +1546,12 @@ p.field-suffix {
   flex-direction: column;
 }
 
-/* On a narrow row the tag ellipsizes rather than squeezing the name. */
+/* On a narrow row the tag wraps rather than squeezing the name; never an
+   ellipsis, which at large text left "F…" of "Fills in amount". */
 .row > .tag {
   flex-shrink: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
 }
 
 .method-name {
@@ -1732,8 +1773,9 @@ p.field-suffix {
 .method-tab[aria-pressed="true"] {
   background: var(--color-surface);
   color: var(--color-text);
+  /* 2px accent ring: the raised fill alone was ~1.2:1 against the track. */
   box-shadow:
-    inset 0 0 0 1px var(--color-border-strong),
+    inset 0 0 0 2px var(--color-accent),
     0 1px 3px rgba(0, 0, 0, 0.14);
   outline: 2px solid transparent;
   outline-offset: -2px;

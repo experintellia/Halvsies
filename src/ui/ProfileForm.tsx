@@ -161,7 +161,7 @@ export function ProfileForm() {
     !current.crypto?.address.trim();
 
   return (
-    <div>
+    <section aria-label="Me">
       <section className="profile-head">
         {self && (
           <Avatar member={{ id: self, name: me?.name ?? "" }} size={56} />
@@ -272,6 +272,6 @@ export function ProfileForm() {
           onClose={() => setPreviewing(false)}
         />
       )}
-    </div>
+    </section>
   );
 }

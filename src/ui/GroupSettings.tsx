@@ -6,7 +6,7 @@
 // Two screens over the same two settings live here: the sub-page you reach from
 // the group name in the header, and the first-run screen that asks for them
 // before the app is usable at all.
-import { useState } from "preact/hooks";
+import { useId, useState } from "preact/hooks";
 import {
   canSendToChat,
   getProfile,
@@ -49,10 +49,12 @@ function textValue(e: Event): string {
   return (e.currentTarget as HTMLInputElement).value;
 }
 
-/** Help text under the name field; also the bank-transfer reference preview. */
-function NameHint({ title }: { title?: string }) {
+/** Help text under the name field; also the bank-transfer reference preview.
+ *  Outside the field's <label>, linked by `id`: inside, all 40 words became
+ *  the field's name and were read out on every focus. */
+function NameHint({ title, id }: { title?: string; id: string }) {
   return (
-    <span className="field-suffix">
+    <span className="field-suffix" id={id}>
       Shown in the chat as this app's name, and used as the reference on bank
       transfers ("{epcReference(title)}"). Worth setting if the chat runs more
       than one split, or so the payment shows up recognisably on people's
@@ -112,6 +114,7 @@ export function FirstRunSetup({ open }: { open: boolean }) {
   const [suggested] = useState(() => suggestCurrency(deviceLocales()));
   const [currency, setCurrency] = useState(suggested ?? settings.groupCurrency);
   const [title, setTitle] = useState("");
+  const hintId = useId();
 
   return (
     <SubPage open={open} title="Set up this split">
@@ -133,16 +136,19 @@ export function FirstRunSetup({ open }: { open: boolean }) {
         }
       />
 
-      <label className="field">
-        <span className="field-label">Name (optional)</span>
-        <input
-          type="text"
-          placeholder="Halvsies"
-          value={title}
-          onInput={(e) => setTitle(textValue(e))}
-        />
-        <NameHint title={title.trim()} />
-      </label>
+      <div className="field">
+        <label>
+          <span className="field-label">Name (optional)</span>
+          <input
+            type="text"
+            placeholder="Halvsies"
+            aria-describedby={hintId}
+            value={title}
+            onInput={(e) => setTitle(textValue(e))}
+          />
+        </label>
+        <NameHint title={title.trim()} id={hintId} />
+      </div>
 
       {/* No validity gate: every value comes from the picker, so there is no
           way to reach an unparseable code here. setSettings() still refuses
@@ -200,6 +206,7 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
   const settings = useDocValue(getSettings);
   const memberCount = useDocValue(listMembers).length;
   const profile = useDocValue(() => (self ? getProfile(self) : undefined));
+  const hintId = useId();
   const [showMembers, setShowMembers] = useState(false);
   const [importError, setImportError] = useState<string | undefined>(undefined);
 
@@ -244,16 +251,19 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
         onChange={(code) => setSettings({ groupCurrency: code })}
         hint="Changing this re-labels every existing amount — it does not convert them."
       />
-      <label className="field">
-        <span className="field-label">Name (optional)</span>
-        <input
-          type="text"
-          placeholder="Halvsies"
-          defaultValue={settings.title ?? ""}
-          onBlur={(e) => setSettings({ title: textValue(e).trim() })}
-        />
-        <NameHint title={settings.title} />
-      </label>
+      <div className="field">
+        <label>
+          <span className="field-label">Name (optional)</span>
+          <input
+            type="text"
+            placeholder="Halvsies"
+            aria-describedby={hintId}
+            defaultValue={settings.title ?? ""}
+            onBlur={(e) => setSettings({ title: textValue(e).trim() })}
+          />
+        </label>
+        <NameHint title={settings.title} id={hintId} />
+      </div>
 
       <h2 className="section-label">People</h2>
       <div className="list">

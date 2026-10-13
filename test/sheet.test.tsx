@@ -87,7 +87,7 @@ describe("SubPage focus", () => {
     host.appendChild(inner);
     render(
       <SubPage open title="Add expense" onBack={() => {}}>
-        <input />
+        <input autoFocus />
       </SubPage>,
       inner,
     );
@@ -100,19 +100,54 @@ describe("SubPage focus", () => {
         ?.textContent,
     ).toBe("Add expense");
 
+    // autoFocus never fires on a layer mounted after page load; useLayer
+    // does it by hand.
     const input = page.querySelector("input")!;
-    input.focus();
-    const tab = new KeyboardEvent("keydown", { key: "Tab", cancelable: true });
-    document.dispatchEvent(tab);
-    expect(tab.defaultPrevented).toBe(true);
-    expect(document.activeElement).toBe(page.querySelector(".subpage-back"));
+    expect(document.activeElement).toBe(input);
 
-    // Focus that fell out to <body> (its control unmounted) comes back in.
-    (document.activeElement as HTMLElement).blur();
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Tab", cancelable: true }),
-    );
-    expect(page.contains(document.activeElement)).toBe(true);
+    // Tab out of the last field: the browser moves focus behind the page,
+    // and it is wrapped back to the first stop (the Back button)…
+    const tab = (shiftKey = false) =>
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Tab", shiftKey }),
+      );
+    tab();
+    behind.focus();
+    expect(document.activeElement).toBe(page.querySelector(".subpage-back"));
+    // …and Shift+Tab off the first stop wraps to the last.
+    tab(true);
+    behind.focus();
+    expect(document.activeElement).toBe(input);
+
+    // Without a Tab, focus may leave on purpose (the copy fallback's
+    // off-screen textarea): it is left alone.
+    await settle();
+    behind.focus();
+    expect(document.activeElement).toBe(behind);
     render(null, inner);
+  });
+});
+
+describe("closing a layer whose opener is gone", () => {
+  it("lands on <main>, not <body>", async () => {
+    const main = document.createElement("main");
+    main.tabIndex = -1;
+    host.appendChild(main);
+    const opener = document.createElement("button");
+    host.appendChild(opener);
+    opener.focus();
+    const inner = document.createElement("div");
+    host.appendChild(inner);
+    render(
+      <Sheet open onClose={() => {}} title="T">
+        <p>body</p>
+      </Sheet>,
+      inner,
+    );
+    await settle();
+    opener.remove(); // e.g. the row of the expense just deleted
+    render(null, inner);
+    await settle();
+    expect(document.activeElement).toBe(main);
   });
 });

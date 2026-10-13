@@ -91,7 +91,7 @@ test("members: add, rename and remove someone who doesn't use the app", async ({
   const row = sheet.locator(".method-row", {
     has: page.getByLabel("Name of Oma"),
   });
-  await row.getByRole("button", { name: "Remove" }).click();
-  await row.getByRole("button", { name: "Really remove?" }).click();
+  await row.getByRole("button", { name: "Remove Oma" }).click();
+  await row.getByRole("button", { name: "Really remove Oma" }).click();
   await expect(sheet.getByLabel("Name of Oma")).toHaveCount(0);
 });

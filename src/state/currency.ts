@@ -281,12 +281,15 @@ function namerFor(locales: readonly string[]): Namer | null {
   ).DisplayNames;
   let namer: Namer | null = null;
   if (typeof DisplayNames === "function") {
-    try {
-      namer = new DisplayNames(locales.length ? locales : ["en"], {
-        type: "currency",
-      });
-    } catch {
-      namer = null;
+    // A malformed device locale ("en-US@posix") makes the constructor throw;
+    // English names beat none, or search by name ("krona") finds nothing.
+    for (const l of locales.length ? [locales, ["en"]] : [["en"]]) {
+      try {
+        namer = new DisplayNames(l, { type: "currency" });
+        break;
+      } catch {
+        namer = null;
+      }
     }
   }
   namers.set(key, namer);

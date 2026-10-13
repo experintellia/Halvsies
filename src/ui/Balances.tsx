@@ -119,7 +119,7 @@ export function Balances() {
   );
 
   return (
-    <div>
+    <section aria-label="Balances">
       <section className="hero">
         {/* Square while others aren't: a 42px €0.00 would be the loudest
             thing on screen, so the words take the headline instead. */}
@@ -244,6 +244,6 @@ export function Balances() {
       </p>
 
       {sheet}
-    </div>
+    </section>
   );
 }

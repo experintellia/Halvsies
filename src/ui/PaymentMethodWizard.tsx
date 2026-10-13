@@ -9,7 +9,7 @@
 //
 // It writes nothing itself: it hands a finished PaymentProfile patch back to
 // ProfileForm, which owns persistence.
-import { useState } from "preact/hooks";
+import { useId, useState } from "preact/hooks";
 import type {
   CryptoPaymentMethod,
   CustomPaymentMethod,
@@ -39,6 +39,7 @@ import {
   normalizeIban,
 } from "../pay/iban";
 import { SubPage } from "./components/SubPage";
+import { announce } from "./announce";
 import { CopyButton } from "./components/CopyButton";
 import { Icon } from "./components/Icon";
 
@@ -199,22 +200,31 @@ export function PaymentMethodWizard({
 
   // --- validation, per shape -----------------------------------------------
   let error: string | null = null;
+  // Whether the error is about the main field, which is then marked invalid —
+  // not the holder or name fields further down.
+  let valueBad = false;
   if (target?.kind === "provider" && value.trim()) {
     error = spec!.validate(value);
+    valueBad = error !== null;
   } else if (target?.kind === "bank" && value.trim()) {
     error = isValidIban(value) ? null : "That doesn't look like a valid IBAN.";
+    valueBad = error !== null;
     if (!error && bic.trim() && !isValidBic(bic))
       error = "That doesn't look like a valid BIC.";
     if (!error && !holder.trim())
       error = "Banks need the account holder's name.";
   } else if (target?.kind === "crypto" && value.trim()) {
     error = validateCrypto(cryptoDraft);
+    valueBad = error !== null;
   } else if (target?.kind === "custom" && value.trim()) {
     error = validateCustomTemplate(value.trim());
+    valueBad = error !== null;
     if (!error && !label.trim()) error = "Give the link a name.";
   }
   const filled = value.trim() !== "";
   const valid = filled && error === null;
+  const statusId = useId();
+  const exampleId = useId();
 
   // --- the test link (the "end" of the wizard) ------------------------------
   // Built from the same generators the real pay-up sheet uses, so a link that
@@ -291,6 +301,7 @@ export function PaymentMethodWizard({
       );
     }
     onClose();
+    announce("Payment method saved");
   }
 
   /** Only reachable from an edit view, so `target` is a saved method. */
@@ -317,6 +328,7 @@ export function PaymentMethodWizard({
               };
     onSave(id ? withPreferred(next, id, false) : next);
     onClose();
+    announce("Payment method removed");
   }
 
   const removeLabel =
@@ -358,7 +370,7 @@ export function PaymentMethodWizard({
           </p>
           {PICKER_SECTIONS.map((section) => (
             <div key={section.id}>
-              <h3 className="picker-section">{section.title}</h3>
+              <h2 className="picker-section">{section.title}</h2>
               <div className="wizard-options">
                 {section.entries.map((entry) => {
                   const pill = currencyPill(entry.currencies, currency);
@@ -417,6 +429,7 @@ export function PaymentMethodWizard({
               <span className="field-label">Name</span>
               <input
                 type="text"
+                autoCapitalize="words"
                 placeholder={target.kind === "crypto" ? "Bitcoin" : "Twint"}
                 value={label}
                 onInput={(e) => setLabel(textValue(e))}
@@ -424,35 +437,52 @@ export function PaymentMethodWizard({
             </label>
           )}
 
-          <label className="field">
-            <span className="field-label">
-              {target.kind === "provider"
-                ? `${spec!.label} handle`
-                : target.kind === "bank"
-                  ? "IBAN"
-                  : target.kind === "crypto"
-                    ? "Wallet address"
-                    : "Link template"}
-            </span>
-            <input
-              type="text"
-              autoFocus
-              placeholder={
-                target.kind === "provider"
-                  ? spec!.placeholder
+          <div className="field">
+            <label>
+              <span className="field-label">
+                {target.kind === "provider"
+                  ? `${spec!.label} handle`
                   : target.kind === "bank"
-                    ? "DE89 3704 0044 0532 0130 00"
+                    ? "IBAN"
                     : target.kind === "crypto"
-                      ? "bc1q…"
-                      : "https://pay.example/{amount}/{currency}/{ref}"
-              }
-              value={value}
-              onInput={(e) => setValue(textValue(e))}
-            />
+                      ? "Wallet address"
+                      : "Link template"}
+              </span>
+              <input
+                type="text"
+                autoFocus
+                // IBANs read in capitals; handles, addresses and URLs must not
+                // be capitalised or "corrected" by the phone keyboard.
+                autoCapitalize={target.kind === "bank" ? "characters" : "none"}
+                autoCorrect="off"
+                spellcheck={false}
+                inputMode={target.kind === "custom" ? "url" : undefined}
+                aria-invalid={valueBad || undefined}
+                aria-describedby={
+                  target.kind === "provider" && !editing
+                    ? `${exampleId} ${statusId}`
+                    : statusId
+                }
+                placeholder={
+                  target.kind === "provider"
+                    ? spec!.placeholder
+                    : target.kind === "bank"
+                      ? "DE89 3704 0044 0532 0130 00"
+                      : target.kind === "crypto"
+                        ? "bc1q…"
+                        : "https://pay.example/{amount}/{currency}/{ref}"
+                }
+                value={value}
+                onInput={(e) => setValue(textValue(e))}
+              />
+            </label>
+            {/* Outside the <label>: help, not part of the field's name. */}
             {target.kind === "provider" && !editing && (
-              <span className="field-suffix">{spec!.example}</span>
+              <span className="field-suffix" id={exampleId}>
+                {spec!.example}
+              </span>
             )}
-          </label>
+          </div>
 
           {target.kind === "crypto" && (
             <label className="field">
@@ -482,6 +512,8 @@ export function PaymentMethodWizard({
                 <span className="field-label">Account holder name</span>
                 <input
                   type="text"
+                  autoComplete="name"
+                  autoCapitalize="words"
                   value={holder}
                   onInput={(e) => setHolder(textValue(e))}
                 />
@@ -490,6 +522,9 @@ export function PaymentMethodWizard({
                 <span className="field-label">BIC (optional)</span>
                 <input
                   type="text"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellcheck={false}
                   value={bic}
                   onInput={(e) => setBic(textValue(e))}
                 />
@@ -499,7 +534,7 @@ export function PaymentMethodWizard({
 
           {/* Status, not alert: it changes as you type, and an alert would
               cut in on every keystroke that flips the message. */}
-          <p role="status" className="money-negative form-status">
+          <p id={statusId} role="status" className="money-negative form-status">
             {filled ? error : null}
           </p>
 
