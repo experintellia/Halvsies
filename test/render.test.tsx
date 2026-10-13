@@ -587,33 +587,60 @@ describe("PayUpSheet", () => {
   });
 
   // MANUAL C10 — money safety: recording a settlement is a claim every peer
-  // sees, so a member who is neither party gets no way to make it.
+  // sees, so a member who is neither party gets no way to make it — as long
+  // as a party is someone who could record it themselves.
   it("C10 — a debt between two other members is read-only", () => {
     const bob = addVirtualMember("Bob", 1);
-    const carol = addVirtualMember("Carol", 2);
     installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
     try {
-      setProfile(carol.id, { paypalMe: "carol", note: "PayPal is fine" });
+      // CREDITOR uses the app (not added by hand), so only they or Bob may.
+      setProfile(CREDITOR, { paypalMe: "carol", note: "PayPal is fine" });
       // "request", as Balances opens any transfer that isn't yours to pay.
       sheetFor(
-        { fromId: bob.id, toId: carol.id, amountCents: 2000 },
+        { fromId: bob.id, toId: CREDITOR, amountCents: 2000 },
         "request",
       );
 
       const text = host.textContent ?? "";
-      expect(host.querySelector(".sheet-title")?.textContent).toBe(
-        "Bob owes Carol",
+      expect(host.querySelector(".sheet-title")?.textContent).toMatch(
+        /^Bob owes /,
       );
       // Balances opens a stranger's debt in "request" mode; the note is still
-      // Carol's, not "yours".
-      expect(host.querySelector(".payee-note strong")?.textContent).toBe(
-        "Carol",
-      );
+      // the creditor's, not "yours".
+      expect(text).not.toContain("Your note");
       expect(text).toContain("€20.00");
-      expect(text).toContain("Only Bob or Carol can record this payment.");
+      expect(text).toMatch(/Only Bob or .+ can record this payment\./);
       expect(buttons("Mark as")).toHaveLength(0);
       // The methods themselves are still shown — it is read-only, not blank.
       expect(linkTo("https://paypal.me")).not.toBeNull();
+    } finally {
+      render(null, host);
+      removeMember(bob.id);
+    }
+  });
+
+  // Between two members added by hand, nobody could record it under C10:
+  // neither can open the app. In a chat of friends and family, anyone may.
+  it("C10 — between two members who don't use the app, anyone may record", async () => {
+    const bob = addVirtualMember("Bob", 1);
+    const carol = addVirtualMember("Carol", 2);
+    installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
+    try {
+      sheetFor(
+        { fromId: bob.id, toId: carol.id, amountCents: 2000 },
+        "request",
+      );
+      expect(host.textContent).not.toContain("can record this payment");
+      // Nobody to send a request to: neither is in the chat.
+      expect(buttons("Copy request")).toHaveLength(0);
+      expect(buttons("Ask for the money")).toHaveLength(0);
+      const mark = buttons("Mark as paid");
+      expect(mark).toHaveLength(1);
+      tap(mark[0]);
+      await new Promise((r) => setTimeout(r));
+      expect(host.textContent).toContain(
+        "Record that Bob paid Carol €20.00? Everyone in this chat will see it.",
+      );
     } finally {
       render(null, host);
       removeMember(bob.id);

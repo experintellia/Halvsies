@@ -217,8 +217,12 @@ export function PayUpSheet({
   // app: they can't fill in their own details or be asked in the chat.
   const creditorOffline = !preview && creditor?.isVirtual === true;
   const debtorOffline = !preview && debtor?.isVirtual === true;
+  // Between two of those, no party could ever record it — so anyone in the
+  // group may (a chat of friends and family; the chat line still says who).
+  const recordsForOthers = creditorOffline && debtorOffline;
   const isParty =
-    !preview && (transfer.fromId === self || transfer.toId === self);
+    !preview &&
+    (transfer.fromId === self || transfer.toId === self || recordsForOthers);
   // Whose details these are, from where the viewer stands: your own only when
   // you are the creditor — not merely because Balances opened this in
   // "request" mode, which it also does for a debt between two others.
@@ -283,9 +287,11 @@ export function PayUpSheet({
 
   const nothingOnFile = options.length === 0 && !profile.note;
   const question =
-    (direction === "pay"
-      ? `Record that you paid ${creditorName} ${amount}?`
-      : `Record that ${debtorName} paid you ${amount}?`) +
+    (recordsForOthers
+      ? `Record that ${debtorName} paid ${creditorName} ${amount}?`
+      : direction === "pay"
+        ? `Record that you paid ${creditorName} ${amount}?`
+        : `Record that ${debtorName} paid you ${amount}?`) +
     " Everyone in this chat will see it.";
 
   return (
@@ -320,7 +326,9 @@ export function PayUpSheet({
                 ? `${creditorName} doesn't use Halvsies, so there are no payment details on file.${
                     transfer.fromId === self
                       ? " Pay them however you usually do, then mark it as paid."
-                      : ""
+                      : recordsForOthers
+                        ? " Once they've settled up, anyone here can mark it as paid."
+                        : ""
                   }`
                 : `${creditorName} hasn't added any payment details yet — settle up in person, or ask them to add a payment method in the Me tab.`}
         </p>
@@ -576,7 +584,9 @@ export function PayUpSheet({
               }}
             >
               <Icon name="check" size={18} />
-              {direction === "pay" ? "Mark as paid" : "Mark as received"}
+              {direction === "pay" || recordsForOthers
+                ? "Mark as paid"
+                : "Mark as received"}
             </TapButton>
           </>
         )}

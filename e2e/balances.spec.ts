@@ -87,17 +87,17 @@ test("owed by several, with a debt between two others listed separately", async 
     page.getByText("2 payments settle the whole group."),
   ).toBeVisible();
 
-  // Someone else's debt is read-only for you.
+  // Someone else's debt — but both were added by hand and can't record it
+  // themselves, so anyone in the group may. (A debt with a party who uses
+  // the app stays read-only for everyone else: unit test C10.)
   await others.getByRole("button").click();
   await expect(sheet(page).locator(".sheet-title")).toHaveText(
     "Chloé owes Ben",
   );
-  await expect(sheet(page)).toContainText(
-    "Only Chloé or Ben can record this payment.",
-  );
-  await expect(
-    sheet(page).getByRole("button", { name: /Mark as/ }),
-  ).toHaveCount(0);
+  await expect(sheet(page)).not.toContainText("can record this payment");
+  await sheet(page).getByRole("button", { name: "Mark as paid" }).click();
+  await expect(sheet(page)).toContainText("Record that Chloé paid Ben €10.00?");
+  await sheet(page).getByRole("button", { name: "Cancel" }).click();
   await sheet(page).getByRole("button", { name: "Close" }).click();
 
   // Your own credit, from someone who isn't in this chat: a chat message
