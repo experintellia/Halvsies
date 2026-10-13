@@ -189,6 +189,21 @@ test("the page never scrolls vertically, only the list does", async ({
   expect(await scrollList(".app-shell")).toBeGreaterThan(0);
   expect(await pinned(main)).toEqual(before);
 
+  // A drag the page itself would take is refused; a list that can scroll
+  // keeps it. (iOS keeps keyboard-height scroll room on the page.)
+  const refused = (selector: string) =>
+    page.evaluate((sel) => {
+      const e = new TouchEvent("touchmove", {
+        bubbles: true,
+        cancelable: true,
+      });
+      document.querySelector(sel)!.dispatchEvent(e);
+      return e.defaultPrevented;
+    }, selector);
+  expect(await refused(".tab-bar")).toBe(true);
+  expect(await refused(".app-shell > .app-header")).toBe(true);
+  expect(await refused(".app-shell .row")).toBe(false);
+
   await openNewExpense(page);
   const sub = [".subpage > .app-header"];
   const subBefore = await pinned(sub);

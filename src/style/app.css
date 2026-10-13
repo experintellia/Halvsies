@@ -298,6 +298,9 @@ main:focus {
   min-height: 0; /* let it shrink below its content and scroll instead */
   padding: 8px 16px calc(24px + var(--safe-bottom));
   overflow-y: auto;
+  /* At the top or bottom of the list a drag bounces the list, and is not
+     handed on to the page (see the touchmove guard in main.tsx). */
+  overscroll-behavior: contain;
   /* Tabbing down the list scrolls the focused row clear of the FAB. */
   scroll-padding-bottom: 80px;
 }
