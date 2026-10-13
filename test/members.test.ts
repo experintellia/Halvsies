@@ -9,6 +9,7 @@
 // shared document anyway.
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
+import { netBalances } from "../src/state/balances";
 import { createDoc, type Store } from "../src/state/doc";
 import type { Expense } from "../src/state/model";
 
@@ -195,5 +196,314 @@ describe("registerSelf keeps the host's name in sync", () => {
     expect(a.getMember("b@x.de")?.name).toBe("Bobby");
     expect(a.getMember(gran.id)?.name).toBe("Grandma");
     expect(a.listMembers()).toEqual(b.listMembers());
+  });
+});
+
+describe("claiming a member", () => {
+  it("folds Grandma's expenses, shares and payments into you", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    s.registerSelf("bob@x", "Bob"); // second peer's entry, same doc for brevity
+    s.registerSelf("anna@x", "Anna");
+    const gran = s.addVirtualMember("Grandma", 1);
+    const g = gran.id;
+    s.addExpense(
+      expense("e1", {
+        payerId: g,
+        createdBy: g,
+        split: { mode: "even", entries: { [g]: 1, "anna@x": 1, "bob@x": 1 } },
+      }),
+    );
+    s.addExpense(
+      expense("e2", {
+        payerId: "bob@x",
+        split: { mode: "exact", entries: { [g]: 1000, "bob@x": 2000 } },
+      }),
+    );
+    s.addSettlement({
+      id: "s1",
+      fromId: g,
+      toId: "anna@x",
+      amountCents: 500,
+      date: "",
+      createdBy: "anna@x",
+    });
+    const ids = () => s.listMembers().map((m) => m.id);
+    const before = netBalances(s.listExpenses(), s.listSettlements(), ids());
+
+    expect(s.claimMember(g)).toBeNull();
+
+    expect(ids()).not.toContain(g); // a hidden tombstone now
+    const [e1, e2] = s.listExpenses();
+    expect(e1.payerId).toBe("anna@x");
+    expect(e1.createdBy).toBe("anna@x");
+    expect(e1.split).toEqual({
+      mode: "weights",
+      entries: { "anna@x": 2, "bob@x": 1 },
+    });
+    expect(e2.split.entries).toEqual({ "anna@x": 1000, "bob@x": 2000 });
+    expect(s.listSettlements()).toEqual([]); // Grandma paying Anna nets out
+    const after = netBalances(s.listExpenses(), s.listSettlements(), ids());
+    expect(after["anna@x"]).toBe(before["anna@x"] + before[g]);
+    expect(after["bob@x"]).toBe(before["bob@x"]);
+  });
+
+  it("refuses real members and yourself", () => {
+    const s = createDoc();
+    s.registerSelf("bob@x", "Bob");
+    s.registerSelf("anna@x", "Anna");
+    expect(s.claimMember("bob@x")).toMatch(/only someone/);
+    expect(s.claimMember("anna@x")).toMatch(/only someone/);
+    expect(s.getMember("bob@x")).toBeDefined();
+  });
+
+  it("import from another instance leaves everyone claimable but you", () => {
+    const old = createDoc();
+    old.registerSelf("old-anna", "Anna");
+    old.registerSelf("old-bob", "Bob");
+    const snap = old.exportSnapshot();
+
+    const s = createDoc();
+    s.registerSelf("new-anna", "Anna");
+    s.importSnapshot(snap);
+    expect(s.getMember("old-anna")?.isVirtual).toBe(true);
+    expect(s.getMember("old-bob")?.isVirtual).toBe(true);
+    expect(s.getMember("new-anna")?.isVirtual).toBe(false); // re-added
+    expect(s.claimMember("old-anna")).toBeNull();
+    expect(s.listMembers().map((m) => m.id)).toEqual(["new-anna", "old-bob"]);
+  });
+
+  it("an untitled backup still marks the group as set up", () => {
+    const s = createDoc();
+    s.importSnapshot("{}");
+    expect(s.getSettings().title).toBe("");
+  });
+
+  it("restore into the same instance leaves live members unclaimable", () => {
+    const s = createDoc();
+    s.registerSelf("bob@x", "Bob");
+    s.registerSelf("anna@x", "Anna");
+    s.importSnapshot(s.exportSnapshot());
+    expect(s.getMember("anna@x")?.isVirtual).toBe(false);
+    expect(s.getMember("bob@x")?.isVirtual).toBe(false);
+    expect(s.claimMember("bob@x")).toMatch(/only someone/);
+  });
+
+  it("someone who wasn't here at import turns real again on their open", () => {
+    const old = createDoc();
+    old.registerSelf("bob@x", "Bob");
+    const s = createDoc();
+    s.importSnapshot(old.exportSnapshot()); // first run: nobody registered
+    expect(s.getMember("bob@x")?.isVirtual).toBe(true);
+    s.registerSelf("bob@x", "Bob");
+    expect(s.getMember("bob@x")?.isVirtual).toBe(false);
+  });
+
+  it("an imported addr can't make a stranger real", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    s.importSnapshot(
+      JSON.stringify({
+        members: { ghost: { id: "ghost", name: "Bob", addr: "anna@x" } },
+      }),
+    );
+    expect(s.getMember("ghost")?.isVirtual).toBe(true);
+  });
+
+  it('ignores inherited keys like "constructor" as member ids', () => {
+    const s = createDoc();
+    s.registerSelf("me@x", "Me");
+    s.importSnapshot(
+      JSON.stringify({
+        members: {
+          c: { id: "constructor", name: "Old", addr: "x" },
+          b: { id: "b@x", name: "B" },
+        },
+        expenses: {
+          e: expense("e", {
+            payerId: "b@x",
+            createdBy: "b@x",
+            split: { mode: "exact", entries: { "b@x": 3000 } },
+          }),
+        },
+      }),
+    );
+    expect(s.claimMember("constructor")).toBeNull();
+    expect(s.listExpenses()[0].split.entries).toEqual({ "b@x": 3000 });
+  });
+
+  it("keeps even-split semantics whatever the stored values", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.addExpense(
+      expense("e", {
+        amountCents: 900,
+        payerId: "bob@x",
+        split: { mode: "even", entries: { [g]: 5, "bob@x": 0, "c@x": 1 } },
+      }),
+    );
+    s.claimMember(g);
+    const [e] = s.listExpenses();
+    expect(e.split).toEqual({
+      mode: "even",
+      entries: { "anna@x": 1, "bob@x": 1, "c@x": 1 },
+    });
+  });
+
+  it("moves their recorded payments to you; their details on request", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.setProfile(g, { paypalMe: "grandma" });
+    s.addSettlement({
+      id: "s1",
+      fromId: "bob@x",
+      toId: g,
+      amountCents: 500,
+      date: "",
+      createdBy: g,
+    });
+    s.claimMember(g);
+    // Not copied: parked on the tombstone until you say they are yours.
+    expect(s.getProfile("anna@x")).toBeUndefined();
+    expect(s.getProfile(g)).toEqual({ paypalMe: "grandma" });
+    s.keepClaimedProfile(g, true);
+    expect(s.getProfile("anna@x")).toEqual({ paypalMe: "grandma" });
+    expect(s.getProfile(g)).toBeUndefined();
+    expect(s.listSettlements()[0]).toMatchObject({
+      fromId: "bob@x",
+      toId: "anna@x",
+      createdBy: "anna@x",
+    });
+    expect(s.getMember("anna@x")?.claimAsked).toBe(true);
+  });
+
+  it("discarding their payment details leaves yours empty", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.setProfile(g, { iban: "DE02120300000000202051" });
+    s.claimMember(g);
+    s.keepClaimedProfile(g, false);
+    expect(s.getProfile("anna@x")).toBeUndefined();
+    expect(s.getProfile(g)).toBeUndefined();
+  });
+
+  it("never offers their details over your own", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    s.setProfile("anna@x", { paypalMe: "anna" });
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.setProfile(g, { paypalMe: "grandma" });
+    s.claimMember(g);
+    expect(s.getProfile(g)).toBeUndefined(); // dropped at the claim
+    s.keepClaimedProfile(g, true); // a stale screen can't sneak them in
+    expect(s.getProfile("anna@x")).toEqual({ paypalMe: "anna" });
+  });
+
+  it("only the claimer can take a parked profile", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.setProfile(g, { paypalMe: "grandma" });
+    s.keepClaimedProfile(g, true); // not merged into anyone yet
+    expect(s.getProfile("anna@x")).toBeUndefined();
+  });
+
+  it("exports the ledger as it reads: no tombstones, claims resolved", () => {
+    const s = createDoc();
+    s.registerSelf("anna@x", "Anna");
+    const g = s.addVirtualMember("Grandma", 1).id;
+    s.addExpense(expense("e", { payerId: g, createdBy: g }));
+    s.claimMember(g);
+    const snap = JSON.parse(s.exportSnapshot());
+    expect(Object.keys(snap.members)).toEqual(["anna@x"]);
+    expect(snap.expenses.e.payerId).toBe("anna@x");
+  });
+});
+
+describe("claim prompt answer", () => {
+  it("is stored on your own entry, survives re-registering, and syncs", () => {
+    const a = createDoc();
+    a.registerSelf("anna@x", "Anna");
+    a.markClaimAsked();
+    a.registerSelf("anna@x", "Anna Renamed");
+    expect(a.getMember("anna@x")).toMatchObject({
+      name: "Anna Renamed",
+      claimAsked: true,
+    });
+
+    const other = createDoc();
+    sync(a, other);
+    expect(other.getMember("anna@x")?.claimAsked).toBe(true);
+  });
+});
+
+describe("claims across peers", () => {
+  /** An imported ledger nobody here has claimed yet, on two peers. */
+  function importedOnTwoPeers(): { a: Store; b: Store } {
+    const old = createDoc();
+    old.registerSelf("old-a", "A");
+    old.registerSelf("old-b", "B");
+    old.addExpense(
+      expense("e1", {
+        payerId: "old-a",
+        createdBy: "old-a",
+        split: { mode: "even", entries: { "old-a": 1, "old-b": 1 } },
+      }),
+    );
+    const a = createDoc();
+    a.registerSelf("a@x", "A");
+    a.importSnapshot(old.exportSnapshot());
+    const b = createDoc();
+    sync(a, b);
+    b.registerSelf("b@x", "B");
+    sync(a, b);
+    return { a, b };
+  }
+  const balances = (s: Store): Record<string, number> =>
+    netBalances(
+      s.listExpenses(),
+      s.listSettlements(),
+      s.listMembers().map((m) => m.id),
+    );
+
+  it("two people claiming different members at once both land", () => {
+    const { a, b } = importedOnTwoPeers();
+    a.claimMember("old-a");
+    b.claimMember("old-b");
+    sync(a, b);
+    for (const s of [a, b]) {
+      expect(s.listMembers().map((m) => m.id)).toEqual(["a@x", "b@x"]);
+      expect(balances(s)).toEqual({ "a@x": 1500, "b@x": -1500 });
+    }
+  });
+
+  it("an expense added concurrently with a claim still lands on the claimer", () => {
+    const { a, b } = importedOnTwoPeers();
+    a.claimMember("old-b");
+    b.addExpense(
+      expense("e2", {
+        payerId: "a@x",
+        createdBy: "b@x",
+        split: { mode: "exact", entries: { "old-b": 3000 } },
+      }),
+    );
+    sync(a, b);
+    expect(balances(a)).toEqual(balances(b));
+    // e2 is old-b's share paid by a@x — a@x claimed old-b, so it nets out.
+    expect(balances(a)).toEqual({ "a@x": -1500, "b@x": 0, "old-a": 1500 });
+  });
+
+  it("two people claiming the same member at once agree on who got them", () => {
+    const { a, b } = importedOnTwoPeers();
+    a.claimMember("old-a");
+    b.claimMember("old-a");
+    sync(a, b);
+    expect(a.getMember("old-a")?.mergedInto).toBe(
+      b.getMember("old-a")?.mergedInto,
+    );
+    expect(balances(a)).toEqual(balances(b));
   });
 });

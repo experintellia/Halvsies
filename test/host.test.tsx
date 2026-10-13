@@ -323,7 +323,7 @@ describe("restore from file", () => {
     booted.doc.ensureSelfRegistered();
     booted.doc.addExpense(expense({ title: "Pizza" }));
     render(<booted.GroupSettings open onClose={() => {}} />, dom);
-    tap(buttons("Restore from file")[0]);
+    tap(buttons("Import from file")[0]);
     await tick();
     return booted;
   }
@@ -371,7 +371,7 @@ describe("restore from file", () => {
     doc.ensureSelfRegistered();
     render(<GroupSettings open onClose={() => {}} />, dom);
 
-    expect(buttons("Restore from file")).toHaveLength(0);
+    expect(buttons("Import from file")).toHaveLength(0);
     expect(dom.textContent).toContain("cannot open files from inside the app");
   });
 });

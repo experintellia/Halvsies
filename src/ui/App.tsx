@@ -16,6 +16,7 @@ import {
   whenHydrated,
 } from "../state/doc";
 import { Balances } from "./Balances";
+import { ClaimPrompt } from "./ClaimPrompt";
 import { ExpenseList } from "./ExpenseList";
 import { FirstRunSetup, GroupSettings, needsSetup } from "./GroupSettings";
 import { ProfileForm } from "./ProfileForm";
@@ -139,6 +140,7 @@ export function App() {
       </div>
 
       <GroupSettings open={route === "group"} onClose={() => setRoute(null)} />
+      <ClaimPrompt />
     </>
   );
 }

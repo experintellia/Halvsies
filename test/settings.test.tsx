@@ -7,6 +7,7 @@ import { render } from "preact";
 import { App } from "../src/ui/App";
 import { needsSetup } from "../src/ui/GroupSettings";
 import {
+  doc,
   getSettings,
   importSnapshot,
   listMembers,
@@ -38,6 +39,15 @@ const subpage = (): HTMLElement | null => host.querySelector(".subpage");
 /** The header's way into group settings: the gear (the group name is the other). */
 const gear = (): HTMLButtonElement | null =>
   host.querySelector('.app-header button[aria-label="Group settings"]');
+
+/**
+ * A doc nobody has touched: importSnapshot("{}") clears every map, and the
+ * title an import always writes goes too — exactly like a brand new group.
+ */
+function freshGroup(): void {
+  importSnapshot("{}");
+  doc.getMap("settings").delete("title");
+}
 
 beforeEach(() => {
   host = document.createElement("div");
@@ -82,9 +92,7 @@ describe("needsSetup", () => {
 });
 
 describe("first run", () => {
-  // A doc nobody has touched: importSnapshot("{}") clears every map, and
-  // leaves `title` unwritten exactly like a brand new group.
-  beforeEach(() => importSnapshot("{}"));
+  beforeEach(freshGroup);
 
   it("asks for the currency before the app, then never again", async () => {
     render(<App />, host);
@@ -263,7 +271,7 @@ describe("first open writes nothing", () => {
   // (The registration call itself is not assertable here: doc.ts captures
   // window.webxdc at module load, before any test can install the mock, and
   // the file that can — host.test.tsx — cannot run effects. See its header.)
-  beforeEach(() => importSnapshot("{}"));
+  beforeEach(freshGroup);
 
   it("mounts nothing behind the setup screen, so nobody is registered", async () => {
     render(<App />, host);

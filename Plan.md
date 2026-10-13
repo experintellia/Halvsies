@@ -149,7 +149,7 @@ are for. Watch **Wero** for a future P2P link standard.
 - [ ] Categories + simple stats view (totals per category/member; keep charts dependency-free or tiny).
 - [ ] Recurring expense templates (rent, streaming) — one-tap re-add, no background jobs (webxdc apps only run when open).
 - [ ] CSV export of expense list via `sendToChat`.
-- [ ] Merge virtual member into real member (reassign ids).
+- [x] Merge virtual member into real member (reassign ids): "That's me" on the members screen, confirmed, final. Imported members from another app instance arrive unclaimed.
 - [ ] **Brazilian PIX BR Code** — unlike the list above this one *is* offline-generatable (EMV QR + CRC16), so it belongs with the bank/national standards at the top of the wizard's picker. Worth building if Brazilian users show up.
 
 ### M5 — Partial payments (installments) — not started

@@ -1858,3 +1858,98 @@ p.field-suffix {
   flex: 1 1 100%;
   margin: 0;
 }
+
+/* First run: the form on top, "import a backup instead" pinned to the
+   bottom of the page — the way out for a split that already exists. */
+.setup-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.setup-foot {
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+.setup-foot > .fine {
+  margin: 0 0 10px;
+}
+
+/* Claim confirm step: who you are about to become, then what it costs. */
+.claim-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 12px;
+  font-size: 1.2em;
+}
+
+.claim-warning {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* ---- members sheet ---- */
+
+/* Avatar | name + status | one compact action — never wraps into a stack. */
+.member-row {
+  flex-wrap: nowrap;
+}
+
+.member-row .method-main {
+  gap: 2px;
+}
+
+.member-name,
+.name-edit {
+  font-size: var(--fs-lead);
+  font-weight: 500;
+}
+
+strong.member-name {
+  font-weight: 700;
+}
+
+/* Editable, but reads as the name: an underline hints at it, no box. */
+.name-edit {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  border-bottom: 1px dashed var(--color-border-strong);
+  border-radius: 0;
+  background: none;
+  color: var(--color-text);
+  font-family: inherit;
+}
+
+.name-edit:focus {
+  outline: none;
+  border-bottom: 1px solid var(--color-accent);
+}
+
+/* A secondary action as text: "That's me" under the member's status. */
+.link-btn {
+  align-self: flex-start;
+  min-height: 40px;
+  margin: -4px 0;
+  padding: 8px 0;
+  white-space: nowrap;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.icon-btn-danger {
+  background: none;
+  color: var(--color-danger);
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

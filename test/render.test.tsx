@@ -12,10 +12,12 @@ import { addExpense, deleteExpense } from "../src/state/doc";
 import { PayUpSheet } from "../src/ui/PayUpSheet";
 import { Balances } from "../src/ui/Balances";
 import { MembersSheet } from "../src/ui/MembersSheet";
+import { ClaimPrompt } from "../src/ui/ClaimPrompt";
 import { initials } from "../src/ui/components/Avatar";
 import {
   addVirtualMember,
   getSettings,
+  importSnapshot,
   removeMember,
   setProfile,
   setSettings,
@@ -923,5 +925,73 @@ describe("Avatar initials", () => {
     expect(initials("Ada King Lovelace")).toBe("AL");
     expect(initials("ada")).toBe("A");
     expect(initials("  ")).toBe("?");
+  });
+});
+
+describe("ClaimPrompt", () => {
+  const before = getSettings();
+  beforeEach(() =>
+    importSnapshot(
+      JSON.stringify({
+        members: {
+          "me@x": { id: "me@x", name: "Anna", addr: "me@x" },
+          "old-anna": { id: "old-anna", name: "Anna", addr: "old-anna" },
+          "old-bob": { id: "old-bob", name: "Bob", addr: "old-bob" },
+        },
+      }),
+    ),
+  );
+  afterEach(() => {
+    importSnapshot("{}");
+    setSettings(before);
+  });
+
+  const button = (text: string): HTMLButtonElement | undefined =>
+    Array.from(host.querySelectorAll("button")).find((b) =>
+      (b.textContent ?? "").includes(text),
+    );
+
+  it("lists the imported people, your name first and bold", async () => {
+    render(<ClaimPrompt selfId="me@x" />, host);
+    await flush();
+    expect(host.textContent).toContain("Were you in this group before?");
+    const rows = host.querySelectorAll(".member-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].querySelector("strong")?.textContent).toBe("Anna");
+    expect(rows[1].textContent).toContain("Bob");
+  });
+
+  it("× hides it", async () => {
+    render(<ClaimPrompt selfId="me@x" />, host);
+    await flush();
+    tap(host.querySelector('.sheet button[aria-label="Close"]'));
+    await flush();
+    expect(host.querySelector(".sheet")).toBeNull();
+  });
+
+  it("That's me → confirm → Back returns to the list", async () => {
+    render(<ClaimPrompt selfId="me@x" />, host);
+    await flush();
+    tap(button("That's me"));
+    await flush();
+    expect(host.textContent).toContain("Is this you?");
+    expect(host.textContent).toContain("can't be undone");
+    tap(button("Back"));
+    await flush();
+    expect(host.textContent).toContain("Were you in this group before?");
+  });
+
+  it("shows why a merge failed instead of closing", async () => {
+    // The singleton has no host here, so nobody is registered: the writer
+    // refuses, and the reason must reach the screen.
+    render(<ClaimPrompt selfId="me@x" />, host);
+    await flush();
+    tap(button("That's me"));
+    await flush();
+    tap(button("Yes, merge into me"));
+    await flush();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      "Not merged",
+    );
   });
 });
