@@ -5,7 +5,12 @@
 // The listeners are document-level with the callback in a ref, so a re-render
 // from an incoming chat update never tears them down — the cleanup would yank
 // focus back to the opener mid-typing and close the soft keyboard.
-import { useEffect, useRef, type MutableRef } from "preact/hooks";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type MutableRef,
+} from "preact/hooks";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -40,7 +45,12 @@ export function useLayer(
   // The control focus was last on inside this layer; see the rescue below.
   const lastRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
+  // A layout effect, not a passive one: it runs right after the layer is in
+  // the DOM, before paint. A passive effect waits for the next frame — up to
+  // ~100ms in a throttled tab — and in that gap an Escape found no listener
+  // (lost), and a quick Tab into the layer made a control inside it the
+  // "opener", which vanished on close and left focus nowhere to return to.
+  useLayoutEffect(() => {
     if (!open) return;
     const opener = document.activeElement;
     // Don't steal focus from a child that already claimed it — re-focusing
@@ -102,8 +112,16 @@ export function useLayer(
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("focusin", onFocusIn);
-      const hadFocus = panel?.contains(document.activeElement);
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+      const now = document.activeElement;
+      const hadFocus = panel?.contains(now);
+      // Another layer opened in the same update (Back from a details page
+      // reopens the pay sheet it came from) and already took focus: leave it
+      // there rather than pull it back to an opener now behind that layer.
+      const taken =
+        !hadFocus && now?.isConnected && now.closest(".sheet, .subpage");
+      if (!taken && opener instanceof HTMLElement && opener.isConnected) {
+        opener.focus();
+      }
       // The opener can go with the thing it opened (a deleted expense's row,
       // a settled debt's button, the setup screen) — now, or in the render
       // that is still in flight. Land on what is now on top instead of

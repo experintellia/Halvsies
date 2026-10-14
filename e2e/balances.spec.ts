@@ -3,7 +3,7 @@ import {
   addExpense,
   addVirtualMember,
   openAs,
-  captureChat,
+  subpage,
   setUpGroup,
   sheet,
   tab,
@@ -47,8 +47,9 @@ test("you owe one person: pay them, record it, and the group is all square", asy
 
   await hero.getByRole("button", { name: "Pay Ben" }).click();
   await expect(sheet(page).locator(".sheet-title")).toHaveText("You owe Ben");
+  // Ben was added by hand: he can't add details himself.
   await expect(sheet(page)).toContainText(
-    "Ben hasn't added any payment details yet",
+    "Ben doesn't use Halvsies, so there are no payment details on file.",
   );
 
   await sheet(page).getByRole("button", { name: "Mark as paid" }).click();
@@ -86,28 +87,32 @@ test("owed by several, with a debt between two others listed separately", async 
     page.getByText("2 payments settle the whole group."),
   ).toBeVisible();
 
-  // Someone else's debt is read-only for you.
+  // Someone else's debt — but both were added by hand and can't record it
+  // themselves, so anyone in the group may. (A debt with a party who uses
+  // the app stays read-only for everyone else: unit test C10.)
   await others.getByRole("button").click();
   await expect(sheet(page).locator(".sheet-title")).toHaveText(
     "Chloé owes Ben",
   );
-  await expect(sheet(page)).toContainText(
-    "Only Chloé or Ben can record this payment.",
-  );
-  await expect(
-    sheet(page).getByRole("button", { name: /Mark as/ }),
-  ).toHaveCount(0);
+  await expect(sheet(page)).not.toContainText("can record this payment");
+  await sheet(page).getByRole("button", { name: "Mark as paid" }).click();
+  await expect(sheet(page)).toContainText("Record that Chloé paid Ben €10.00?");
+  await sheet(page).getByRole("button", { name: "Cancel" }).click();
   await sheet(page).getByRole("button", { name: "Close" }).click();
 
-  // Your own credit: a nudge with every way to pay, and "received" to record.
+  // Your own credit, from someone who isn't in this chat: a chat message
+  // would never reach her, so the request is copied for elsewhere instead.
   await hero.getByRole("button", { name: "Ask Chloé to pay" }).click();
   await expect(sheet(page).locator(".sheet-title")).toHaveText(
     "Chloé owes you",
   );
-  // The mock host "sends to chat" by alert()ing the message.
-  const sent = captureChat(page);
-  await sheet(page).getByRole("button", { name: "Ask for the money" }).click();
-  expect(await sent).toContain("Hey Chloé — €20.00 whenever you get a chance");
+  await expect(sheet(page)).toContainText("Chloé isn't in this chat.");
+  await expect(
+    sheet(page).getByRole("button", { name: "Ask for the money" }),
+  ).toHaveCount(0);
+  await expect(
+    sheet(page).getByRole("button", { name: "Copy request" }),
+  ).toBeVisible();
   await expect(
     sheet(page).getByRole("button", { name: "Mark as received" }),
   ).toBeVisible();
@@ -130,4 +135,71 @@ test("keyboard: a second Enter on Mark as paid doesn't skip the confirmation", a
   await expect(page.getByRole("heading", { name: "All square" })).toHaveCount(
     0,
   );
+});
+
+test("someone who doesn't use the app: add their details from the pay sheet", async ({
+  page,
+}) => {
+  await addVirtualMember(page, "Ben");
+  await addExpense(page, { amount: "50", title: "Groceries", payer: "Ben" });
+  await tab(page, "Balances");
+  await page.getByRole("button", { name: "Pay Ben" }).click();
+
+  await sheet(page)
+    .getByRole("button", { name: "Add Ben's payment details" })
+    .click();
+  await expect(
+    subpage(page).getByRole("heading", { name: "Ben's payment details" }),
+  ).toBeVisible();
+  await expect(subpage(page)).toContainText("How the group pays Ben back");
+  await subpage(page)
+    .locator(".row", { hasText: "Add payment method" })
+    .click();
+  await subpage(page).locator(".wizard-option", { hasText: "PayPal" }).click();
+  await subpage(page).getByLabel("PayPal handle").fill("benb");
+  await subpage(page).getByRole("button", { name: "Save" }).click();
+  await expect(subpage(page)).toContainText("PayPal");
+
+  // Back lands on the same pay sheet, now with Ben's link.
+  await subpage(page)
+    .getByRole("button", { name: "Back", exact: true })
+    .click();
+  await expect(sheet(page).locator(".sheet-title")).toHaveText("You owe Ben");
+  await expect(
+    sheet(page).getByRole("link", { name: /Open PayPal/ }),
+  ).toHaveAttribute("href", /paypal\.me\/benb\/25\.00EUR/);
+  await expect(
+    sheet(page).getByRole("button", { name: "Edit Ben's payment details" }),
+  ).toBeVisible();
+  await sheet(page).getByRole("button", { name: "Close" }).click();
+
+  // Stored under Ben, not you.
+  await tab(page, "Me");
+  await expect(page.getByText("No payment methods yet.")).toBeVisible();
+});
+
+test("keyboard: Back from their details page returns focus into the pay sheet", async ({
+  page,
+}) => {
+  await addVirtualMember(page, "Ben");
+  await addExpense(page, { amount: "50", title: "Groceries", payer: "Ben" });
+  await tab(page, "Balances");
+  await page.getByRole("button", { name: "Pay Ben" }).focus();
+  await page.keyboard.press("Enter");
+  await sheet(page)
+    .getByRole("button", { name: "Add Ben's payment details" })
+    .focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    subpage(page).getByRole("heading", { name: "Ben's payment details" }),
+  ).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(sheet(page).locator(".sheet-title")).toHaveText("You owe Ben");
+  // Not on "Pay Ben", behind the sheet: inside it.
+  await expect
+    .poll(() =>
+      page.evaluate(() => !!document.activeElement?.closest(".sheet")),
+    )
+    .toBe(true);
 });

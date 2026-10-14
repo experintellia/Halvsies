@@ -12,10 +12,12 @@ import { addExpense, deleteExpense } from "../src/state/doc";
 import { PayUpSheet } from "../src/ui/PayUpSheet";
 import { Balances } from "../src/ui/Balances";
 import { MembersSheet } from "../src/ui/MembersSheet";
+import { ClaimPrompt } from "../src/ui/ClaimPrompt";
 import { initials } from "../src/ui/components/Avatar";
 import {
   addVirtualMember,
   getSettings,
+  importSnapshot,
   removeMember,
   setProfile,
   setSettings,
@@ -589,33 +591,60 @@ describe("PayUpSheet", () => {
   });
 
   // MANUAL C10 — money safety: recording a settlement is a claim every peer
-  // sees, so a member who is neither party gets no way to make it.
+  // sees, so a member who is neither party gets no way to make it — as long
+  // as a party is someone who could record it themselves.
   it("C10 — a debt between two other members is read-only", () => {
     const bob = addVirtualMember("Bob", 1);
-    const carol = addVirtualMember("Carol", 2);
     installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
     try {
-      setProfile(carol.id, { paypalMe: "carol", note: "PayPal is fine" });
+      // CREDITOR uses the app (not added by hand), so only they or Bob may.
+      setProfile(CREDITOR, { paypalMe: "carol", note: "PayPal is fine" });
       // "request", as Balances opens any transfer that isn't yours to pay.
       sheetFor(
-        { fromId: bob.id, toId: carol.id, amountCents: 2000 },
+        { fromId: bob.id, toId: CREDITOR, amountCents: 2000 },
         "request",
       );
 
       const text = host.textContent ?? "";
-      expect(host.querySelector(".sheet-title")?.textContent).toBe(
-        "Bob owes Carol",
+      expect(host.querySelector(".sheet-title")?.textContent).toMatch(
+        /^Bob owes /,
       );
       // Balances opens a stranger's debt in "request" mode; the note is still
-      // Carol's, not "yours".
-      expect(host.querySelector(".payee-note strong")?.textContent).toBe(
-        "Carol",
-      );
+      // the creditor's, not "yours".
+      expect(text).not.toContain("Your note");
       expect(text).toContain("€20.00");
-      expect(text).toContain("Only Bob or Carol can record this payment.");
+      expect(text).toMatch(/Only Bob or .+ can record this payment\./);
       expect(buttons("Mark as")).toHaveLength(0);
       // The methods themselves are still shown — it is read-only, not blank.
       expect(linkTo("https://paypal.me")).not.toBeNull();
+    } finally {
+      render(null, host);
+      removeMember(bob.id);
+    }
+  });
+
+  // Between two members added by hand, nobody could record it under C10:
+  // neither can open the app. In a chat of friends and family, anyone may.
+  it("C10 — between two members who don't use the app, anyone may record", async () => {
+    const bob = addVirtualMember("Bob", 1);
+    const carol = addVirtualMember("Carol", 2);
+    installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
+    try {
+      sheetFor(
+        { fromId: bob.id, toId: carol.id, amountCents: 2000 },
+        "request",
+      );
+      expect(host.textContent).not.toContain("can record this payment");
+      // Nobody to send a request to: neither is in the chat.
+      expect(buttons("Copy request")).toHaveLength(0);
+      expect(buttons("Ask for the money")).toHaveLength(0);
+      const mark = buttons("Mark as paid");
+      expect(mark).toHaveLength(1);
+      tap(mark[0]);
+      await new Promise((r) => setTimeout(r));
+      expect(host.textContent).toContain(
+        "Record that Bob paid Carol €20.00? Everyone in this chat will see it.",
+      );
     } finally {
       render(null, host);
       removeMember(bob.id);
@@ -859,6 +888,47 @@ describe("Balances", () => {
       removeMember(carol.id);
     }
   });
+
+  // A selection is a snapshot. If the debt goes away while its sheet (or a
+  // details page opened from it) is up — someone else recorded it, or the
+  // expense was deleted — reopening it would let it be recorded twice.
+  it("closes a pay sheet whose debt no longer exists", async () => {
+    const bob = addVirtualMember("Bob", 1);
+    const carol = addVirtualMember("Carol", 2);
+    installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
+    const id = "stale-sheet-test";
+    addExpense({
+      id,
+      title: "Cab",
+      amountCents: 2000,
+      payerId: bob.id,
+      split: { mode: "even", entries: { [bob.id]: 1, [carol.id]: 1 } },
+      date: "2026-08-01",
+      createdBy: bob.id,
+      editedAt: 0,
+    });
+    const tick = () => new Promise((r) => setTimeout(r));
+    try {
+      render(<Balances />, host);
+      tap(
+        Array.from(host.querySelectorAll("button")).find((b) =>
+          b.textContent?.includes("Carol → Bob"),
+        ),
+      );
+      await tick();
+      expect(host.querySelector(".sheet-title")?.textContent).toBe(
+        "Carol owes Bob",
+      );
+      deleteExpense(id); // the debt is gone, from under the open sheet
+      await tick();
+      expect(host.querySelector(".sheet")).toBeNull();
+    } finally {
+      render(null, host);
+      deleteExpense(id);
+      removeMember(bob.id);
+      removeMember(carol.id);
+    }
+  });
 });
 
 describe("MembersSheet", () => {
@@ -925,5 +995,73 @@ describe("Avatar initials", () => {
     expect(initials("Ada King Lovelace")).toBe("AL");
     expect(initials("ada")).toBe("A");
     expect(initials("  ")).toBe("?");
+  });
+});
+
+describe("ClaimPrompt", () => {
+  const before = getSettings();
+  beforeEach(() =>
+    importSnapshot(
+      JSON.stringify({
+        members: {
+          "me@x": { id: "me@x", name: "Anna", addr: "me@x" },
+          "old-anna": { id: "old-anna", name: "Anna", addr: "old-anna" },
+          "old-bob": { id: "old-bob", name: "Bob", addr: "old-bob" },
+        },
+      }),
+    ),
+  );
+  afterEach(() => {
+    importSnapshot("{}");
+    setSettings(before);
+  });
+
+  const button = (text: string): HTMLButtonElement | undefined =>
+    Array.from(host.querySelectorAll("button")).find((b) =>
+      (b.textContent ?? "").includes(text),
+    );
+
+  it("lists the imported people, your name first and bold", async () => {
+    render(<ClaimPrompt selfId="me@x" />, host);
+    await flush();
+    expect(host.textContent).toContain("Were you in this group before?");
+    const rows = host.querySelectorAll(".member-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].querySelector("strong")?.textContent).toBe("Anna");
+    expect(rows[1].textContent).toContain("Bob");
+  });
+
+  it("× hides it", async () => {
+    render(<ClaimPrompt selfId="me@x" />, host);
+    await flush();
+    tap(host.querySelector('.sheet button[aria-label="Close"]'));
+    await flush();
+    expect(host.querySelector(".sheet")).toBeNull();
+  });
+
+  it("That's me → confirm → Back returns to the list", async () => {
+    render(<ClaimPrompt selfId="me@x" />, host);
+    await flush();
+    tap(button("That's me"));
+    await flush();
+    expect(host.textContent).toContain("Is this you?");
+    expect(host.textContent).toContain("can't be undone");
+    tap(button("Back"));
+    await flush();
+    expect(host.textContent).toContain("Were you in this group before?");
+  });
+
+  it("shows why a merge failed instead of closing", async () => {
+    // The singleton has no host here, so nobody is registered: the writer
+    // refuses, and the reason must reach the screen.
+    render(<ClaimPrompt selfId="me@x" />, host);
+    await flush();
+    tap(button("That's me"));
+    await flush();
+    tap(button("Yes, merge into me"));
+    await flush();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      "Not merged",
+    );
   });
 });

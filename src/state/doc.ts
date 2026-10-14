@@ -14,6 +14,7 @@ import { MAX_AMOUNT_CENTS, netBalances, validateSplit } from "./balances";
 import { simplifyDebts } from "./simplify";
 import {
   formatMoney,
+  hasPaymentDetails,
   isCurrencyCode,
   newId,
   type CustomPaymentMethod,
@@ -44,7 +45,7 @@ function clear(m: {
 // --- chat info lines ----------------------------------------------------------
 
 export type ChangeKind =
-  "add" | "edit" | "delete" | "settle" | "import" | "join";
+  "add" | "edit" | "delete" | "settle" | "import" | "join" | "claim";
 
 export interface ChangePayload {
   /** display name of whoever made the change */
@@ -79,6 +80,7 @@ export function describeChange(
     settle: `${who} paid ${p.toName || "someone"} ${money}`,
     import: `${who} imported a Halvsies snapshot`,
     join: `${who} joined the split`,
+    claim: `${p.title || "Someone"} was merged into ${who}`,
   }[kind];
   const summary =
     p.openDebts <= 0
@@ -136,13 +138,17 @@ const NOT_VIRTUAL_RENAME =
 const NOT_VIRTUAL_REMOVE =
   "they are in this chat; only someone you added by hand can be removed here";
 
+/** Own-key check: `in` would also match "constructor" and other inherited keys. */
+const has = (o: object, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(o, key);
+
 export function removalBlockedBy(
   id: MemberId,
   expenses: Expense[],
   settlements: Settlement[],
 ): string | null {
   const paid = expenses.filter((e) => e.payerId === id).length;
-  const shared = expenses.filter((e) => id in e.split.entries).length;
+  const shared = expenses.filter((e) => has(e.split.entries, id)).length;
   const settled = settlements.filter(
     (s) => s.fromId === id || s.toId === id,
   ).length;
@@ -153,6 +159,43 @@ export function removalBlockedBy(
     parts.push(`has ${settled} recorded payment${settled === 1 ? "" : "s"}`);
   }
   return parts.length === 0 ? null : parts.join(", ");
+}
+
+/**
+ * `expense` with every mention of `from` rewritten to `to` — how a claimed
+ * member reads. Pure. When both were in the split their shares add up; an even
+ * split becomes weights (1 each, 2 for the merged member) so the merged
+ * member keeps owing both shares.
+ * ponytail: remainder cents go by id order, so a merge can move 1 cent of an
+ * even/weights split between participants (still sums exactly, same on
+ * every peer).
+ */
+export function mergeMemberInExpense(
+  e: Expense,
+  from: MemberId,
+  to: MemberId,
+): Expense {
+  const { mode, entries } = e.split;
+  const inSplit = has(entries, from);
+  if (e.payerId !== from && e.createdBy !== from && !inSplit) return e;
+  const swap = (id: MemberId): MemberId => (id === from ? to : id);
+  let split = e.split;
+  if (inSplit) {
+    const both = has(entries, to);
+    const next: Record<MemberId, number> = {};
+    for (const [id, n] of Object.entries(entries)) {
+      if (id !== from) next[id] = mode === "even" ? 1 : n;
+    }
+    const add = mode === "even" ? 1 : entries[from];
+    next[to] = both ? next[to] + add : add;
+    split = { mode: both && mode === "even" ? "weights" : mode, entries: next };
+  }
+  return {
+    ...e,
+    payerId: swap(e.payerId),
+    createdBy: swap(e.createdBy),
+    split,
+  };
 }
 
 /**
@@ -404,6 +447,7 @@ export function createDoc() {
       }
     | undefined;
   let selfId: MemberId | undefined;
+  let selfName = "";
 
   function getSettings(): Settings {
     return {
@@ -412,14 +456,74 @@ export function createDoc() {
     };
   }
 
-  const listMembers = (): Member[] => [...yMembers.values()].sort(byId);
+  /** The roster: claimed members (tombstones) are not in it. */
+  const listMembers = (): Member[] =>
+    [...yMembers.values()].filter((m) => !m.mergedInto).sort(byId);
   const getMember = (id: MemberId): Member | undefined => yMembers.get(id);
   const getProfile = (id: MemberId): PaymentProfile | undefined =>
     yProfiles.get(id);
+
+  /**
+   * Claimed id → who claimed it, chains followed. The ledger is stored as
+   * written and read through this, so a claim never rewrites an expense —
+   * an expense a peer adds or edits concurrently still lands on the claimer.
+   */
+  function claims(): Array<[MemberId, MemberId]> {
+    const into = new Map<MemberId, MemberId>();
+    for (const m of yMembers.values()) {
+      // Only into someone on file: a crafted target ("constructor", a
+      // stranger) would otherwise move money to an id nobody can see.
+      if (m.mergedInto && yMembers.has(m.mergedInto)) {
+        into.set(m.id, m.mergedInto);
+      }
+    }
+    const resolve = (id: MemberId): MemberId => {
+      // Bounded: a cycle can only come from a crafted doc, never from a claim.
+      for (let i = 0; i < 16 && into.has(id); i++) id = into.get(id)!;
+      return id;
+    };
+    return [...into.keys()]
+      .sort()
+      .map((from): [MemberId, MemberId] => [from, resolve(from)])
+      .filter(([from, to]) => from !== to);
+  }
+
   /** Sorted by id, which is chronological given ULID-ish ids (model.newId). */
-  const listExpenses = (): Expense[] => [...yExpenses.values()].sort(byId);
-  const listSettlements = (): Settlement[] =>
-    [...ySettlements.values()].sort(byId);
+  function listExpenses(): Expense[] {
+    const c = claims();
+    return [...yExpenses.values()]
+      .map((e) =>
+        c.reduce((x, [from, to]) => mergeMemberInExpense(x, from, to), e),
+      )
+      .sort(byId);
+  }
+
+  /** Payments between a claimed member and their claimer net to zero: hidden. */
+  function listSettlements(): Settlement[] {
+    const into = new Map(claims());
+    const r = (id: MemberId): MemberId => into.get(id) ?? id;
+    return [...ySettlements.values()]
+      .map((s) =>
+        into.size === 0
+          ? s
+          : {
+              ...s,
+              fromId: r(s.fromId),
+              toId: r(s.toId),
+              createdBy: r(s.createdBy),
+            },
+      )
+      .filter((s) => s.fromId !== s.toId)
+      .sort(byId);
+  }
+
+  /** Your own member entry, as registerSelf writes it. */
+  const selfEntry = (id: MemberId): Member => ({
+    id,
+    name: selfName,
+    isVirtual: false,
+    addr: id,
+  });
 
   const nameOf = (id: MemberId | undefined): string =>
     (id && yMembers.get(id)?.name) || "";
@@ -537,7 +641,7 @@ export function createDoc() {
    */
   function renameMember(id: MemberId, name: string): string | null {
     const prev = yMembers.get(id);
-    if (!prev) return null;
+    if (!prev || prev.mergedInto) return null;
     if (!prev.isVirtual) return NOT_VIRTUAL_RENAME;
     const trimmed = name.trim();
     if (!trimmed) return "a name cannot be empty";
@@ -561,7 +665,8 @@ export function createDoc() {
    */
   function removeMember(id: MemberId): string | null {
     const prev = yMembers.get(id);
-    if (!prev) return null;
+    // A merged member's entry is what routes their ledger to the claimer.
+    if (!prev || prev.mergedInto) return null;
     if (!prev.isVirtual) return NOT_VIRTUAL_REMOVE;
     const blocked = removalBlockedBy(id, listExpenses(), listSettlements());
     if (blocked) return blocked;
@@ -611,27 +716,104 @@ export function createDoc() {
    *  - never when the host has nothing to offer. Callers pass
    *    `host.selfName || host.selfAddr`, so a host with no display name hands
    *    us the address — which must not overwrite a good stored name.
+   * It also makes the entry real again if an import left it unclaimed.
    */
   function registerSelf(addr: string, name: string): Member {
     selfId = addr;
+    selfName = name || addr;
     const existing = yMembers.get(addr);
     if (existing) {
-      if (!name || name === addr || name === existing.name) return existing;
-      const renamed: Member = { ...existing, name };
+      // An imported snapshot marks you unclaimed until you open it here, and
+      // nobody can have merged you: claimMember refuses your own id, so a
+      // `mergedInto` on your entry is a wrong merge (or a peer's write) —
+      // dropping it gives you back everything, the ledger is read through it.
+      const keepName = !name || name === addr || name === existing.name;
+      if (keepName && !existing.isVirtual && !existing.mergedInto) {
+        return existing;
+      }
+      const { mergedInto: _wrongMerge, ...rest } = existing;
+      const renamed: Member = {
+        ...rest,
+        name: keepName ? existing.name : name,
+        isVirtual: false,
+        addr,
+      };
       doc.transact(() => yMembers.set(addr, renamed));
       flush();
       return renamed;
     }
-    const member: Member = {
-      id: addr,
-      name: name || addr,
-      isVirtual: false,
-      addr,
-    };
+    const member = selfEntry(addr);
     doc.transact(() => yMembers.set(addr, member));
     last = { kind: "join" };
     flush();
     return member;
+  }
+
+  /**
+   * Fold an unclaimed (virtual) member into yourself, or return why not.
+   * Final: their expenses, shares and payments read as yours from now on
+   * (see claims()) and they leave the roster. Also answers the "Were you in
+   * this group before?" prompt for you.
+   *
+   * Their payment details are NOT copied: a wrong claim must not quietly put
+   * someone else's IBAN on you. If you have none of your own, theirs stay
+   * parked on the tombstone (no payer ever reads it — balances resolve to
+   * you) until you answer keepClaimedProfile(); otherwise they're dropped.
+   *
+   * Two writes to two keys and nothing else, so claims of different members
+   * never collide. Two people claiming the same member at once: last write
+   * wins on that one key — everyone agrees who got them, and the chat shows
+   * both claims.
+   */
+  function claimMember(id: MemberId): string | null {
+    const target = yMembers.get(id);
+    if (!selfId) return "you are not registered in this group yet";
+    if (!target || target.mergedInto) return "they are no longer in this group";
+    if (!target.isVirtual || id === selfId) {
+      return "only someone added by hand or imported can be merged into you";
+    }
+    const me = selfId;
+    doc.transact(() => {
+      const mine = yMembers.get(me) ?? selfEntry(me);
+      yMembers.set(me, { ...mine, claimAsked: true });
+      yMembers.set(id, { ...target, mergedInto: me });
+      if (
+        hasPaymentDetails(yProfiles.get(me)) ||
+        !hasPaymentDetails(yProfiles.get(id))
+      ) {
+        yProfiles.delete(id);
+      }
+    });
+    last = { kind: "claim", title: target.name };
+    flush();
+    return null;
+  }
+
+  /**
+   * After claiming `id`: use their parked payment details as yours (`keep`),
+   * or drop them. Only for a member merged into you, and never over details
+   * you already have.
+   */
+  function keepClaimedProfile(id: MemberId, keep: boolean): void {
+    if (!selfId || yMembers.get(id)?.mergedInto !== selfId) return;
+    const theirs = yProfiles.get(id);
+    if (!theirs) return;
+    const me = selfId;
+    doc.transact(() => {
+      if (keep && !hasPaymentDetails(yProfiles.get(me))) {
+        yProfiles.set(me, theirs);
+      }
+      yProfiles.delete(id);
+    });
+    flush();
+  }
+
+  /** Remember on your own entry that the claim prompt was answered. */
+  function markClaimAsked(): void {
+    const me = selfId && yMembers.get(selfId);
+    if (!me || me.claimAsked) return;
+    doc.transact(() => yMembers.set(me.id, { ...me, claimAsked: true }));
+    flush();
   }
 
   /** Re-render hook: fires once per transaction, local or remote. */
@@ -641,14 +823,23 @@ export function createDoc() {
     return () => doc.off("update", handler);
   }
 
+  /** The ledger as it reads: claims resolved, no tombstones. */
   function exportSnapshot(): string {
+    const byKey = <T extends { id: string }>(xs: T[]): Record<string, T> =>
+      Object.fromEntries(xs.map((x) => [x.id, x]));
     return JSON.stringify(
       {
         settings: getSettings(),
-        members: yMembers.toJSON(),
-        profiles: yProfiles.toJSON(),
-        expenses: yExpenses.toJSON(),
-        settlements: ySettlements.toJSON(),
+        members: byKey(listMembers()),
+        // Listed members only: details parked on a merged member are not
+        // anyone's until their claimer says so.
+        profiles: Object.fromEntries(
+          listMembers()
+            .filter((m) => yProfiles.has(m.id))
+            .map((m) => [m.id, yProfiles.get(m.id)!]),
+        ),
+        expenses: byKey(listExpenses()),
+        settlements: byKey(listSettlements()),
       },
       null,
       2,
@@ -658,6 +849,13 @@ export function createDoc() {
   /** Replaces the whole document, or merges entry-by-entry with `merge: true`. */
   function importSnapshot(json: string, opts?: { merge?: boolean }): void {
     const snap = parseSnapshot(json);
+    // Whoever is in this chat right now stays real: a restore must not hand a
+    // live member to whoever taps "That's me" first.
+    const live = new Map(
+      listMembers()
+        .filter((m) => !m.isVirtual)
+        .map((m) => [m.id, m]),
+    );
     doc.transact(() => {
       if (!opts?.merge) {
         clear(ySettings);
@@ -667,8 +865,30 @@ export function createDoc() {
         clear(ySettlements);
       }
       ySettings.set("groupCurrency", snap.settings.groupCurrency);
-      if (snap.settings.title) ySettings.set("title", snap.settings.title);
-      for (const m of Object.values(snap.members)) yMembers.set(m.id, m);
+      // Always written on a replace: a title key is what marks the group as
+      // set up (needsSetup), and an untitled backup must end first-run too.
+      if (snap.settings.title || !ySettings.has("title")) {
+        ySettings.set("title", snap.settings.title ?? "");
+      }
+      // Addresses are per app instance: someone from another instance can
+      // never re-register into their old entry, so it becomes claimable. A
+      // real member's id is their address, so the id decides — never a
+      // file-supplied `addr`. Anyone missed here turns real again on their
+      // next open (registerSelf).
+      for (const m of Object.values(snap.members)) {
+        yMembers.set(m.id, { ...m, isVirtual: !live.has(m.id) });
+      }
+      // A replace must not drop the people who are in this chat right now
+      // (you included): put them back, unanswered, so each gets the "Were you
+      // in this group before?" prompt without having to reopen the app.
+      for (const [id, m] of live) {
+        if (yMembers.has(id)) continue;
+        const { claimAsked: _answered, ...unanswered } = m;
+        yMembers.set(id, unanswered);
+      }
+      if (selfId && !yMembers.has(selfId)) {
+        yMembers.set(selfId, selfEntry(selfId));
+      }
       for (const [id, p] of Object.entries(snap.profiles)) {
         yProfiles.set(id, p);
       }
@@ -718,6 +938,9 @@ export function createDoc() {
     renameMember,
     addVirtualMember,
     removeMember,
+    claimMember,
+    keepClaimedProfile,
+    markClaimAsked,
     setSettings,
     registerSelf,
     subscribe,
@@ -837,6 +1060,9 @@ export const {
   renameMember,
   addVirtualMember,
   removeMember,
+  claimMember,
+  keepClaimedProfile,
+  markClaimAsked,
   setSettings,
   subscribe,
   exportSnapshot,
@@ -883,7 +1109,7 @@ export function sendOwnProfileToChat(): void {
         name: "halvsies-payment-details.json",
         plainText: exportOwnProfile(),
       },
-      text: "My Halvsies payment details — open Halvsies in another group and use Restore from file to add them there.",
+      text: "My Halvsies payment details — open Halvsies in another group and use Import from file to add them there.",
     })
     .catch(() => {
       /* user cancelled or the app is closing */

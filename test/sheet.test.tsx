@@ -179,3 +179,27 @@ describe("closing a layer whose opener is gone", () => {
     expect(document.activeElement).toBe(main);
   });
 });
+
+describe("the opener", () => {
+  // Effects run after paint; a fast keyboard user can already be inside the
+  // layer by then. The opener must still be what was focused when it opened.
+  it("is what had focus when the layer opened, not when its effect ran", async () => {
+    const opener = document.createElement("button");
+    host.appendChild(opener);
+    opener.focus();
+    const inner = document.createElement("div");
+    host.appendChild(inner);
+    render(
+      <Sheet open onClose={() => {}} title="T">
+        <button>Inside</button>
+      </Sheet>,
+      inner,
+    );
+    // Before any effect has run: focus moves into the sheet.
+    host.querySelector<HTMLElement>(".sheet button:not(.sheet-close)")!.focus();
+    await settle();
+    render(null, inner);
+    await settle();
+    expect(document.activeElement).toBe(opener);
+  });
+});

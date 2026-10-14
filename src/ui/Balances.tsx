@@ -21,6 +21,8 @@ import { Row } from "./components/Row";
 import { SplitMark } from "./components/SplitMark";
 import { TapButton } from "./components/TapButton";
 import { PayUpSheet } from "./PayUpSheet";
+import { ProfileForm } from "./ProfileForm";
+import { SubPage } from "./components/SubPage";
 
 function selfAddr(): string | undefined {
   return typeof window === "undefined" ? undefined : window.webxdc?.selfAddr;
@@ -37,6 +39,9 @@ export function Balances() {
   const expenses = useDocValue(listExpenses);
   const settlements = useDocValue(listSettlements);
   const [selected, setSelected] = useState<Selection | null>(null);
+  // Editing the payment details of a creditor who doesn't use the app, from
+  // their pay sheet; Back returns to that same sheet, details now filled in.
+  const [editing, setEditing] = useState<Selection | null>(null);
 
   const self = selfAddr();
   const currency = settings.groupCurrency;
@@ -60,13 +65,48 @@ export function Balances() {
       direction: t.fromId === self ? "pay" : "request",
     });
 
+  // A selection is a snapshot; the ledger moves under it. Someone else may
+  // record the payment while this sheet — or Ben's details page — is open,
+  // and reopening a settled debt would let it be recorded twice. So the sheet
+  // shows the debt as it stands now, and closes once it no longer exists.
+  const live =
+    selected &&
+    transfers.find(
+      (t) =>
+        t.fromId === selected.transfer.fromId &&
+        t.toId === selected.transfer.toId,
+    );
+  // Their details page only while they're still someone added by hand: not
+  // once they've claimed themselves (then they're not in the roster) or
+  // joined, when the details are theirs to edit.
+  const editingId = editing?.transfer.toId;
+  const editingOpen =
+    editingId !== undefined &&
+    members.some((m) => m.id === editingId && m.isVirtual);
+
   const sheet = (
-    <PayUpSheet
-      transfer={selected?.transfer ?? { fromId: "", toId: "", amountCents: 0 }}
-      direction={selected?.direction ?? "pay"}
-      open={selected !== null}
-      onClose={() => setSelected(null)}
-    />
+    <>
+      <PayUpSheet
+        transfer={live ?? { fromId: "", toId: "", amountCents: 0 }}
+        direction={selected?.direction ?? "pay"}
+        open={!!live}
+        onClose={() => setSelected(null)}
+        onEditPayee={() => {
+          setEditing(selected);
+          setSelected(null);
+        }}
+      />
+      <SubPage
+        open={editingOpen}
+        title={`${editingId ? memberOf(editingId).name : ""}'s payment details`}
+        onBack={() => {
+          setSelected(editing);
+          setEditing(null);
+        }}
+      >
+        {editingOpen && <ProfileForm memberId={editingId} />}
+      </SubPage>
+    </>
   );
 
   if (transfers.length === 0) {

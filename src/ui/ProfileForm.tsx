@@ -7,7 +7,7 @@
 import { useId, useState } from "preact/hooks";
 import { getMember, getProfile, getSettings, setProfile } from "../state/doc";
 import { useDocValue } from "./useDoc";
-import type { PaymentProfile } from "../state/model";
+import type { MemberId, PaymentProfile } from "../state/model";
 import { formatIban, isValidIban } from "../pay/iban";
 import { paymentMethodsFor } from "../pay/links";
 import { configuredProviders, notOfferedReason } from "../pay/providers";
@@ -44,8 +44,19 @@ interface MethodRow {
 const host = (url: string): string =>
   /^https?:\/\/([^/?#]+)/i.exec(url)?.[1] ?? url;
 
-export function ProfileForm() {
-  const self = selfAddr();
+export interface ProfileFormProps {
+  /**
+   * Whose details to edit; the local user when omitted (the Me tab). Set for
+   * a member who doesn't use the app (added by hand): they can't fill in
+   * their own, so anyone in the group may do it for them — stored under
+   * their id like anyone's, so it moves with them if they claim themselves.
+   */
+  memberId?: MemberId;
+}
+
+export function ProfileForm({ memberId }: ProfileFormProps = {}) {
+  // `self` throughout: whose details these are, not necessarily yours.
+  const self = memberId ?? selfAddr();
   const settings = useDocValue(getSettings);
   const profile = useDocValue(() => (self ? getProfile(self) : undefined));
   const me = useDocValue(() => (self ? getMember(self) : undefined));
@@ -160,23 +171,32 @@ export function ProfileForm() {
     !hasBank &&
     !current.crypto?.address.trim();
 
+  // "you"/"your" on the Me tab, the member's name or "them"/"their" otherwise.
+  const name = me?.name || "Someone";
+  const them = memberId ? "them" : "you";
+  const their = memberId ? "their" : "your";
+
   return (
-    <section aria-label="Me">
+    <section aria-label={memberId ? `${name}'s payment details` : "Me"}>
       <section className="profile-head">
         {self && (
           <Avatar member={{ id: self, name: me?.name ?? "" }} size={56} />
         )}
         <div>
-          <h2 className="profile-name">{me?.name || "You"}</h2>
-          <span className="profile-sub">How the group pays you back</span>
+          <h2 className="profile-name">
+            {memberId ? name : me?.name || "You"}
+          </h2>
+          <span className="profile-sub">
+            How the group pays {memberId ? name : "you"} back
+          </span>
         </div>
       </section>
 
       <h2 className="section-label">Payment methods</h2>
       {rows.length === 0 && (
         <p className="fine">
-          No payment methods yet. Add one so people can pay you back in a couple
-          of taps instead of asking for your details.
+          No payment methods yet. Add one so people can pay {them} back in a
+          couple of taps instead of asking for {their} details.
         </p>
       )}
       <div className="list">
@@ -216,7 +236,7 @@ export function ProfileForm() {
       </div>
       {nothingOffered && (
         <p className="fine">
-          None of your saved methods work for {currency} debts. Add one that
+          None of {their} saved methods work for {currency} debts. Add one that
           does, or change the group currency.
         </p>
       )}
@@ -224,7 +244,7 @@ export function ProfileForm() {
       {(rows.length > 0 || current.note) && (
         <p className="fine">
           <Icon name="eye" size={15} />
-          Everyone in this chat can see your payment details and note.
+          Everyone in this chat can see {their} payment details and note.
         </p>
       )}
 
@@ -261,6 +281,7 @@ export function ProfileForm() {
         previewCents={PREVIEW_CENTS}
         currency={currency}
         reference={reference}
+        payeeName={memberId ? name : undefined}
       />
 
       {self && (
