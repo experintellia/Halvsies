@@ -37,12 +37,26 @@ export function useLayer(
   const escRef = useRef(onEscape);
   escRef.current = onEscape;
 
+  // Who opened this layer, read during the render that opens it — not in the
+  // effect, which runs after paint (up to ~100ms later in a throttled tab).
+  // By then a quick keyboard user may already be on a control inside the
+  // layer, which would become the "opener", vanish on close, and leave focus
+  // with nowhere to return to.
+  const openerRef = useRef<Element | null>(null);
+  const wasOpen = useRef(false);
+  if (open !== wasOpen.current) {
+    wasOpen.current = open;
+    if (open && typeof document !== "undefined") {
+      openerRef.current = document.activeElement;
+    }
+  }
+
   // The control focus was last on inside this layer; see the rescue below.
   const lastRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    const opener = document.activeElement;
+    const opener = openerRef.current;
     // Don't steal focus from a child that already claimed it — re-focusing
     // the panel would shut a keyboard that is already up.
     // On the panel itself is no claim: a just-closed layer's fallback may
