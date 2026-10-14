@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-10-14
+
+### Added
+
+- Merge a member into yourself (#14). After importing a backup from another
+  chat, or when someone added by hand starts using the app, tap "That's me" in
+  the Members sheet; an import also asks once "Were you in this group before?".
+  A merge is a tombstone the ledger reads through, so concurrent merges and
+  edits never collide. First run offers "Import a backup instead". Peers
+  still on 0.2.0 show the merged member separately until they update.
+- Members who don't use the app (#16). The pay sheet says to pay them however
+  you usually do and mark it as paid, offers "Copy request" instead of asking
+  in a chat they aren't in, and lets you add their payment details. Anyone may
+  record a payment between two such members.
+- Swipe a sheet down to close it (#12). A sheet with unsaved input springs
+  back instead.
+
+### Changed
+
+- The expense form, currency picker and payment-method wizard open as
+  full-screen pages instead of tall sheets (#12).
+- Save on the expense form and the payment-method wizard stays reachable
+  (#15): pressing it early says what's missing instead of doing nothing.
+  Enter in the expense title or any wizard field saves when the form is valid
+  (#12), or says what's missing (#15).
+- An accessibility pass (#12): pinch-zoom is allowed, focus is never lost
+  when a sheet or page closes, actions are announced to screen readers, and
+  layouts reflow at 200% text.
+
+### Fixed
+
+- iOS: the page no longer scrolls, bounces or stays shifted up after the
+  keyboard closes; only the list scrolls, and the header, tab bar and add
+  button stay put. The date field no longer pokes out of the form (#12).
+- Pressing Enter twice on "Mark as paid" or "Mark as received" can no longer
+  skip the confirmation (#12).
+- A pay sheet closes once its debt is settled, so the same payment can't be
+  recorded twice (#16).
+- Replacing the group from a backup keeps the people currently in the chat
+  instead of dropping them, and an untitled backup now finishes first-run
+  setup (#14).
+- Emoji in member names stay whole in avatar initials instead of rendering
+  as "�" (#11).
+
 ## [0.2.0] — 2026-10-12
 
 ### Changed
