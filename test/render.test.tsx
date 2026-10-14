@@ -886,6 +886,47 @@ describe("Balances", () => {
       removeMember(carol.id);
     }
   });
+
+  // A selection is a snapshot. If the debt goes away while its sheet (or a
+  // details page opened from it) is up — someone else recorded it, or the
+  // expense was deleted — reopening it would let it be recorded twice.
+  it("closes a pay sheet whose debt no longer exists", async () => {
+    const bob = addVirtualMember("Bob", 1);
+    const carol = addVirtualMember("Carol", 2);
+    installWebxdc({ selfAddr: "dana@example.org", selfName: "Dana" });
+    const id = "stale-sheet-test";
+    addExpense({
+      id,
+      title: "Cab",
+      amountCents: 2000,
+      payerId: bob.id,
+      split: { mode: "even", entries: { [bob.id]: 1, [carol.id]: 1 } },
+      date: "2026-08-01",
+      createdBy: bob.id,
+      editedAt: 0,
+    });
+    const tick = () => new Promise((r) => setTimeout(r));
+    try {
+      render(<Balances />, host);
+      tap(
+        Array.from(host.querySelectorAll("button")).find((b) =>
+          b.textContent?.includes("Carol → Bob"),
+        ),
+      );
+      await tick();
+      expect(host.querySelector(".sheet-title")?.textContent).toBe(
+        "Carol owes Bob",
+      );
+      deleteExpense(id); // the debt is gone, from under the open sheet
+      await tick();
+      expect(host.querySelector(".sheet")).toBeNull();
+    } finally {
+      render(null, host);
+      deleteExpense(id);
+      removeMember(bob.id);
+      removeMember(carol.id);
+    }
+  });
 });
 
 describe("MembersSheet", () => {

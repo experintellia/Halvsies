@@ -281,6 +281,7 @@ export function ProfileForm({ memberId }: ProfileFormProps = {}) {
         previewCents={PREVIEW_CENTS}
         currency={currency}
         reference={reference}
+        payeeName={memberId ? name : undefined}
       />
 
       {self && (

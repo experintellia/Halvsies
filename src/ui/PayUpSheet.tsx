@@ -215,8 +215,12 @@ export function PayUpSheet({
   // nothing about, attributed to them in the chat info line.
   // Members added by hand (isVirtual) aren't in the chat and can't open the
   // app: they can't fill in their own details or be asked in the chat.
-  const creditorOffline = !preview && creditor?.isVirtual === true;
-  const debtorOffline = !preview && debtor?.isVirtual === true;
+  // A claimed member's entry stays behind as a tombstone (mergedInto), still
+  // marked isVirtual: that is someone who uses the app now.
+  const creditorOffline =
+    !preview && creditor?.isVirtual === true && !creditor.mergedInto;
+  const debtorOffline =
+    !preview && debtor?.isVirtual === true && !debtor.mergedInto;
   // Between two of those, no party could ever record it — so anyone in the
   // group may (a chat of friends and family; the chat line still says who).
   const recordsForOthers = creditorOffline && debtorOffline;
@@ -341,7 +345,9 @@ export function PayUpSheet({
           onActivate={onEditPayee}
         >
           <Icon name="plus" size={18} />
-          Add {creditorName}'s payment details
+          <span className="btn-label">
+            Add {creditorName}'s payment details
+          </span>
         </TapButton>
       )}
 
@@ -495,8 +501,10 @@ export function PayUpSheet({
       )}
 
       {creditorOffline && !nothingOnFile && onEditPayee && (
-        <TapButton className="btn btn-quiet btn-block" onActivate={onEditPayee}>
-          Edit {creditorName}'s payment details
+        <TapButton className="btn btn-ghost btn-block" onActivate={onEditPayee}>
+          <span className="btn-label">
+            Edit {creditorName}'s payment details
+          </span>
         </TapButton>
       )}
 

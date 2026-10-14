@@ -177,3 +177,29 @@ test("someone who doesn't use the app: add their details from the pay sheet", as
   await tab(page, "Me");
   await expect(page.getByText("No payment methods yet.")).toBeVisible();
 });
+
+test("keyboard: Back from their details page returns focus into the pay sheet", async ({
+  page,
+}) => {
+  await addVirtualMember(page, "Ben");
+  await addExpense(page, { amount: "50", title: "Groceries", payer: "Ben" });
+  await tab(page, "Balances");
+  await page.getByRole("button", { name: "Pay Ben" }).focus();
+  await page.keyboard.press("Enter");
+  await sheet(page)
+    .getByRole("button", { name: "Add Ben's payment details" })
+    .focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    subpage(page).getByRole("heading", { name: "Ben's payment details" }),
+  ).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(sheet(page).locator(".sheet-title")).toHaveText("You owe Ben");
+  // Not on "Pay Ben", behind the sheet: inside it.
+  await expect
+    .poll(() =>
+      page.evaluate(() => !!document.activeElement?.closest(".sheet")),
+    )
+    .toBe(true);
+});

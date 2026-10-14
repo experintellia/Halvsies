@@ -112,8 +112,16 @@ export function useLayer(
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("focusin", onFocusIn);
-      const hadFocus = panel?.contains(document.activeElement);
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+      const now = document.activeElement;
+      const hadFocus = panel?.contains(now);
+      // Another layer opened in the same update (Back from a details page
+      // reopens the pay sheet it came from) and already took focus: leave it
+      // there rather than pull it back to an opener now behind that layer.
+      const taken =
+        !hadFocus && now?.isConnected && now.closest(".sheet, .subpage");
+      if (!taken && opener instanceof HTMLElement && opener.isConnected) {
+        opener.focus();
+      }
       // The opener can go with the thing it opened (a deleted expense's row,
       // a settled debt's button, the setup screen) — now, or in the render
       // that is still in flight. Land on what is now on top instead of

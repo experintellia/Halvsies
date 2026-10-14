@@ -63,6 +63,8 @@ export interface PaymentMethodWizardProps {
   previewCents: number;
   currency: string;
   reference: string;
+  /** Whose details, when not yours (a member added by hand): wording only. */
+  payeeName?: string;
 }
 
 /** The id `PaymentProfile.preferred` stores for this method; undefined for a
@@ -130,6 +132,7 @@ export function PaymentMethodWizard({
   previewCents,
   currency,
   reference,
+  payeeName,
 }: PaymentMethodWizardProps) {
   const [target, setTarget] = useState<WizardTarget | null>(editing ?? null);
   const [value, setValue] = useState("");
@@ -378,7 +381,10 @@ export function PaymentMethodWizard({
       {target === null ? (
         <>
           <p className="field-suffix">
-            Pick how you'd like to be paid back. You can add more later.
+            {payeeName
+              ? `Pick how ${payeeName} would like to be paid back.`
+              : "Pick how you'd like to be paid back."}{" "}
+            You can add more later.
           </p>
           {PICKER_SECTIONS.map((section) => (
             <div key={section.id}>
@@ -431,7 +437,7 @@ export function PaymentMethodWizard({
               {target.kind === "provider"
                 ? spec!.whereToFind
                 : target.kind === "bank"
-                  ? "Your IBAN is on your bank statement or in your banking app under account details. The account holder name must match the account, or some banks reject the transfer."
+                  ? `${payeeName ? "Their IBAN is on their bank statement or in their" : "Your IBAN is on your bank statement or in your"} banking app under account details. The account holder name must match the account, or some banks reject the transfer.`
                   : target.kind === "crypto"
                     ? CRYPTO_STEP.whereToFind
                     : "Paste a payment URL and mark where the amount goes. Use {amount}, {currency} and {ref} as placeholders — we substitute them for each debt."}
@@ -574,8 +580,9 @@ export function PaymentMethodWizard({
           {valid && testUrl && (
             <div className="wizard-test">
               <p>
-                <strong>Try it.</strong> This is exactly what someone paying you{" "}
-                {formatMoney(previewCents, currency)} would open.
+                <strong>Try it.</strong> This is exactly what someone paying{" "}
+                {payeeName ?? "you"} {formatMoney(previewCents, currency)} would
+                open.
               </p>
               <div className="field-row">
                 <a
