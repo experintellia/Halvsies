@@ -5,7 +5,12 @@
 // The listeners are document-level with the callback in a ref, so a re-render
 // from an incoming chat update never tears them down — the cleanup would yank
 // focus back to the opener mid-typing and close the soft keyboard.
-import { useEffect, useRef, type MutableRef } from "preact/hooks";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type MutableRef,
+} from "preact/hooks";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -37,26 +42,17 @@ export function useLayer(
   const escRef = useRef(onEscape);
   escRef.current = onEscape;
 
-  // Who opened this layer, read during the render that opens it — not in the
-  // effect, which runs after paint (up to ~100ms later in a throttled tab).
-  // By then a quick keyboard user may already be on a control inside the
-  // layer, which would become the "opener", vanish on close, and leave focus
-  // with nowhere to return to.
-  const openerRef = useRef<Element | null>(null);
-  const wasOpen = useRef(false);
-  if (open !== wasOpen.current) {
-    wasOpen.current = open;
-    if (open && typeof document !== "undefined") {
-      openerRef.current = document.activeElement;
-    }
-  }
-
   // The control focus was last on inside this layer; see the rescue below.
   const lastRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
+  // A layout effect, not a passive one: it runs right after the layer is in
+  // the DOM, before paint. A passive effect waits for the next frame — up to
+  // ~100ms in a throttled tab — and in that gap an Escape found no listener
+  // (lost), and a quick Tab into the layer made a control inside it the
+  // "opener", which vanished on close and left focus nowhere to return to.
+  useLayoutEffect(() => {
     if (!open) return;
-    const opener = openerRef.current;
+    const opener = document.activeElement;
     // Don't steal focus from a child that already claimed it — re-focusing
     // the panel would shut a keyboard that is already up.
     // On the panel itself is no claim: a just-closed layer's fallback may
