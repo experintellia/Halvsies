@@ -112,6 +112,8 @@ export function PaymentMethodWizard({
   const [preferred, setPreferred] = useState(false);
   // Left a field below the main one: only then may its error show.
   const [restTouched, setRestTouched] = useState(false);
+  // Pressed Save before typing the main field: say so on screen too.
+  const [emptyTried, setEmptyTried] = useState(false);
 
   // Re-seed whenever the page is (re)opened, so a previous run's half-typed
   // handle never leaks into the next one. This stays mounted while closed.
@@ -137,6 +139,7 @@ export function PaymentMethodWizard({
     setHolder(profile.accountHolder ?? "");
     setBic(profile.bic ?? "");
     setRestTouched(false);
+    setEmptyTried(false);
     setLabel(
       t?.kind === "custom"
         ? (profile.customs?.find((c) => c.id === t.id)?.label ?? "")
@@ -210,6 +213,9 @@ export function PaymentMethodWizard({
         : target?.kind === "crypto"
           ? "Wallet address"
           : "Link template";
+  // The status line: the error, or — after an early Save — what's missing.
+  const message =
+    shown ?? (emptyTried && !filled ? `Fill in “${fieldLabel}” first.` : null);
   const rest = (on: boolean) => ({
     "aria-invalid": (on && !valueBad && shown !== null) || undefined,
     "aria-describedby": on && !valueBad && shown ? statusId : undefined,
@@ -255,8 +261,10 @@ export function PaymentMethodWizard({
       // Save stays focusable (aria-disabled), so pressing it early says what
       // is missing instead of doing nothing. An error not on screen yet is
       // revealed, and its status line announces it.
-      if (!filled) announce(`Fill in “${fieldLabel}” first.`);
-      else if (shown) announce(shown);
+      // Already on screen: read it out again. Not yet: reveal it, and the
+      // status line announces it as it appears.
+      if (message) announce(message);
+      else if (!filled) setEmptyTried(true);
       else setRestTouched(true);
       return;
     }
@@ -544,7 +552,7 @@ export function PaymentMethodWizard({
           {/* Status, not alert: it changes as you type, and an alert would
               cut in on every keystroke that flips the message. */}
           <p id={statusId} role="status" className="money-negative form-status">
-            {shown}
+            {message}
           </p>
 
           {target.kind === "provider" && spec!.caveat && (
@@ -608,7 +616,7 @@ export function PaymentMethodWizard({
             <TapButton
               className="btn btn-primary btn-block"
               ariaDisabled={!valid}
-              describedBy={shown ? statusId : undefined}
+              describedBy={message ? statusId : undefined}
               onActivate={save}
             >
               Save

@@ -185,7 +185,8 @@ test("keyboard: wizard Save before anything is typed says what's missing", async
   const save = subpage(page).getByRole("button", { name: "Save" });
   await save.focus();
   await page.keyboard.press("Enter");
-  await expect(subpage(page).locator(".sr-only")).toHaveText(
+  // Shown, not only spoken: a sighted tap on the greyed Save explains too.
+  await expect(subpage(page).locator(".form-status")).toHaveText(
     "Fill in “IBAN” first.",
   );
 

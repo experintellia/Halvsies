@@ -328,7 +328,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
             // See the wizard: an uncancelled Enter also clicks whatever focus
             // returns to once the form has closed.
             e.preventDefault();
-            handleSave(); // no-op while invalid
+            handleSave(); // says what is missing, while invalid
           }}
         />
       </label>
