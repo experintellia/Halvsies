@@ -174,3 +174,31 @@ test("keyboard: Enter in the wizard saves once and doesn't reopen it", async ({
     1,
   );
 });
+
+test("keyboard: wizard Save before anything is typed says what's missing", async ({
+  page,
+}) => {
+  await page.locator(".row", { hasText: "Add payment method" }).click();
+  await subpage(page)
+    .locator(".wizard-option", { hasText: "Bank transfer" })
+    .click();
+  const save = subpage(page).getByRole("button", { name: "Save" });
+  await save.focus();
+  await page.keyboard.press("Enter");
+  // Shown, not only spoken: a sighted tap on the greyed Save explains too.
+  await expect(subpage(page).locator(".form-status")).toHaveText(
+    "Fill in “IBAN” first.",
+  );
+
+  // A valid IBAN but no holder yet: pressing Save reveals the holder error.
+  await subpage(page)
+    .getByLabel("IBAN", { exact: true })
+    .fill("DE89 3704 0044 0532 0130 00");
+  await expect(subpage(page).locator(".form-status")).toHaveText("");
+  await save.focus();
+  await page.keyboard.press("Enter");
+  await expect(subpage(page).locator(".form-status")).toHaveText(
+    "Banks need the account holder's name.",
+  );
+  await expect(subpage(page)).toHaveCount(1);
+});

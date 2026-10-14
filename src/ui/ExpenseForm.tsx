@@ -151,6 +151,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
 
   const [amountCents, setAmountCents] = useState(0);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [tried, setTried] = useState(false);
   const [title, setTitle] = useState("");
   const [payerId, setPayerId] = useState<MemberId>("");
   const [date, setDate] = useState("");
@@ -177,6 +178,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
     setWeights(expense?.split.mode === "weights" ? expense.split.entries : {});
     setExact(expense?.split.mode === "exact" ? expense.split.entries : {});
     setConfirmingDelete(false); // never reopen already armed
+    setTried(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, expense?.id, selfId]);
 
@@ -208,7 +210,8 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
   // What the status line says. A fresh form has no amount yet, and greeting
   // it (and a screen reader) with "Amount must be more than zero" before
   // anything was typed is noise — Save is simply not ready.
-  const shownError = amountCents > 0 ? error : null;
+  // Until Save is pressed, that is: then it says what's missing.
+  const shownError = amountCents > 0 || tried ? error : null;
   const memberIds = members.map((m) => m.id);
   const shares = splitShares(draft, memberIds);
   const exactAssigned = participants.reduce((s, id) => s + (exact[id] ?? 0), 0);
@@ -249,7 +252,14 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
   }
 
   function handleSave(): void {
-    if (error) return;
+    if (error) {
+      // Save is never truly disabled (see the button): pressing it while
+      // the form can't be saved says why. A line that is already on screen
+      // gets read out; one that isn't yet appears, and its status announces.
+      if (shownError) announce(error);
+      else setTried(true);
+      return;
+    }
     const ts = now();
     const split = buildSplit();
     if (expense) {
@@ -318,7 +328,7 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
             // See the wizard: an uncancelled Enter also clicks whatever focus
             // returns to once the form has closed.
             e.preventDefault();
-            handleSave(); // no-op while invalid
+            handleSave(); // says what is missing, while invalid
           }}
         />
       </label>
@@ -492,7 +502,11 @@ export function ExpenseForm({ open, onClose, expense }: ExpenseFormProps) {
           type="button"
           className="btn btn-primary"
           style={{ flex: 1 }}
-          disabled={!!error}
+          // aria-disabled, not disabled: a disabled button drops out of the
+          // Tab order, and a keyboard or screen-reader user looking for Save
+          // never learns it exists, let alone what it is waiting for.
+          aria-disabled={error ? "true" : undefined}
+          aria-describedby={shownError ? statusId : undefined}
           onPointerUp={handleSave}
           onClick={(e) => {
             if (e.detail === 0) handleSave();

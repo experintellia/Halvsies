@@ -133,3 +133,24 @@ test("Enter on a tab switches to it", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page.getByText("How the group pays you back")).toBeVisible();
 });
+
+// Save is aria-disabled, not disabled: it stays in the Tab order, and
+// pressing it before the form is complete says what's missing.
+test("keyboard: Save on a blank form is reachable and says what's missing", async ({
+  page,
+}) => {
+  const form = await openNewExpense(page);
+  const save = form.getByRole("button", { name: "Save" });
+  await expect(save).toBeDisabled(); // aria-disabled counts
+  await expect(form.getByRole("status")).toHaveText("");
+  await save.focus();
+  await expect(save).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(form.getByRole("status").first()).toHaveText(
+    "Amount must be more than zero",
+  );
+  await expect(save).toHaveAccessibleDescription(
+    "Amount must be more than zero",
+  );
+  await expect(page.locator(".subpage")).toHaveCount(1); // nothing saved
+});

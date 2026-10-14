@@ -42,6 +42,7 @@ import { SubPage } from "./components/SubPage";
 import { announce } from "./announce";
 import { CopyButton } from "./components/CopyButton";
 import { Icon } from "./components/Icon";
+import { TapButton } from "./components/TapButton";
 
 /** What the wizard is currently editing. `null` = still on the picker step. */
 export type WizardTarget =
@@ -94,35 +95,6 @@ function textValue(e: Event): string {
   return (e.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
 }
 
-/** Tap-safe button — see Row.tsx for why taps ride pointerup in this WebView. */
-function TapButton({
-  onActivate,
-  className,
-  disabled,
-  children,
-}: {
-  onActivate: () => void;
-  className: string;
-  disabled?: boolean;
-  children: preact.ComponentChildren;
-}) {
-  return (
-    <button
-      type="button"
-      className={className}
-      disabled={disabled}
-      onPointerUp={() => {
-        if (!disabled) onActivate();
-      }}
-      onClick={(e) => {
-        if (e.detail === 0 && !disabled) onActivate();
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
 export function PaymentMethodWizard({
   open,
   onClose,
@@ -143,6 +115,8 @@ export function PaymentMethodWizard({
   const [preferred, setPreferred] = useState(false);
   // Left a field below the main one: only then may its error show.
   const [restTouched, setRestTouched] = useState(false);
+  // Pressed Save before typing the main field: say so on screen too.
+  const [emptyTried, setEmptyTried] = useState(false);
 
   // Re-seed whenever the page is (re)opened, so a previous run's half-typed
   // handle never leaks into the next one. This stays mounted while closed.
@@ -168,6 +142,7 @@ export function PaymentMethodWizard({
     setHolder(profile.accountHolder ?? "");
     setBic(profile.bic ?? "");
     setRestTouched(false);
+    setEmptyTried(false);
     setLabel(
       t?.kind === "custom"
         ? (profile.customs?.find((c) => c.id === t.id)?.label ?? "")
@@ -233,6 +208,17 @@ export function PaymentMethodWizard({
   // part was touched: announcing "Banks need the account holder's name" the
   // moment the IBAN turns valid interrupts someone who hasn't got there yet.
   const shown = filled && (valueBad || restTouched) ? error : null;
+  const fieldLabel =
+    target?.kind === "provider"
+      ? `${spec!.label} handle`
+      : target?.kind === "bank"
+        ? "IBAN"
+        : target?.kind === "crypto"
+          ? "Wallet address"
+          : "Link template";
+  // The status line: the error, or — after an early Save — what's missing.
+  const message =
+    shown ?? (emptyTried && !filled ? `Fill in “${fieldLabel}” first.` : null);
   const rest = (on: boolean) => ({
     "aria-invalid": (on && !valueBad && shown !== null) || undefined,
     "aria-describedby": on && !valueBad && shown ? statusId : undefined,
@@ -273,7 +259,18 @@ export function PaymentMethodWizard({
   }
 
   function save(): void {
-    if (!valid || !target) return;
+    if (!target) return;
+    if (!valid) {
+      // Save stays focusable (aria-disabled), so pressing it early says what
+      // is missing instead of doing nothing. An error not on screen yet is
+      // revealed, and its status line announces it.
+      // Already on screen: read it out again. Not yet: reveal it, and the
+      // status line announces it as it appears.
+      if (message) announce(message);
+      else if (!filled) setEmptyTried(true);
+      else setRestTouched(true);
+      return;
+    }
     if (target.kind === "provider") {
       const stored = spec!.normalize ? spec!.normalize(value) : value.trim();
       onSave(
@@ -419,7 +416,7 @@ export function PaymentMethodWizard({
           ))}
         </>
       ) : (
-        // Enter in any text field saves, once the method is valid.
+        // Enter in any text field saves (or says what's missing).
         <div
           onKeyDown={(e) => {
             const t = e.target as HTMLInputElement;
@@ -427,7 +424,7 @@ export function PaymentMethodWizard({
             // Cancelled, or the same keystroke's click lands on the row focus
             // returns to ("Add payment method") and opens the wizard again.
             e.preventDefault();
-            if (valid) save();
+            save(); // explains instead, while not valid
           }}
         >
           {/* Step 2: where to find it, then the field itself. Opened on a
@@ -468,15 +465,7 @@ export function PaymentMethodWizard({
 
           <div className="field">
             <label>
-              <span className="field-label">
-                {target.kind === "provider"
-                  ? `${spec!.label} handle`
-                  : target.kind === "bank"
-                    ? "IBAN"
-                    : target.kind === "crypto"
-                      ? "Wallet address"
-                      : "Link template"}
-              </span>
+              <span className="field-label">{fieldLabel}</span>
               <input
                 type="text"
                 autoFocus
@@ -569,7 +558,7 @@ export function PaymentMethodWizard({
           {/* Status, not alert: it changes as you type, and an alert would
               cut in on every keystroke that flips the message. */}
           <p id={statusId} role="status" className="money-negative form-status">
-            {shown}
+            {message}
           </p>
 
           {target.kind === "provider" && spec!.caveat && (
@@ -633,7 +622,8 @@ export function PaymentMethodWizard({
           <div className="wizard-actions">
             <TapButton
               className="btn btn-primary btn-block"
-              disabled={!valid}
+              ariaDisabled={!valid}
+              describedBy={message ? statusId : undefined}
               onActivate={save}
             >
               Save
