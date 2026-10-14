@@ -8,7 +8,7 @@ See [webxdc.org](https://webxdc.org/) for more about the webxdc platform.
 
 Members attach payment coordinates (PayPal.Me, IBAN, Revolut, Wise, Venmo, Monzo, or a custom URL template), and Halvsies generates amount-pre-filled payment links and EPC QR codes so settling a debt takes seconds. No accounts, no server, end-to-end encrypted via the chat.
 
-> Status: early development. See [`./Plan.md`](./Plan.md) for the design and roadmap.
+See [`./Plan.md`](./Plan.md) for the design and roadmap.
 
 ## Screenshots
 
@@ -125,7 +125,7 @@ description = Split bills, then actually pay
 
 What the submission requires, and where this repo already stands:
 
-- **Public repo on Codeberg or GitHub** — currently private; make it public first.
+- **Public repo on Codeberg or GitHub** — [github.com/experintellia/Halvsies](https://github.com/experintellia/Halvsies).
 - **A tagged release with an `.xdc` asset** — `.github/workflows/release.yml` does this on every `v*.*.*` tag.
 - **`manifest.toml` and an icon inside the `.xdc`** — `public/manifest.toml` and `public/icon.png`, both verified in the release artifact.
 - **App id lowercase alphanumeric with `-`** — `halvsies`.
