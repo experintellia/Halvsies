@@ -20,6 +20,19 @@ export interface Member {
   isVirtual: boolean;
   /** webxdc.selfAddr, set for real members who registered themselves. */
   addr?: string;
+  /**
+   * Set on your own entry once you answered "Were you in this group before?"
+   * (claimed someone, or "No, I'm new here") so it is never asked again — on
+   * any of your devices. Not carried by a backup: a new instance asks anew.
+   */
+  claimAsked?: boolean;
+  /**
+   * Set when someone claimed this (virtual) member as themselves: the entry
+   * stays as a tombstone, hidden from the roster, and every ledger mention of
+   * it reads as `mergedInto` (see createDoc's listExpenses). A claim is then
+   * one write to one key, so concurrent claims and edits can't collide.
+   */
+  mergedInto?: MemberId;
 }
 
 export interface CustomPaymentMethod {
@@ -155,4 +168,21 @@ export function newId(timestampMs: number, seq = 0): string {
   const suffix = (seq >>> 0).toString(36).padStart(4, "0");
   const rand = Math.random().toString(36).slice(2, 6).padStart(4, "0");
   return `${ts}${suffix}${rand}`;
+}
+
+/**
+ * Does this profile hold anything a payer could use (or read)? Not the
+ * fields that only qualify another one: a preferred method, an account
+ * holder or BIC without an IBAN.
+ */
+export function hasPaymentDetails(p: PaymentProfile | undefined): boolean {
+  return Object.entries(p ?? {}).some(
+    ([k, v]) =>
+      k !== "preferred" &&
+      k !== "accountHolder" &&
+      k !== "bic" &&
+      v !== undefined &&
+      v !== "" &&
+      (!Array.isArray(v) || v.length > 0),
+  );
 }

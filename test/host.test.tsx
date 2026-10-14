@@ -323,7 +323,7 @@ describe("restore from file", () => {
     booted.doc.ensureSelfRegistered();
     booted.doc.addExpense(expense({ title: "Pizza" }));
     render(<booted.GroupSettings open onClose={() => {}} />, dom);
-    tap(buttons("Restore from file")[0]);
+    tap(buttons("Import from file")[0]);
     await tick();
     return booted;
   }
@@ -366,12 +366,12 @@ describe("restore from file", () => {
   });
 
   // MANUAL E3
-  it("E3 — hides Restore and says so on a host without importFiles", async () => {
+  it("E3 — hides Import from file and says so on a host without importFiles", async () => {
     const { doc, GroupSettings } = await boot({ importFiles: false });
     doc.ensureSelfRegistered();
     render(<GroupSettings open onClose={() => {}} />, dom);
 
-    expect(buttons("Restore from file")).toHaveLength(0);
+    expect(buttons("Import from file")).toHaveLength(0);
     expect(dom.textContent).toContain("cannot open files from inside the app");
   });
 });

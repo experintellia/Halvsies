@@ -18,7 +18,7 @@ import {
   sendSnapshotToChat,
   setSettings,
 } from "../state/doc";
-import type { Settings } from "../state/model";
+import { hasPaymentDetails, type Settings } from "../state/model";
 import {
   currencyName,
   deviceLocales,
@@ -43,6 +43,45 @@ const canImportFiles =
 
 function selfAddr(): string | undefined {
   return typeof window === "undefined" ? undefined : window.webxdc?.selfAddr;
+}
+
+/**
+ * Open the host's file picker and import what comes back. One picker, two
+ * exports: a payment-details file has a top-level "profile" key, a full backup
+ * never does — so the shape decides, not the file name (which the user may
+ * have renamed). Resolves to a human-readable error, or undefined when it
+ * worked or was cancelled. On first run nobody is registered yet, so a
+ * payment-details file has nowhere to go: `firstRun` says so plainly.
+ */
+function pickAndImport(firstRun = false): Promise<string | undefined> {
+  if (!window.webxdc?.importFiles) return Promise.resolve(undefined);
+  return window.webxdc
+    .importFiles({ extensions: [".json"], mimeTypes: ["application/json"] })
+    .then(async (files) => {
+      const file = files[0];
+      if (!file) return; // user cancelled
+      const text = await file.text();
+      let raw: unknown = undefined;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        throw new Error("Import failed: the file is not valid JSON");
+      }
+      if (typeof raw === "object" && raw !== null && "profile" in raw) {
+        if (firstRun) {
+          throw new Error(
+            "This file only holds payment details, not a ledger. Set up the split first, then import it from Group settings.",
+          );
+        }
+        importOwnProfile(text);
+      } else {
+        importSnapshot(text);
+      }
+    })
+    .then(
+      () => undefined,
+      (e: unknown) => (e instanceof Error ? e.message : "Import failed"),
+    );
 }
 
 function textValue(e: Event): string {
@@ -115,54 +154,82 @@ export function FirstRunSetup({ open }: { open: boolean }) {
   const [currency, setCurrency] = useState(suggested ?? settings.groupCurrency);
   const [title, setTitle] = useState("");
   const hintId = useId();
+  const [importError, setImportError] = useState<string | undefined>(undefined);
 
   return (
     <SubPage open={open} title="Set up this split">
-      <p>
-        Two things before you start. You can change both later: tap the group
-        name at the top.
-      </p>
+      <div className="setup-page">
+        <div>
+          <p>
+            Two things before you start. You can change both later: tap the
+            group name at the top.
+          </p>
 
-      <CurrencyField
-        value={currency}
-        onChange={setCurrency}
-        hint={
-          (suggested === currency
-            ? `Picked from your device's language${
-                currencyName(currency) ? ` (${currencyName(currency)})` : ""
-              }. `
-            : "") +
-          "Every expense and every balance in this chat is in this currency — Halvsies never converts, so pick the one you will actually pay in."
-        }
-      />
-
-      <div className="field">
-        <label>
-          <span className="field-label">Group name (optional)</span>
-          <input
-            type="text"
-            placeholder="Halvsies"
-            aria-describedby={hintId}
-            value={title}
-            onInput={(e) => setTitle(textValue(e))}
+          <CurrencyField
+            value={currency}
+            onChange={setCurrency}
+            hint={
+              (suggested === currency
+                ? `Picked from your device's language${
+                    currencyName(currency) ? ` (${currencyName(currency)})` : ""
+                  }. `
+                : "") +
+              "Every expense and every balance in this chat is in this currency — Halvsies never converts, so pick the one you will actually pay in."
+            }
           />
-        </label>
-        <NameHint title={title.trim()} id={hintId} />
-      </div>
 
-      {/* No validity gate: every value comes from the picker, so there is no
+          <div className="field">
+            <label>
+              <span className="field-label">Group name (optional)</span>
+              <input
+                type="text"
+                placeholder="Halvsies"
+                aria-describedby={hintId}
+                value={title}
+                onInput={(e) => setTitle(textValue(e))}
+              />
+            </label>
+            <NameHint title={title.trim()} id={hintId} />
+          </div>
+
+          {/* No validity gate: every value comes from the picker, so there is no
           way to reach an unparseable code here. setSettings() still refuses
           one — that guard is for what a peer syncs, not for this form. */}
-      <TapButton
-        className="btn btn-primary"
-        onActivate={() => {
-          // One write, both keys: `title` is what marks this group configured,
-          // so it must land in the same transaction as the currency.
-          setSettings({ groupCurrency: currency, title: title.trim() });
-        }}
-      >
-        {title.trim() ? "Start splitting" : "Start without a name"}
-      </TapButton>
+          <TapButton
+            className="btn btn-primary"
+            onActivate={() => {
+              // One write, both keys: `title` is what marks this group configured,
+              // so it must land in the same transaction as the currency.
+              setSettings({ groupCurrency: currency, title: title.trim() });
+            }}
+          >
+            {title.trim() ? "Start splitting" : "Start without a name"}
+          </TapButton>
+        </div>
+        {/* An import writes the settings too, which ends this screen. */}
+        {canImportFiles && (
+          <div className="setup-foot">
+            <p className="fine">
+              Moving an existing split over? Import its Halvsies backup instead
+              — then everyone taps “That's me” on their old self.
+            </p>
+            <TapButton
+              className="btn btn-secondary"
+              onActivate={() => {
+                setImportError(undefined);
+                void pickAndImport(true).then(setImportError);
+              }}
+            >
+              Import a backup instead
+            </TapButton>
+            {importError && (
+              <p role="alert" className="money-negative">
+                {importError}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </SubPage>
   );
 }
@@ -210,38 +277,11 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
   const [showMembers, setShowMembers] = useState(false);
   const [importError, setImportError] = useState<string | undefined>(undefined);
 
-  const hasOwnDetails = Object.values(profile ?? {}).some(
-    (v) => v !== undefined && (!Array.isArray(v) || v.length > 0),
-  );
+  const hasOwnDetails = hasPaymentDetails(profile);
 
   function handleImport(): void {
     setImportError(undefined);
-    window.webxdc
-      ?.importFiles({ extensions: [".json"], mimeTypes: ["application/json"] })
-      .then(async (files) => {
-        const file = files[0];
-        if (!file) return; // user cancelled
-        const text = await file.text();
-        // One picker, two exports: a payment-details file has a top-level
-        // "profile" key, a full backup never does — so the shape decides,
-        // not the file name (which the user may have renamed).
-        let raw: unknown = undefined;
-        try {
-          raw = JSON.parse(text);
-        } catch {
-          throw new Error("Import failed: the file is not valid JSON");
-        }
-        // Both parsers throw a human-readable Error on anything malformed;
-        // surface it rather than leaving the user staring at an inert button.
-        if (typeof raw === "object" && raw !== null && "profile" in raw) {
-          importOwnProfile(text);
-        } else {
-          importSnapshot(text);
-        }
-      })
-      .catch((e: unknown) => {
-        setImportError(e instanceof Error ? e.message : "Import failed");
-      });
+    void pickAndImport().then(setImportError);
   }
 
   return (
@@ -270,7 +310,7 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
         <SettingRow
           icon="users"
           name={`Members (${memberCount})`}
-          detail="Add someone who doesn't use this app, rename or remove"
+          detail="Add someone who doesn't use this app, rename, remove, or merge into you"
           onActivate={() => setShowMembers(true)}
         />
       </div>
@@ -302,7 +342,7 @@ export function GroupSettings({ open, onClose }: GroupSettingsProps) {
           {canImportFiles && (
             <SettingRow
               icon="folder-open"
-              name="Restore from file"
+              name="Import from file"
               detail="A full backup replaces this group's ledger; a payment-details file only fills in yours"
               danger
               onActivate={handleImport}

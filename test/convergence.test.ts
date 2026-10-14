@@ -479,7 +479,10 @@ describe("snapshots", () => {
     b.importSnapshot(a.exportSnapshot());
 
     expect(b.getSettings()).toEqual(a.getSettings());
-    expect(b.listMembers()).toEqual(a.listMembers());
+    // b is nobody's instance, so every imported member is up for claiming.
+    expect(b.listMembers()).toEqual(
+      a.listMembers().map((m) => ({ ...m, isVirtual: true })),
+    );
     expect(b.listExpenses()).toEqual(a.listExpenses());
     expect(b.listSettlements()).toEqual(a.listSettlements());
     expect(b.getProfile("a@x.de")).toEqual(a.getProfile("a@x.de"));
